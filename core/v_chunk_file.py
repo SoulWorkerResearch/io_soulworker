@@ -1,4 +1,4 @@
-from .v_chunk_tag import VChunkTag
+from io_soulworker.core.v_chunk_tag import VChunkTag
 from os import sep
 from io import BufferedReader, SEEK_SET
 from struct import unpack
