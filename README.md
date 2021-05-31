@@ -10,8 +10,8 @@
 - File -> Import -> SoulWorker (.model).
   sddasd
 
-#### Features 😏
+## Features 😏
 
-[x] Mesh 👾
-[ ] Skelet 👻
-[ ] Material 🤡
+- [x] 👾 Mesh
+- [ ] 👻 Skelet
+- [ ] 🤡 Material
