@@ -8,3 +8,10 @@
 - Typo in search "soulworker";
 - Mark result;
 - File -> Import -> SoulWorker (.model).
+  sddasd
+
+#### Features 😏
+
+[x] Mesh 👾
+[ ] Skelet 👻
+[ ] Material 🤡
