@@ -1,13 +1,14 @@
 from io_soulworker.core.v_chunk_tag import VChunkTag
 from os import sep
 from io import BufferedReader, SEEK_SET
+from pathlib import Path
 from struct import unpack
 from xml.dom.minidom import parse
 
 
 class VChunkFile(object):
     def __init__(self, path: str) -> None:
-        self.path = path
+        self.path = Path(path)
         self.xml = parse(path + '_data' + sep + 'materials.xml')
 
     def on_chunk_start(self, chunk: int, model: BufferedReader) -> None:
