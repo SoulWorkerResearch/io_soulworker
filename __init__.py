@@ -4,7 +4,10 @@ from logging import basicConfig, DEBUG
 from io_soulworker.sw_import.model import ImportModelHelper
 
 
-basicConfig(level=DEBUG)
+basicConfig(
+    level=DEBUG,
+    format="[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+)
 
 
 bl_info = {
