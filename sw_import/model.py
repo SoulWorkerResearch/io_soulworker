@@ -1,25 +1,42 @@
 import bpy
 
-from bpy.props import CollectionProperty, StringProperty
-from bpy.types import Context, Material, Mesh, Object, Operator, PropertyGroup, ShaderNodeTexImage
+from bpy.props import CollectionProperty
+from bpy.props import StringProperty
+from bpy.types import Context
+from bpy.types import Material
+from bpy.types import Mesh
+from bpy.types import Object
+from bpy.types import Operator
+from bpy.types import PropertyGroup
+from bpy.types import ShaderNodeTexImage
 from bpy_extras.io_utils import ImportHelper
 
+from io_soulworker.core.v_texture_type import VTextureType
+from io_soulworker.core.v_material import VMaterial
 from io_soulworker.core.v_chunk_tag import VChunkTag
 from io_soulworker.core.v_chunk_id import VChunkId
 from io_soulworker.core.v_chunk_file import VChunkFile
 from io_soulworker.core.utility import indices_to_face
+from io_soulworker.core.utility import parse_materials
 
 from enum import Enum
 from pathlib import Path
 from struct import unpack
 from logging import debug
-from posixpath import normpath
-from io import BufferedReader, SEEK_CUR
+from logging import error
+from logging import warn
+from io import BufferedReader
+from io import SEEK_CUR
 
 
-class ImportModelHelper(Operator, ImportHelper):
+class ImportModelRunner(Operator, ImportHelper):
     bl_idname = "import_model.helper"
     bl_label = "Select"
+
+    datas: StringProperty(
+        name="Unpacked datas",
+        subtype='FILE_PATH',
+    )
 
     # selected files
     files: CollectionProperty(type=PropertyGroup)
@@ -32,24 +49,19 @@ class ImportModelHelper(Operator, ImportHelper):
         for file in self.files:
             path: Path = root.parent / file.name
 
-            if (not path.is_file() or path.suffix == '.model'):
+            if not path.is_file() or path.suffix == '.model':
                 importer = ImportModel(path, context)
                 importer.run()
             else:
-                debug("bad path, skipped: %s", path)
+                error("bad path, skipped: %s", path)
 
         return {'FINISHED'}
-
-
-class VTextureType(Enum):
-    BASE_COLOR = "Base Color"
-    SPECULAR = "Specular"
-    NORMAL = "Normal"
 
 
 class ImportModel(VChunkFile):
     mesh: Mesh = None
     object: Object = None
+    materials: dict[str, VMaterial]
 
     def __init__(self, path: Path, context: Context) -> None:
         super(ImportModel, self).__init__(path)
@@ -63,27 +75,45 @@ class ImportModel(VChunkFile):
         # create object
         self.obj = bpy.data.objects.new(self.path.name, self.mesh)
 
-    def updateMaterial(self, model: BufferedReader, material: Material, type: VTextureType):
+        # path to data folder
+        material_folder = (self.path.with_suffix(self.path.suffix + "_data"))
+
+        # path to material.xml file
+        material_path = material_folder / "materials.xml"
+
+        self.materials = parse_materials(material_path)
+
+    def updateMaterial(self, model: BufferedReader, material: Material, token: str, type: VTextureType):
         path_length, = unpack("<i", model.read(4))
-        if (path_length > 0):
-            path, = unpack("<%ss" % path_length, model.read(path_length))
+        assert path_length != 0
 
-            node_tree = material.node_tree
-            nodes = node_tree.nodes
+        path, = unpack("<%ss" % path_length, model.read(path_length))
+        debug("useless path: %s", path)
 
-            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
+        node_tree = material.node_tree
+        nodes = node_tree.nodes
 
-            path = normpath(self.path.parent / path.decode('ASCII'))
-            texture_node.image = bpy.data.images.load(path)
+        raw_material: VMaterial = self.materials.get(token)
 
-            input = nodes.get("Principled BSDF").inputs.get(type.value)
-            output = texture_node.outputs.get('Color')
+        if raw_material == None:
+            error("MATERIAL NOT FOUND %s", token)
+            return
 
-            node_tree.links.new(input, output)
+        path: Path = self.path.parent / raw_material.diffuse
 
-            debug("%s: %s", type.value, path)
-        else:
-            debug("UNUSED %s", type.value)
+        if not path.exists():
+            error("FILE NOT FOUND %s", path)
+            return
+
+        texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
+        texture_node.image = bpy.data.images.load(path.as_posix())
+
+        input = nodes.get("Principled BSDF").inputs.get(type.value)
+        output = texture_node.outputs.get('Color')
+
+        node_tree.links.new(input, output)
+
+        debug("LOADED %s: %s", type.value, path)
 
     def on_chunk_start(self, chunk: int, model: BufferedReader) -> None:
         if chunk == VChunkId.MTRS:
@@ -99,23 +129,31 @@ class ImportModel(VChunkFile):
                 u3, = unpack("<H", model.read(2))
 
                 mat_length, = unpack("<i", model.read(4))
-                mat_name, = unpack("<%ss" % mat_length, model.read(mat_length))
+                mat_name = unpack(
+                    "<%ss" % mat_length,
+                    model.read(mat_length))[0].decode('ASCII')
 
-                mat_name_full = mat_name.decode('ASCII') + "_" + self.path.stem
+                # mat_name_full = mat_name.decode('ASCII') + "_" + self.path.stem
 
-                material = bpy.data.materials.new(mat_name_full)
+                # material = bpy.data.materials.new(mat_name_full)
+                material = bpy.data.materials.new(mat_name)
                 self.mesh.materials.append(material)
 
                 debug("mat_name: %s", mat_name)
-                debug("mat_name_full: %s", mat_name_full)
+                # debug("mat_name_full: %s", mat_name_full)
 
                 material.use_nodes = True
 
                 model.seek(30, SEEK_CUR)
 
-                self.updateMaterial(model, material, VTextureType.BASE_COLOR)
-                self.updateMaterial(model, material, VTextureType.SPECULAR)
-                self.updateMaterial(model, material, VTextureType.NORMAL)
+                self.updateMaterial(model, material, mat_name,
+                                    VTextureType.BASE_COLOR)
+
+                specularLength, = unpack("<i", model.read(4))
+                assert specularLength == 0
+
+                normalLength, = unpack("<i", model.read(4))
+                assert normalLength == 0
 
                 u4, = unpack("<i", model.read(4))
 

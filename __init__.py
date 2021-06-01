@@ -1,7 +1,7 @@
 import bpy
 
 from logging import basicConfig, DEBUG
-from io_soulworker.sw_import.model import ImportModelHelper
+from io_soulworker.sw_import.model import ImportModelRunner
 
 
 basicConfig(
@@ -23,13 +23,13 @@ bl_info = {
 
 
 classes = {
-    ImportModelHelper
+    ImportModelRunner
 }
 
 
 def menu_func_import(self, context):
     self.layout.operator(
-        ImportModelHelper.bl_idname,
+        ImportModelRunner.bl_idname,
         text="SoulWorker (.model)"
     )
 
