@@ -57,7 +57,7 @@ class ImportModel(VChunkFile):
         # save context
         self.context = context
 
-        # create emesh
+        # create mesh
         self.mesh: Mesh = bpy.data.meshes.new(self.path.name + "_mesh")
 
         # create object
