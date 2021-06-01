@@ -1,6 +1,7 @@
 import bpy
+from bpy import context
 
-from bpy.types import Context, Material, Mesh, Object, Operator, ShaderNodeTexImage
+from bpy.types import Context, Material, Mesh, MeshFaceMap, MeshFaceMapLayer, MeshVertex, Object, Operator, ShaderNodeTexImage
 from bpy_extras.io_utils import ImportHelper
 
 from io_soulworker.core.v_chunk_tag import VChunkTag
@@ -165,7 +166,7 @@ class ImportModel(VChunkFile):
             model.seek(tell + 108)
 
             vertices = []
-            uv = []
+            uv_list = []
             for _ in range(vertex_count):
                 t = model.tell()
                 vx, vy, vz = unpack("<fff", model.read(12))
@@ -173,7 +174,7 @@ class ImportModel(VChunkFile):
 
                 model.seek(t + v[16])
                 tu, tv = unpack("<ff", model.read(8))
-                uv.append([tu, tv])
+                uv_list.append([tu, tv])
 
                 model.seek(t + v[8])
 
@@ -183,6 +184,18 @@ class ImportModel(VChunkFile):
 
             # fill vertices, edges and faces from file
             self.mesh.from_pydata(vertices, [], faces)
+
+            uv_layer = self.mesh.uv_layers.new()
+            for face in self.mesh.polygons:
+                for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
+                    uv_layer.data[loop_idx].uv = [
+                        uv_list[vert_idx][0],
+
+                        # flip V
+                        1 - uv_list[vert_idx][1]
+                    ]
+
+            self.mesh.uv_layers.active = uv_layer
 
             # recalc normals
             self.mesh.calc_normals()
