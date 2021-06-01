@@ -203,7 +203,7 @@ class ImportModel(VChunkFile):
                         uv_list[vert_idx][0],
 
                         # flip V
-                        1 - uv_list[vert_idx][1]
+                        -uv_list[vert_idx][1]
                     ]
 
             self.mesh.uv_layers.active = uv_layer
