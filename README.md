@@ -12,13 +12,15 @@
 
 ## Features 😏
 
-- ##### Import
+- ##### Import 🚚
 
   - [x] 👾 Mesh
   - [ ] 👻 Skelet
   - [ ] 🤡 Material
+  - [ ] 💃 Animation
 
-- ##### Export
+- ##### Export ⛟
   - [ ] 👾 Mesh
   - [ ] 👻 Skelet
   - [ ] 🤡 Material
+  - [ ] 💃 Animation
