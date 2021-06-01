@@ -5,7 +5,6 @@ from bpy.props import StringProperty
 from bpy.types import Context
 from bpy.types import Material
 from bpy.types import Mesh
-from bpy.types import Object
 from bpy.types import Operator
 from bpy.types import PropertyGroup
 from bpy.types import ShaderNodeTexImage
@@ -49,31 +48,31 @@ class ImportModelRunner(Operator, ImportHelper):
         for file in self.files:
             path: Path = root.parent / file.name
 
-            if not path.is_file() or path.suffix == '.model':
-                importer = ImportModel(path, context)
-                importer.run()
-            else:
+            if not path.is_file() or path.suffix != '.model':
                 error("bad path, skipped: %s", path)
+                continue
+
+            importer = ImportModel(path, context)
+            importer.run()
 
         return {'FINISHED'}
 
 
 class ImportModel(VChunkFile):
-    mesh: Mesh = None
-    object: Object = None
     materials: dict[str, VMaterial]
+    materialsRef: dict[int, Material]
+    vertices: list[list[float]]
+    uv_list: list[list[float]]
 
     def __init__(self, path: Path, context: Context) -> None:
         super(ImportModel, self).__init__(path)
 
+        self.materialsRef = dict()
+        self.vertices = []
+        self.uv_list = []
+
         # save context
         self.context = context
-
-        # create mesh
-        self.mesh: Mesh = bpy.data.meshes.new(self.path.name + "_mesh")
-
-        # create object
-        self.obj = bpy.data.objects.new(self.path.name, self.mesh)
 
         # path to data folder
         material_folder = (self.path.with_suffix(self.path.suffix + "_data"))
@@ -119,7 +118,7 @@ class ImportModel(VChunkFile):
         if chunk == VChunkId.MTRS:
             count, = unpack("<i", model.read(4))
 
-            for _ in range(count):
+            for material_id in range(count):
                 u1 = unpack("<i", model.read(4))
 
                 chunk_name, = unpack("<I", model.read(4))
@@ -131,23 +130,24 @@ class ImportModel(VChunkFile):
                 mat_length, = unpack("<i", model.read(4))
                 mat_name = unpack(
                     "<%ss" % mat_length,
-                    model.read(mat_length))[0].decode('ASCII')
+                    model.read(mat_length)
+                )[0].decode('ASCII')
 
-                # mat_name_full = mat_name.decode('ASCII') + "_" + self.path.stem
-
-                # material = bpy.data.materials.new(mat_name_full)
                 material = bpy.data.materials.new(mat_name)
-                self.mesh.materials.append(material)
+                self.materialsRef[material_id] = material
 
                 debug("mat_name: %s", mat_name)
-                # debug("mat_name_full: %s", mat_name_full)
 
                 material.use_nodes = True
 
                 model.seek(30, SEEK_CUR)
 
-                self.updateMaterial(model, material, mat_name,
-                                    VTextureType.BASE_COLOR)
+                self.updateMaterial(
+                    model,
+                    material,
+                    mat_name,
+                    VTextureType.BASE_COLOR
+                )
 
                 specularLength, = unpack("<i", model.read(4))
                 assert specularLength == 0
@@ -214,45 +214,22 @@ class ImportModel(VChunkFile):
 
             model.seek(tell + 108)
 
-            vertices = []
-            uv_list = []
             for _ in range(vertex_count):
                 t = model.tell()
                 vx, vy, vz = unpack("<fff", model.read(12))
-                vertices.append([vx, vy, vz])
+                self.vertices.append([vx, vy, vz])
 
                 model.seek(t + v[16])
                 tu, tv = unpack("<ff", model.read(8))
-                uv_list.append([tu, tv])
+                self.uv_list.append([tu, tv])
 
                 model.seek(t + v[8])
 
+            # soulworker uses triangles
             count = faces_count * 3
+
+            # count * 2 = sizeof(ushort) * count
             self.indices = unpack(f"<{count}H", model.read(count * 2))
-            faces = list(indices_to_face(self.indices))
-
-            # fill vertices, edges and faces from file
-            self.mesh.from_pydata(vertices, [], faces)
-
-            uv_layer = self.mesh.uv_layers.new()
-            for face in self.mesh.polygons:
-                for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
-                    uv_layer.data[loop_idx].uv = [
-                        uv_list[vert_idx][0],
-
-                        # flip V
-                        -uv_list[vert_idx][1]
-                    ]
-
-            self.mesh.uv_layers.active = uv_layer
-
-            # recalc normals
-            self.mesh.calc_normals()
-
-            # push changes
-            self.mesh.update()
-
-            self.context.collection.objects.link(self.obj)
 
         elif chunk == VChunkId.SKEL:
             pass
@@ -278,12 +255,43 @@ class ImportModel(VChunkFile):
 
                 material_id, u17 = unpack("<ii", model.read(4 * 2))
 
-                material_name = self.mesh.materials[material_id].name_full
-                vertex_group = self.obj.vertex_groups.new(name=material_name)
-
-                indices = self.indices[indices_start:indices_start + indices_count]
-                vertex_group.add(indices, 1, 'REPLACE')
-
                 debug("material_id: %d", material_id)
                 debug("indices_start: %d", indices_start)
                 debug("indices_count: %d", indices_count)
+
+                indices = self.indices[indices_start: indices_start + indices_count]
+                faces = list(indices_to_face(indices))
+
+                material = self.materialsRef[material_id]
+
+                mesh_name = self.path.name + material.name + "_mesh"
+
+                # create mesh
+                mesh: Mesh = bpy.data.meshes.new(mesh_name)
+
+                mesh.from_pydata(self.vertices, [], faces)
+
+                # assign material to mesh
+                mesh.materials.append(material)
+
+                uv_layer = mesh.uv_layers.new()
+                for face in mesh.polygons:
+                    for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
+                        uv_layer.data[loop_idx].uv = [
+                            self.uv_list[vert_idx][0],
+
+                            # flip V
+                            -self.uv_list[vert_idx][1]
+                        ]
+
+                # recalc normals
+                mesh.calc_normals()
+
+                # push changes
+                mesh.update()
+
+                object_name = self.path.stem + material.name
+
+                object = bpy.data.objects.new(object_name, mesh)
+
+                self.context.collection.objects.link(object)
