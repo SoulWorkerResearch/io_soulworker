@@ -1,7 +1,6 @@
-from posixpath import normpath
 import bpy
 
-from bpy.types import Context, Operator, ShaderNodeTexImage
+from bpy.types import Context, Material, Mesh, Object, Operator, ShaderNodeTexImage
 from bpy_extras.io_utils import ImportHelper
 
 from io_soulworker.core.v_chunk_tag import VChunkTag
@@ -9,11 +8,11 @@ from io_soulworker.core.v_chunk_id import VChunkId
 from io_soulworker.core.v_chunk_file import VChunkFile
 from io_soulworker.core.utility import indices_to_face
 
-from pathlib import Path
+from enum import Enum
 from struct import unpack
 from logging import debug
 from xml.dom import minidom
-from os.path import basename, splitext, join
+from posixpath import normpath
 from io import BufferedReader, SEEK_CUR
 
 
@@ -22,7 +21,7 @@ class ImportModelHelper(Operator, ImportHelper):
     bl_label = "Select"
 
     def execute(self, context: Context):
-        context.scene.render.engine = 'CYCLES'
+        context.scene.render.engine = 'BLENDER_EEVEE'
 
         importer = ImportModel(self.properties.filepath, context)
         importer.run()
@@ -30,19 +29,51 @@ class ImportModelHelper(Operator, ImportHelper):
         return {'FINISHED'}
 
 
+class VTextureType(Enum):
+    BASE_COLOR = "Base Color"
+    SPECULAR = "Specular"
+    NORMAL = "Normal"
+
+
 class ImportModel(VChunkFile):
+    mesh: Mesh = None
+    object: Object = None
+
     def __init__(self, path: str, context: Context) -> None:
         super(ImportModel, self).__init__(path)
+
+        # save context
         self.context = context
-        self.mesh = bpy.data.meshes.new(self.path.name + "_mesh")
+
+        # create emesh
+        self.mesh: Mesh = bpy.data.meshes.new(self.path.name + "_mesh")
+
+        # create object
+        self.obj = bpy.data.objects.new(self.path.name, self.mesh)
+
+    def updateMaterial(self, model: BufferedReader, material: Material, type: VTextureType):
+        path_length, = unpack("<i", model.read(4))
+        if (path_length > 0):
+            path, = unpack("<%ss" % path_length, model.read(path_length))
+
+            node_tree = material.node_tree
+            nodes = node_tree.nodes
+
+            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
+
+            path = normpath(self.path.parent / path.decode('ASCII'))
+            texture_node.image = bpy.data.images.load(path)
+
+            input = nodes.get("Principled BSDF").inputs.get(type.value)
+            output = texture_node.outputs.get('Color')
+
+            node_tree.links.new(input, output)
+
+            debug("%s: %s", type.value, path)
+        else:
+            debug("UNUSED %s", type.value)
 
     def on_chunk_start(self, chunk: int, model: BufferedReader) -> None:
-        vertices = []
-        edges = []
-        faces = []
-        materials = []
-
-        # print(x)
         if chunk == VChunkId.MTRS:
             count, = unpack("<i", model.read(4))
 
@@ -56,12 +87,9 @@ class ImportModel(VChunkFile):
                 u3, = unpack("<H", model.read(2))
 
                 mat_length, = unpack("<i", model.read(4))
-                mat_name, = unpack(
-                    "<%ss" % mat_length,
-                    model.read(mat_length)
-                )
+                mat_name, = unpack("<%ss" % mat_length, model.read(mat_length))
 
-                mat_name_full = mat_name.decode('ASCII') + "_" + self.path.name
+                mat_name_full = mat_name.decode('ASCII') + "_" + self.path.stem
 
                 material = bpy.data.materials.new(mat_name_full)
                 self.mesh.materials.append(material)
@@ -73,43 +101,9 @@ class ImportModel(VChunkFile):
 
                 model.seek(30, SEEK_CUR)
 
-                diffuse_length, = unpack("<i", model.read(4))
-                diffuse_path, = unpack(
-                    "<%ss" % diffuse_length,
-                    model.read(diffuse_length)
-                )
-
-                shader_name = "ShaderNodeTexImage"
-                diffuse_texture: ShaderNodeTexImage = material.node_tree.nodes.new(
-                    shader_name
-                )
-
-                diffuse_texture.image = bpy.data.images.load(
-                    normpath(self.path.parent / diffuse_path.decode('ASCII'))
-                )
-
-                material.node_tree.links.new(
-                    material.node_tree.nodes["Principled BSDF"].inputs['Base Color'],
-                    diffuse_texture.outputs['Color']
-                )
-
-                debug("diffuse_path: %s", diffuse_path)
-
-                specular_length, = unpack("<i", model.read(4))
-                specular_name, = unpack(
-                    "<%ss" % specular_length,
-                    model.read(specular_length)
-                )
-
-                debug("specular_name: %s", specular_name)
-
-                normal_length, = unpack("<i", model.read(4))
-                normal_name, = unpack(
-                    "<%ss" % normal_length,
-                    model.read(normal_length)
-                )
-
-                debug("normal_name: %s", normal_name)
+                self.updateMaterial(model, material, VTextureType.BASE_COLOR)
+                self.updateMaterial(model, material, VTextureType.SPECULAR)
+                self.updateMaterial(model, material, VTextureType.NORMAL)
 
                 u4, = unpack("<i", model.read(4))
 
@@ -170,6 +164,8 @@ class ImportModel(VChunkFile):
 
             model.seek(tell + 108)
 
+            vertices = []
+            uv = []
             for _ in range(vertex_count):
                 t = model.tell()
                 vx, vy, vz = unpack("<fff", model.read(12))
@@ -177,27 +173,38 @@ class ImportModel(VChunkFile):
 
                 model.seek(t + v[16])
                 tu, tv = unpack("<ff", model.read(8))
+                uv.append([tu, tv])
 
                 model.seek(t + v[8])
 
             count = faces_count * 3
-            indices = unpack(f"<{count}H", model.read(count * 2))
-            faces = list(indices_to_face(indices))
+            self.indices = unpack(f"<{count}H", model.read(count * 2))
+            faces = list(indices_to_face(self.indices))
 
-            self.mesh.from_pydata(vertices, edges, faces)
+            # fill vertices, edges and faces from file
+            self.mesh.from_pydata(vertices, [], faces)
+
+            # recalc normals
             self.mesh.calc_normals()
+
+            # push changes
             self.mesh.update()
 
-            obj = bpy.data.objects.new(self.path.name, self.mesh)
-            self.context.collection.objects.link(obj)
+            self.context.collection.objects.link(self.obj)
 
         elif chunk == VChunkId.SKEL:
+            pass
+
+        elif chunk == VChunkId.WGHT:
+            pass
+
+        elif chunk == VChunkId.SUBM:
             u1, u2, u3 = unpack("<iii", model.read(4 * 3))
 
-            count,  = unpack("<i", model.read(4))
+            count, = unpack("<i", model.read(4))
 
-            for m in range(count):
-                id_start, id_count, u6, u7, u8, u9, u10, u10 = unpack(
+            for _ in range(count):
+                indices_start, indices_count, u6, u7, u8, u9, u10, u10 = unpack(
                     "<iiiiiiii",
                     model.read(4 * 8)
                 )
@@ -207,12 +214,14 @@ class ImportModel(VChunkFile):
                     model.read(4 * 6)
                 )
 
-                materialId, count = unpack("<ii", model.read(4 * 2))
+                material_id, u17 = unpack("<ii", model.read(4 * 2))
 
-            pass
+                material_name = self.mesh.materials[material_id].name_full
+                vertex_group = self.obj.vertex_groups.new(name=material_name)
 
-        elif chunk == VChunkId.WGHT:
-            pass
+                indices = self.indices[indices_start:indices_start + indices_count]
+                vertex_group.add(indices, 1, 'REPLACE')
 
-        elif chunk == VChunkId.SUBM:
-            pass
+                debug("material_id: %d", material_id)
+                debug("indices_start: %d", indices_start)
+                debug("indices_count: %d", indices_count)
