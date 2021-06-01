@@ -3,13 +3,11 @@ from os import sep
 from io import BufferedReader, SEEK_SET
 from pathlib import Path
 from struct import unpack
-from xml.dom.minidom import parse
 
 
 class VChunkFile(object):
-    def __init__(self, path: str) -> None:
-        self.path = Path(path)
-        self.xml = parse(path + '_data' + sep + 'materials.xml')
+    def __init__(self, path: Path) -> None:
+        self.path = path
 
     def on_chunk_start(self, chunk: int, model: BufferedReader) -> None:
         pass

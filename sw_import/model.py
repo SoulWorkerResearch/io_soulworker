@@ -1,7 +1,7 @@
 import bpy
-from bpy import context
 
-from bpy.types import Context, Material, Mesh, MeshFaceMap, MeshFaceMapLayer, MeshVertex, Object, Operator, ShaderNodeTexImage
+from bpy.props import CollectionProperty, StringProperty
+from bpy.types import Context, Material, Mesh, Object, Operator, PropertyGroup, ShaderNodeTexImage
 from bpy_extras.io_utils import ImportHelper
 
 from io_soulworker.core.v_chunk_tag import VChunkTag
@@ -10,9 +10,9 @@ from io_soulworker.core.v_chunk_file import VChunkFile
 from io_soulworker.core.utility import indices_to_face
 
 from enum import Enum
+from pathlib import Path
 from struct import unpack
 from logging import debug
-from xml.dom import minidom
 from posixpath import normpath
 from io import BufferedReader, SEEK_CUR
 
@@ -21,11 +21,22 @@ class ImportModelHelper(Operator, ImportHelper):
     bl_idname = "import_model.helper"
     bl_label = "Select"
 
+    # selected files
+    files: CollectionProperty(type=PropertyGroup)
+
     def execute(self, context: Context):
         context.scene.render.engine = 'BLENDER_EEVEE'
 
-        importer = ImportModel(self.properties.filepath, context)
-        importer.run()
+        root = Path(self.properties.filepath)
+
+        for file in self.files:
+            path: Path = root.parent / file.name
+
+            if (not path.is_file() or path.suffix == '.model'):
+                importer = ImportModel(path, context)
+                importer.run()
+            else:
+                debug("bad path, skipped: %s", path)
 
         return {'FINISHED'}
 
@@ -40,7 +51,7 @@ class ImportModel(VChunkFile):
     mesh: Mesh = None
     object: Object = None
 
-    def __init__(self, path: str, context: Context) -> None:
+    def __init__(self, path: Path, context: Context) -> None:
         super(ImportModel, self).__init__(path)
 
         # save context
