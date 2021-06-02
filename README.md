@@ -20,25 +20,25 @@
 
 #### 🚚 Import
 
-- [x] 👾 Mesh
-- [ ] 👻 Skelet
-- [x] 🤡 Material
-- [ ] 💃 Animation
+- [x] Mesh
+- [ ] Skelet
+- [x] Material
+- [ ] Animation
 
-#### ⛟ Export
+#### 🚛 Export
 
-- [ ] 👾 Mesh
-- [ ] 👻 Skelet
-- [ ] 🤡 Material
-- [ ] 💃 Animation
+- [ ] Mesh
+- [ ] Skelet
+- [ ] Material
+- [ ] Animation
 
-#### I think these are good bloom settings for glow 🔮 textures
+#### 🔮 I think these are good bloom settings for glow textures
 
 | Threshold | Knee  | Radius |  Color  | Intensity | Clamp | Threshold |
 | :-------: | :---: | :----: | :-----: | :-------: | :---: | :-------: |
 |   0.008   | 0.300 |  3.00  | #ffffff |   0.450   |  1.0  |   0.008   |
 
-# IMPORTANT ⚠️
+# ⚠️ IMPORTANT
 
 Some models use materials that are not in the root folder.\
-Please unpack the game resources keeping the original structure.
+Please unpack the game resources **keeping the original structure**.
