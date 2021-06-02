@@ -2,7 +2,14 @@ import bpy
 
 from bpy.props import CollectionProperty
 from bpy.props import StringProperty
-from bpy.types import Context, Object
+from bpy.props import BoolProperty
+from bpy.types import Context
+from bpy.types import LayerCollection
+from bpy.types import Collection
+from bpy.types import Object
+from bpy.types import ShaderNodeAddShader
+from bpy.types import ShaderNodeEmission
+from bpy.types import ShaderNodeOutputMaterial
 from bpy.types import Material
 from bpy.types import Mesh
 from bpy.types import Operator
@@ -20,7 +27,6 @@ from pathlib import Path
 from struct import unpack
 from logging import debug
 from logging import error
-from logging import warn
 from io import BufferedReader
 from io import SEEK_CUR
 
@@ -29,18 +35,51 @@ class ImportModelRunner(Operator, ImportHelper):
     bl_idname = "import_model.helper"
     bl_label = "Select"
 
-    datas: StringProperty(
-        name="Unpacked datas",
-        subtype="FILE_PATH",
+    is_create_collection: BoolProperty(
+        name="Create collection",
+        default=True,
     )
 
     # selected files
     files: CollectionProperty(type=PropertyGroup)
 
+    def get_layer_collection(self, layer_collection: LayerCollection, collection: Collection):
+        found = None
+
+        if (layer_collection.name == collection.name):
+            return layer_collection
+
+        for layer in layer_collection.children:
+            found = self.get_layer_collection(layer, collection)
+
+            if found:
+                return found
+
+    def create_collection(self, context: Context, name: str):
+        # collection for loaded object
+        collection = bpy.data.collections.new(name)
+
+        # link collection for user access
+        context.collection.children.link(collection)
+
+        view_layer = context.view_layer
+
+        # get layer of linked collection
+        layer_collection = view_layer.layer_collection
+
+        # set created collection as active collection
+        view_layer.active_layer_collection = self.get_layer_collection(
+            layer_collection,
+            collection
+        )
+
     def execute(self, context: Context):
         context.scene.render.engine = "BLENDER_EEVEE"
 
         root = Path(self.properties.filepath)
+
+        if self.is_create_collection:
+            self.create_collection(context, root.parent.name)
 
         for file in self.files:
             path: Path = root.parent / file.name
@@ -58,6 +97,7 @@ class ImportModelRunner(Operator, ImportHelper):
 class ImportModel(VChunkFile):
     mesh: Mesh = None
     object: Object = None
+    context: Context
     v_materials: dict[str, VMaterial]
 
     def __init__(self, path: Path, context: Context) -> None:
@@ -67,10 +107,10 @@ class ImportModel(VChunkFile):
         self.context = context
 
         # create mesh
-        self.mesh: Mesh = bpy.data.meshes.new(self.path.name + "_mesh")
+        self.mesh: Mesh = bpy.data.meshes.new(self.path.stem)
 
         # create object
-        self.object = bpy.data.objects.new(self.path.name, self.mesh)
+        self.object = bpy.data.objects.new(self.path.stem, self.mesh)
 
         # path to data folder
         material_folder = (self.path.with_suffix(self.path.suffix + "_data"))
@@ -139,6 +179,39 @@ class ImportModel(VChunkFile):
             if token == 'MOB_ALPHA':
                 material.blend_method = 'HASHED'
                 material.shadow_method = 'HASHED'
+            elif token == 'MOB_GLOW':
+                emission_node: ShaderNodeEmission = nodes.new(
+                    'ShaderNodeEmission'
+                )
+
+                emission_node.inputs.get('Strength').default_value = 3
+
+                node_tree.links.new(
+                    emission_node.inputs.get("Color"),
+                    texture_node.outputs.get("Color")
+                )
+
+                add_shader_node: ShaderNodeAddShader = nodes.new(
+                    'ShaderNodeAddShader'
+                )
+
+                node_tree.links.new(
+                    add_shader_node.inputs[0],
+                    pbsdf_node.outputs.get("BSDF")
+                )
+
+                node_tree.links.new(
+                    add_shader_node.inputs[1],
+                    emission_node.outputs.get("Emission")
+                )
+
+                material_output_node: ShaderNodeOutputMaterial = nodes.get(
+                    'Material Output')
+
+                node_tree.links.new(
+                    material_output_node.inputs.get("Surface"),
+                    add_shader_node.outputs.get("Shader")
+                )
 
             debug("LOADED: %s", path)
 
@@ -158,7 +231,7 @@ class ImportModel(VChunkFile):
                 "<%ss" % mat_length,
                 model.read(mat_length))[0].decode("ASCII")
 
-            material = bpy.data.materials.new(mat_name)
+            material = bpy.data.materials.new(self.mesh.name + "_" + mat_name)
             self.mesh.materials.append(material)
 
             debug("mat_name: %s", mat_name)
