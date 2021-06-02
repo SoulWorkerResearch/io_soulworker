@@ -13,8 +13,10 @@
 
 ## Features 😏
 
-- [x] Transparent
-- [x] Glow
+- ##### Misc 📄
+
+  - [x] Transparent
+  - [x] Glow
 
 - ##### Import 🚚
 
