@@ -25,3 +25,6 @@ class VMaterial:
     depthwrite: bool
     zbias: VVector3Int
     lightmapgran: int
+
+
+# https://youtu.be/egpdUR24ETM

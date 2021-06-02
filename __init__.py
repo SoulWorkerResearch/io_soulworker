@@ -46,3 +46,6 @@ def unregister():
 
     for c in classes:
         bpy.utils.unregister_class(c)
+
+
+# https://youtu.be/SdxsT40DaCg

@@ -1,3 +1,4 @@
+from logging import warn
 from typing import Tuple
 from xml.dom.minidom import Element, Node, parse
 from pathlib import Path
@@ -7,10 +8,10 @@ from struct import unpack
 from collections import abc
 
 
-def indices_to_face(values: abc, vertices_in_face: int = 3):
+def indices_to_face(indices: abc, vertices_per_face: int = 3):
     return map(
-        lambda id: values[id: id + vertices_in_face],
-        range(0, len(values), vertices_in_face)
+        lambda id: indices[id: id + vertices_per_face],
+        range(0, len(indices), vertices_per_face)
     )
 
 
@@ -20,6 +21,10 @@ def skip_string(file: BufferedReader):
 
 
 def parse_materials(path: Path) -> dict[str, VMaterial]:
+    if not path.exists():
+        warn("no materials.xml present")
+        return dict()
+
     xml: Element = parse(path.as_posix())
     xml.normalize()
 
@@ -34,3 +39,6 @@ def parse_materials(path: Path) -> dict[str, VMaterial]:
         return [m.name, m]
 
     return dict(map(process, (node for node in materials.childNodes if node.nodeType == Node.ELEMENT_NODE)))
+
+
+# https://youtu.be/2N4tXf3Ensw
