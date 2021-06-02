@@ -26,5 +26,5 @@
 
 # IMPORTANT
 
-Some models use materials that are not in the root folder.
+Some models use materials that are not in the root folder.\
 Please unpack the game resources keeping the original structure.
