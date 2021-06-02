@@ -112,37 +112,11 @@ class ImportObject(VChunkFile):
                 material.blend_method = "HASHED"
                 material.shadow_method = "HASHED"
             elif token == "MOB_GLOW":
-                emission_node: ShaderNodeEmission = nodes.new(
-                    "ShaderNodeEmission"
-                )
-
-                emission_node.inputs["Strength"].default_value = self.emission_strength
+                pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
 
                 node_tree.links.new(
-                    emission_node.inputs.get("Color"),
+                    pbsdf_node.inputs.get("Emission"),
                     texture_node.outputs.get("Color")
-                )
-
-                add_shader_node: ShaderNodeAddShader = nodes.new(
-                    "ShaderNodeAddShader"
-                )
-
-                node_tree.links.new(
-                    add_shader_node.inputs[0],
-                    emission_node.outputs.get("Emission")
-                )
-
-                node_tree.links.new(
-                    add_shader_node.inputs[1],
-                    pbsdf_node.outputs.get("BSDF")
-                )
-
-                material_output_node: ShaderNodeOutputMaterial = nodes.get(
-                    "Material Output")
-
-                node_tree.links.new(
-                    material_output_node.inputs.get("Surface"),
-                    add_shader_node.outputs.get("Shader")
                 )
 
             debug("LOADED: %s", path)
