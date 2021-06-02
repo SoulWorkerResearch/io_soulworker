@@ -14,7 +14,7 @@
 ## Features 😏
 
 - [x] Transparent
-- [ ] Glow
+- [x] Glow
 
 - ##### Import 🚚
 
