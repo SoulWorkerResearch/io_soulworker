@@ -197,12 +197,12 @@ class ImportModel(VChunkFile):
 
                 node_tree.links.new(
                     add_shader_node.inputs[0],
-                    pbsdf_node.outputs.get("BSDF")
+                    emission_node.outputs.get("Emission")
                 )
 
                 node_tree.links.new(
                     add_shader_node.inputs[1],
-                    emission_node.outputs.get("Emission")
+                    pbsdf_node.outputs.get("BSDF")
                 )
 
                 material_output_node: ShaderNodeOutputMaterial = nodes.get(
