@@ -34,9 +34,9 @@
 
 #### 🔮 I think these are good bloom settings for glow textures
 
-| Threshold | Knee  | Radius |  Color  | Intensity | Clamp | Threshold |
-| :-------: | :---: | :----: | :-----: | :-------: | :---: | :-------: |
-|   0.008   | 0.300 |  3.00  | #ffffff |   0.450   |  1.0  |   0.008   |
+| Threshold | Knee  | Radius |  Color  | Intensity | Clamp |
+| :-------: | :---: | :----: | :-----: | :-------: | :---: |
+|   0.008   | 0.300 |  3.00  | #ffffff |   0.450   |  1.0  |
 
 # ⚠️ IMPORTANT
 
