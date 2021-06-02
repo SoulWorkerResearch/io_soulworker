@@ -1,7 +1,11 @@
 import bpy
 
-from logging import basicConfig, DEBUG
-from io_soulworker.sw_import.model import ImportModelRunner
+from io_soulworker.sw_import.object_panel_default_values import ImportObjectPanelDefaultValues
+from io_soulworker.sw_import.object_panel_features import ImportObjectPanelFeatures
+from io_soulworker.sw_import.object_runner import ImportObjectRunner
+
+from logging import basicConfig
+from logging import DEBUG
 
 
 basicConfig(
@@ -23,20 +27,22 @@ bl_info = {
 
 
 classes = {
-    ImportModelRunner
+    ImportObjectPanelDefaultValues,
+    ImportObjectPanelFeatures,
+    ImportObjectRunner,
 }
 
 
-def menu_func_import(self, context):
+def menu_func_import(self: bpy.types.TOPBAR_MT_file_import, context):
     self.layout.operator(
-        ImportModelRunner.bl_idname,
+        ImportObjectRunner.bl_idname,
         text="SoulWorker (.model)"
     )
 
 
 def register():
-    for c in classes:
-        bpy.utils.register_class(c)
+    for cls in classes:
+        bpy.utils.register_class(cls)
 
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
@@ -44,8 +50,8 @@ def register():
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
-    for c in classes:
-        bpy.utils.unregister_class(c)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
 
 
 # https://youtu.be/SdxsT40DaCg

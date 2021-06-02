@@ -1,9 +1,12 @@
 from logging import warn
 from typing import Tuple
-from xml.dom.minidom import Element, Node, parse
+from xml.dom.minidom import Element
+from xml.dom.minidom import Node
+from xml.dom.minidom import parse
 from pathlib import Path
 from io_soulworker.core.v_material import VMaterial
-from io import BufferedReader, SEEK_CUR
+from io import BufferedReader
+from io import SEEK_CUR
 from struct import unpack
 from collections import abc
 

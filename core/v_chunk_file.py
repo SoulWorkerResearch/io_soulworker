@@ -1,6 +1,6 @@
 from io_soulworker.core.v_chunk_tag import VChunkTag
-from os import sep
-from io import BufferedReader, SEEK_SET
+from io import BufferedReader
+from io import SEEK_SET
 from pathlib import Path
 from struct import unpack
 
