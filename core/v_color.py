@@ -9,3 +9,6 @@ class VColor:
         self.g = g
         self.b = b
         self.a = a
+
+
+# https://youtu.be/NPoYb4mbiOg

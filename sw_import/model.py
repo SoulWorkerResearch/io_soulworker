@@ -206,7 +206,6 @@ class ImportModel(VChunkFile):
             u16, u17, u18, u19, = unpack("<iiii", model.read(4 * 4))
 
             u19, = unpack("<i", model.read(4))
-        pass
 
     def process_vmsh(self, chunk: int, model: BufferedReader):
         tell = model.tell()
@@ -263,7 +262,6 @@ class ImportModel(VChunkFile):
         self.mesh.update()
 
         self.context.collection.objects.link(self.object)
-        pass
 
     def process_skel(self, chunk: int, model: BufferedReader):
         pass
@@ -272,9 +270,26 @@ class ImportModel(VChunkFile):
         pass
 
     def process_subm(self, chunk: int, model: BufferedReader):
+        # TODO: i have no idea how this can be done without touching the interface.
+        # hope someone can help me with this.
+        def set_material(vertex_group_name: str, material_id: int):
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
+            bpy.ops.object.vertex_group_select()
+
+            self.object.active_material_index = material_id
+            bpy.ops.object.material_slot_assign()
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         u1, u2, u3 = unpack("<iii", model.read(4 * 3))
 
         count, = unpack("<i", model.read(4))
+
+        materials = self.mesh.materials
+        vertex_groups = self.object.vertex_groups
+
+        bpy.context.view_layer.objects.active = self.object
 
         for _ in range(count):
             indices_start, indices_count, u6, u7, u8, u9, u10, u10 = unpack(
@@ -289,12 +304,13 @@ class ImportModel(VChunkFile):
 
             material_id, u17 = unpack("<ii", model.read(4 * 2))
 
-            material_name = self.mesh.materials[material_id].name_full
-            vertex_group = self.object.vertex_groups.new(
-                name=material_name)
+            material_name = materials[material_id].name_full
+            vertex_group = vertex_groups.new(name=material_name)
 
             indices = self.indices[indices_start:indices_start + indices_count]
             vertex_group.add(indices, 1, 'REPLACE')
+
+            set_material(vertex_group.name, material_id)
 
             debug("material_id: %d", material_id)
             debug("indices_start: %d", indices_start)
