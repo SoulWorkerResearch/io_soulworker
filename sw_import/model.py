@@ -31,28 +31,28 @@ class ImportModelRunner(Operator, ImportHelper):
 
     datas: StringProperty(
         name="Unpacked datas",
-        subtype='FILE_PATH',
+        subtype="FILE_PATH",
     )
 
     # selected files
     files: CollectionProperty(type=PropertyGroup)
 
     def execute(self, context: Context):
-        context.scene.render.engine = 'BLENDER_EEVEE'
+        context.scene.render.engine = "BLENDER_EEVEE"
 
         root = Path(self.properties.filepath)
 
         for file in self.files:
             path: Path = root.parent / file.name
 
-            if not path.is_file() or path.suffix != '.model':
+            if not path.is_file() or path.suffix != ".model":
                 error("bad path, skipped: %s", path)
                 continue
 
             importer = ImportModel(path, context)
             importer.run()
 
-        return {'FINISHED'}
+        return {"FINISHED"}
 
 
 class ImportModel(VChunkFile):
@@ -97,7 +97,7 @@ class ImportModel(VChunkFile):
             self.process_subm(chunk, model)
 
     def process_mtrs(self, chunk: int, model: BufferedReader):
-        def update_material(material: Material, token: str, input: str = "Base Color"):
+        def update_material(material: Material, token: str):
             path_length, = unpack("<i", model.read(4))
             assert path_length != 0
 
@@ -122,13 +122,25 @@ class ImportModel(VChunkFile):
 
             texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
             texture_node.image = bpy.data.images.load(path.as_posix())
+            l = texture_node.image.alpha_mode
 
-            node_input = nodes.get("Principled BSDF").inputs.get(input)
-            node_output = texture_node.outputs.get('Color')
+            pbsdf_node = nodes.get("Principled BSDF")
 
-            node_tree.links.new(node_input, node_output)
+            node_tree.links.new(
+                pbsdf_node.inputs.get("Base Color"),
+                texture_node.outputs.get("Color")
+            )
 
-            debug("LOADED %s: %s", input, path)
+            node_tree.links.new(
+                pbsdf_node.inputs.get("Alpha"),
+                texture_node.outputs.get("Alpha")
+            )
+
+            if token == 'MOB_ALPHA':
+                material.blend_method = 'HASHED'
+                material.shadow_method = 'HASHED'
+
+            debug("LOADED: %s", path)
 
         count, = unpack("<i", model.read(4))
 
@@ -144,7 +156,7 @@ class ImportModel(VChunkFile):
             mat_length, = unpack("<i", model.read(4))
             mat_name = unpack(
                 "<%ss" % mat_length,
-                model.read(mat_length))[0].decode('ASCII')
+                model.read(mat_length))[0].decode("ASCII")
 
             material = bpy.data.materials.new(mat_name)
             self.mesh.materials.append(material)
@@ -272,14 +284,14 @@ class ImportModel(VChunkFile):
         # TODO: i have no idea how this can be done without touching the interface.
         # hope someone can help me with this.
         def set_material(vertex_group_name: str, material_id: int):
-            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.object.mode_set(mode="EDIT")
             bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
             bpy.ops.object.vertex_group_select()
 
             self.object.active_material_index = material_id
             bpy.ops.object.material_slot_assign()
-            bpy.ops.mesh.select_all(action='DESELECT')
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.mesh.select_all(action="DESELECT")
+            bpy.ops.object.mode_set(mode="OBJECT")
 
         u1, u2, u3 = unpack("<iii", model.read(4 * 3))
 
@@ -307,7 +319,7 @@ class ImportModel(VChunkFile):
             vertex_group = vertex_groups.new(name=material_name)
 
             indices = self.indices[indices_start:indices_start + indices_count]
-            vertex_group.add(indices, 1, 'REPLACE')
+            vertex_group.add(indices, 1, "REPLACE")
 
             set_material(vertex_group.name, material_id)
 

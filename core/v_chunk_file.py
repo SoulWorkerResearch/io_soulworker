@@ -17,7 +17,7 @@ class VChunkFile(object):
             token, version, contains, emitter = unpack(
                 "<4s H H I", model.read(12))
 
-            assert token == b'VBIN'
+            assert token == b"VBIN"
             assert version == 0
             assert contains == 1
             assert emitter == 0
@@ -27,7 +27,7 @@ class VChunkFile(object):
                 length, = unpack("<I", model.read(4))
                 tell = model.tell()
 
-                chunk_name = (open_chunk_id).to_bytes(4, 'big').decode('ascii')
+                chunk_name = (open_chunk_id).to_bytes(4, "big").decode("ascii")
                 print("chunk: ", chunk_name)
 
                 self.on_chunk_start(open_chunk_id, model)

@@ -17,7 +17,7 @@ bl_info = {
     "blender": (2, 92, 0),
     "location": "File > Import/Export",
     "description": "Import-Export SoulWorker content",
-    "support": 'COMMUNITY',
+    "support": "COMMUNITY",
     "category": "Import-Export",
 }
 
