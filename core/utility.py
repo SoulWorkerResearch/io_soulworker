@@ -20,6 +20,9 @@ def skip_string(file: BufferedReader):
 
 
 def parse_materials(path: Path) -> dict[str, VMaterial]:
+    if not path.exists():
+        return dict()
+
     xml: Element = parse(path.as_posix())
     xml.normalize()
 
@@ -34,3 +37,5 @@ def parse_materials(path: Path) -> dict[str, VMaterial]:
         return [m.name, m]
 
     return dict(map(process, (node for node in materials.childNodes if node.nodeType == Node.ELEMENT_NODE)))
+
+# https://youtu.be/2N4tXf3Ensw
