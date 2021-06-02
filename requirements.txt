@@ -1,0 +1,4 @@
+autopep8==1.5.4
+fake-bpy-module-2.92==20210304
+pycodestyle==2.6.0
+toml==0.10.1
