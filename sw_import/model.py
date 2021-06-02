@@ -2,10 +2,9 @@ import bpy
 
 from bpy.props import CollectionProperty
 from bpy.props import StringProperty
-from bpy.types import Context
+from bpy.types import Context, Object
 from bpy.types import Material
 from bpy.types import Mesh
-from bpy.types import Object
 from bpy.types import Operator
 from bpy.types import PropertyGroup
 from bpy.types import ShaderNodeTexImage
