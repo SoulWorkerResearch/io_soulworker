@@ -3,6 +3,8 @@
 ## ✨ Installing
 
 - Download as ZIP;
+- **Rename ZIP file to io_soulworker.zip;**
+- **Rename root folder in ZIP to io_soulworker;**
 - Open Blender;
 - Edit -> Preferences;
 - Add-ons -> Install;
