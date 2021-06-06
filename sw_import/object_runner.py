@@ -22,7 +22,8 @@ class ImportObjectRunner(Operator, ImportHelper):
 
     is_create_collection: BoolProperty(
         name="Create collection",
-        default=True,
+        # default=True,
+        default=False,
     )
 
     emission_strength: FloatProperty(
@@ -80,7 +81,7 @@ class ImportObjectRunner(Operator, ImportHelper):
         for file in self.files:
             path: Path = root.parent / file.name
 
-            if not path.is_file() or path.suffix != ".model":
+            if not path.is_file() or path.suffix.lower() != ".model":
                 error("bad path, skipped: %s", path)
                 continue
 
