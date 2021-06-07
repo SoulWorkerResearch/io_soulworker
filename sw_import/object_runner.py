@@ -22,7 +22,6 @@ class ImportObjectRunner(Operator, ImportHelper):
 
     is_create_collection: BoolProperty(
         name="Create collection",
-        # default=True,
         default=False,
     )
 
@@ -37,6 +36,7 @@ class ImportObjectRunner(Operator, ImportHelper):
     files: CollectionProperty(type=PropertyGroup)
 
     def draw(self, context):
+        # disable draw standard controls
         pass
 
     def create_collection(self, context: Context, name: str):
@@ -80,8 +80,9 @@ class ImportObjectRunner(Operator, ImportHelper):
 
         for file in self.files:
             path: Path = root.parent / file.name
+            lower_suffix_path = path.suffix.lower()
 
-            if not path.is_file() or path.suffix.lower() != ".model":
+            if not path.is_file() or (lower_suffix_path != ".model" and lower_suffix_path != ".vmesh"):
                 error("bad path, skipped: %s", path)
                 continue
 
