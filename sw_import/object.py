@@ -2,12 +2,12 @@ import bpy
 
 from bpy.types import Context
 from bpy.types import Object
-from bpy.types import ShaderNodeAddShader
-from bpy.types import ShaderNodeEmission
-from bpy.types import ShaderNodeOutputMaterial
 from bpy.types import Material
 from bpy.types import Mesh
 from bpy.types import ShaderNodeTexImage
+from mathutils import Vector
+from mathutils import Quaternion
+
 
 from io_soulworker.core.v_material import VMaterial
 from io_soulworker.core.v_chunk_id import VChunkId
@@ -42,7 +42,7 @@ class ImportObject(VChunkFile):
         self.mesh: Mesh = bpy.data.meshes.new(self.path.stem)
 
         # create object
-        self.object = bpy.data.objects.new(self.path.stem, self.mesh)
+        self.object = bpy.data.objects.new(self.mesh.name, self.mesh)
 
         # path to data folder
         material_folder = (self.path.with_suffix(self.path.suffix + "_data"))
@@ -94,7 +94,6 @@ class ImportObject(VChunkFile):
 
             texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
             texture_node.image = bpy.data.images.load(path.as_posix())
-            l = texture_node.image.alpha_mode
 
             pbsdf_node = nodes.get("Principled BSDF")
 
@@ -108,10 +107,14 @@ class ImportObject(VChunkFile):
                 texture_node.outputs.get("Alpha")
             )
 
-            if token == "MOB_ALPHA":
-                material.blend_method = "HASHED"
-                material.shadow_method = "HASHED"
-            elif token == "MOB_GLOW":
+            # several materials have names without "ALPHA"
+            # but have alpha channel
+            # bug???
+            # if "ALPHA" in token:
+            material.blend_method = "HASHED"
+            material.shadow_method = "HASHED"
+
+            if "GLOW" in token:
                 pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
 
                 node_tree.links.new(
@@ -255,6 +258,152 @@ class ImportObject(VChunkFile):
 
     def process_skel(self, chunk: int, model: BufferedReader):
         pass
+        # class Bone:
+        #     parent_id: int
+        #     name: str
+        #     pos: Vector
+        #     rot: Quaternion
+        #     obj: EditBone = None
+
+        #     def __init__(self, parent_id: int, name: str, pos: Vector, rot: Quaternion) -> None:
+        #         self.parent_id = parent_id
+        #         self.name = name
+        #         self.pos = pos
+        #         self.rot = rot
+
+        # def create_bones(bones: list[Bone]):
+        #     for bone in bones:
+        #         bone.obj = armature.edit_bones.new(bone.name.decode("ASCII"))
+
+        #         debug("name: %s", name)
+
+        # def set_parent_bones(bones: list[Bone]):
+        #     for bone in bones:
+        #         if bone.parent_id != -1:
+        #             parent_bone = bones[bone.parent_id]
+        #             bone.obj.parent = parent_bone.obj
+        #             bone.obj.use_connect = True
+
+        #             debug(
+        #                 "bone: %s -> parent: %s",
+        #                 bone.name,
+        #                 parent_bone.name
+        #             )
+        #         else:
+        #             debug("bone: %s no have parent", bone.name)
+
+        # def set_position_bones(bones: list[Bone]):
+        #     for bone in bones:
+        #         # ('Y', '-X', '-Y', '-Z')
+
+        #         bone_correction_matrix = axis_conversion(
+        #             from_forward='Y',
+        #             from_up='-X',
+        #             to_forward='-Y',
+        #             to_up='-Z',
+        #         ).to_3x3()
+
+        #         rot = (bone.rot.to_matrix().inverted().normalized()
+        #                @ bone_correction_matrix).to_4x4()
+        #         pos = Matrix.Translation(bone.pos)
+
+        #         print(" - ", bone.name)
+        #         print(" - - - ")
+        #         print("posMatrix")
+        #         print(pos.to_translation())
+        #         print(" - - - ")
+        #         print("rotMatrix")
+        #         print(rot.to_3x3())
+
+        #         if bone.obj.parent:
+        #             print(" - - - ")
+        #             print("bone.parent.head")
+        #             print(bone.obj.parent.head)
+        #             print(" - - - ")
+        #             print("bone.parent.matrix")
+        #             print(bone.obj.parent.matrix)
+
+        #             p_head = Matrix.Translation(bone.obj.parent.head).to_4x4()
+        #             b_head: Matrix = pos @ bone.obj.parent.matrix + p_head
+
+        #             bone.obj.head = b_head.to_translation()
+        #             bone.obj.matrix = rot @ bone.obj.parent.matrix
+
+        #             # bvec: Vector = bone.obj.tail - bone.obj.head
+        #             # bvec.normalize()
+        #             # bone.obj.tail = bone.obj.head + 0.01 * bvec
+
+        #             # print(" - - - ")
+        #             # print("bone.head")
+        #             # print(bone.obj.head)
+        #             # print(" - - - ")
+        #             # print("bone.matrix")
+        #             # print(bone.obj.matrix.to_3x3())
+
+        #             # if bone.name == b"RightWeapon_Bone01":
+        #             #     debug(" - - - ")
+        #             #     debug("bone.head")
+        #             #     debug(bone.obj.head)
+        #             #     debug(" - - - ")
+        #             #     debug("bone.matrix")
+        #             #     debug(bone.obj.matrix)
+        #         else:
+        #             bone.obj.head = pos.to_translation()
+        #             bone.obj.matrix = rot
+
+        #         print(" - - - ")
+        #         print("bone.head")
+        #         print(bone.obj.head)
+        #         print(" - - - ")
+        #         print("bone.matrix")
+        #         print(bone.obj.matrix.to_3x3())
+
+        # bvec: Vector = bone.obj.tail - bone.obj.head
+        # bvec.normalize()
+        # bone.obj.tail = bone.obj.head + 0.01 * bvec
+
+        # debug("rotdif: %s", (tuple(degrees(a) for a in rotdif.to_euler())))
+
+        # _, count = unpack("<HH", model.read(2 * 2))
+
+        # armature = bpy.data.armatures.new(self.mesh.name)
+        # armature_object = bpy.data.objects.new(armature.name, armature)
+
+        # modifier = self.object.modifiers.new(armature.name, 'ARMATURE')
+        # modifier.object = armature_object
+
+        # self.context.collection.objects.link(armature_object)
+
+        # bpy.context.view_layer.objects.active = armature_object
+
+        # bpy.ops.object.mode_set(mode="EDIT")
+
+        # bones = list[Bone]()
+
+        # for id in range(count):
+        #     name_length, = unpack("<I", model.read(4))
+        #     name, = unpack(("<%ss" % name_length), model.read(name_length))
+
+        #     parent_id, = unpack("<h", model.read(2))
+
+        #     _ = unpack("<fffffff", model.read(4 * 7))
+
+        #     px, py, pz = unpack("<fff", model.read(4 * 3))
+
+        #     qx, qy, qz, qw = unpack("<ffff", model.read(4 * 4))
+
+        #     bones.append(Bone(
+        #         parent_id,
+        #         name,
+        #         Vector((px, py, pz)),
+        #         Quaternion((qx, qy, qz, qw))
+        #     ))
+
+        # create_bones(bones)
+        # set_parent_bones(bones)
+        # set_position_bones(bones)
+
+        # bpy.ops.object.mode_set(mode="OBJECT")
 
     def process_wght(self, chunk: int, model: BufferedReader):
         pass
