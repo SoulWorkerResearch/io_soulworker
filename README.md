@@ -38,7 +38,7 @@
 
 | Threshold | Knee  | Radius |  Color  | Intensity | Clamp |
 | :-------: | :---: | :----: | :-----: | :-------: | :---: |
-|   0.008   | 0.300 |  3.00  | #ffffff |   0.450   |  1.0  |
+|   0.800   | 0.300 |  3.00  | #ffffff |   0.450   |  1.0  |
 
 # ⚠️ IMPORTANT
 
