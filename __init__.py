@@ -1,3 +1,7 @@
+from itertools import combinations
+from math import radians
+from bpy_extras.io_utils import axis_conversion
+from mathutils import Euler, Vector, Matrix, Quaternion
 import bpy
 
 from io_soulworker.sw_import.object_panel_default_values import ImportObjectPanelDefaultValues
@@ -18,7 +22,7 @@ bl_info = {
     "name": "SoulWorker",
     "author": "sawich",
     "version": (1, 0, 0),
-    "blender": (2, 92, 0),
+    "blender": (2, 93, 0),
     "location": "File > Import/Export",
     "description": "Import-Export SoulWorker content",
     "support": "COMMUNITY",
@@ -33,10 +37,10 @@ classes = {
 }
 
 
-def menu_func_import(self: bpy.types.TOPBAR_MT_file_import, context):
+def menu_func_import(self, context):
     self.layout.operator(
         ImportObjectRunner.bl_idname,
-        text="SoulWorker (.model)"
+        text="SoulWorker (.model, .vmesh)"
     )
 
 
