@@ -1,4 +1,4 @@
-class VVector2Int:
+class VisVector2Int:
     x: int
     y: int
 

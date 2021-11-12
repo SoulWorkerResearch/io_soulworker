@@ -1,6 +1,6 @@
 from enum import Enum
 
 
-class VMaterialTransparency(str, Enum):
+class VisMaterialTransparency(str, Enum):
     ALPHA = "Alpha"
     OPAQUE = "opaque"

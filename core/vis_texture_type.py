@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class VTextureType(Enum):
+class VisTextureType(Enum):
     BASE_COLOR = "Base Color"
 
     # must be unused

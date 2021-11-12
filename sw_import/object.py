@@ -1,33 +1,87 @@
+from typing import Union
 import bpy
 
-from bpy.types import Context
+from bpy.types import Armature, Context, EditBone, ShaderNodeAmbientOcclusion
 from bpy.types import Object
 from bpy.types import Material
 from bpy.types import Mesh
 from bpy.types import ShaderNodeTexImage
-from mathutils import Vector
-from mathutils import Quaternion
+from bpy.types import Bone
+from mathutils import Color, Matrix, Quaternion, Vector
 
-
-from io_soulworker.core.v_material import VMaterial
-from io_soulworker.core.v_chunk_id import VChunkId
-from io_soulworker.core.v_chunk_file import VChunkFile
+from io_soulworker.core.vis_material import VisMaterial
+from io_soulworker.core.vis_chunk_id import VisChunkId
+from io_soulworker.core.vis_chunk_file import VisChunkFile
 from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.utility import parse_materials
 
 from pathlib import Path
 from struct import unpack
-from logging import debug
+from logging import debug, warn
 from logging import error
 from io import BufferedReader
-from io import SEEK_CUR
+
+from io_soulworker.core.vis_material_transparency import VisMaterialTransparency
+from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
+from io_soulworker.core.vis_effect_config import VisEffectConfig
+from io_soulworker.core.vis_render_state import VisRenderState
 
 
-class ImportObject(VChunkFile):
+class MaterialChunk:
+    u1: int
+    chunk_name: int
+    u2: int
+    u3: int
+    mat: str
+    bytes: list[int]
+    specular: str
+    diffuse: str
+    normal: str
+    u4: int
+    u5: str
+    u6: int
+    u7: int
+    u8: int
+    u9: int
+    u10: int
+    u11: int
+    u12: int
+    u13_name: str
+    u14_name: str
+    u15_name: str
+    u16: int
+    u17: int
+    u18: int
+    u19: int
+
+    u20: int
+    u21: int
+    u22: int
+
+
+class SkelValue:
+    name: str
+    parent_id: int
+    inverse_object_space_position: Vector
+    inverse_object_space_orientation: Quaternion
+    local_space_position: Vector
+    local_space_orientation: Quaternion
+
+    def __init__(self, name: str, parent_id: int, inverse_object_space_position: Vector, inverse_object_space_orientation: Quaternion, local_space_position: Vector, local_space_orientation: Quaternion) -> None:
+
+        self.name = name
+        self.parent_id = parent_id
+        self.inverse_object_space_position = inverse_object_space_position
+        self.inverse_object_space_orientation = inverse_object_space_orientation
+        self.local_space_position = local_space_position
+        self.local_space_orientation = local_space_orientation
+
+
+class ImportObject(VisChunkFile):
     mesh: Mesh = None
     object: Object = None
     context: Context
-    v_materials: dict[str, VMaterial]
+    v_materials: dict[str, VisMaterial]
     emission_strength: float
 
     def __init__(self, path: Path, context: Context, emission_strength: float) -> None:
@@ -53,29 +107,23 @@ class ImportObject(VChunkFile):
         self.v_materials = parse_materials(material_path)
 
     def on_chunk_start(self, chunk: int, model: BufferedReader) -> None:
-        if chunk == VChunkId.MTRS:
+        if chunk == VisChunkId.MTRS:
             self.process_mtrs(chunk, model)
 
-        elif chunk == VChunkId.VMSH:
+        elif chunk == VisChunkId.VMSH:
             self.process_vmsh(chunk, model)
 
-        elif chunk == VChunkId.SKEL:
-            self.process_skel(chunk, model)
+        # elif chunk == VisChunkId.SKEL:
+            # self.process_skel(chunk, model)
 
-        elif chunk == VChunkId.WGHT:
+        elif chunk == VisChunkId.WGHT:
             self.process_wght(chunk, model)
 
-        elif chunk == VChunkId.SUBM:
+        elif chunk == VisChunkId.SUBM:
             self.process_subm(chunk, model)
 
     def process_mtrs(self, chunk: int, model: BufferedReader):
-        def update_material(material: Material, token: str):
-            path_length, = unpack("<i", model.read(4))
-            assert path_length != 0
-
-            path, = unpack("<%ss" % path_length, model.read(path_length))
-            debug("useless path: %s", path)
-
+        def update_material(material: Material, diffuse_path: str, token: str):
             node_tree = material.node_tree
             nodes = node_tree.nodes
 
@@ -86,76 +134,102 @@ class ImportObject(VChunkFile):
                 error("MATERIAL NOT FOUND %s", token)
                 return
 
-            path = self.path.parent / v_material.diffuse
-
-            if not path.exists():
-                error("FILE NOT FOUND %s", path)
-                return
-
-            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
-            texture_node.image = bpy.data.images.load(path.as_posix())
-
             pbsdf_node = nodes.get("Principled BSDF")
 
-            node_tree.links.new(
-                pbsdf_node.inputs.get("Base Color"),
-                texture_node.outputs.get("Color")
-            )
+            if not v_material.diffuse and not diffuse_path:
+                debug("no diffuse")
+                ambient_occlusion: ShaderNodeAmbientOcclusion = nodes.new(
+                    "ShaderNodeAmbientOcclusion")
 
-            node_tree.links.new(
-                pbsdf_node.inputs.get("Alpha"),
-                texture_node.outputs.get("Alpha")
-            )
+                ambient_occlusion.samples = 32
 
-            # several materials have names without "ALPHA"
-            # but have alpha channel
-            # bug???
-            # if "ALPHA" in token:
-            material.blend_method = "HASHED"
-            material.shadow_method = "HASHED"
-
-            if "GLOW" in token:
-                pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
+                ambient_occlusion.inputs[0].default_value = [
+                    v / 255.0 for v in v_material.ambient]
 
                 node_tree.links.new(
-                    pbsdf_node.inputs.get("Emission"),
+                    pbsdf_node.inputs.get("Base Color"),
+                    ambient_occlusion.outputs.get("Color")
+                )
+            else:
+                debug("has diffuse")
+                path = self.path.parent / v_material.diffuse
+
+                if not path.exists() or not path.is_file():
+                    error("FILE NOT FOUND %s", path)
+
+                    path = self.path.parent / 'Textures' / \
+                        Path(diffuse_path.decode('ASCII')).name
+                    if not path.exists() or not path.is_file():
+                        error("FILE NOT FOUND %s", path)
+                        return
+
+                texture_node: ShaderNodeTexImage = nodes.new(
+                    "ShaderNodeTexImage")
+                debug("texture path: %s", path.as_posix())
+
+                texture_node.image = bpy.data.images.load(path.as_posix())
+                debug("texture loaded: %s", path)
+
+                node_tree.links.new(
+                    pbsdf_node.inputs.get("Base Color"),
                     texture_node.outputs.get("Color")
                 )
 
-            debug("LOADED: %s", path)
+                node_tree.links.new(
+                    pbsdf_node.inputs.get("Alpha"),
+                    texture_node.outputs.get("Alpha")
+                )
+
+                if "GLOW" in token:
+                    debug("has glow")
+                    pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
+
+                    node_tree.links.new(
+                        pbsdf_node.inputs.get("Emission"),
+                        texture_node.outputs.get("Color")
+                    )
+
+            if v_material.transparency != VisMaterialTransparency.OPAQUE:
+                debug("has alpha")
+                material.blend_method = "HASHED"
+                material.shadow_method = "HASHED"
+
+            material.alpha_threshold = v_material.alphathreshold
 
         count, = unpack("<i", model.read(4))
 
         for _ in range(count):
-            u1 = unpack("<i", model.read(4))
+            u1, = unpack("<i", model.read(4))
+            assert u1 == 1
 
             chunk_name, = unpack("<I", model.read(4))
 
             u2, = unpack("<i", model.read(4))
 
             u3, = unpack("<H", model.read(2))
+            assert u3 == 6
 
-            mat_length, = unpack("<i", model.read(4))
-            mat_name = unpack(
-                "<%ss" % mat_length,
-                model.read(mat_length))[0].decode("ASCII")
-
-            material = bpy.data.materials.new(self.mesh.name + "_" + mat_name)
-            self.mesh.materials.append(material)
+            mat_length, = unpack("<I", model.read(4))
+            mat_name, = unpack("<%ss" % mat_length, model.read(mat_length))
+            mat_name = mat_name.decode('ASCII')
 
             debug("mat_name: %s", mat_name)
 
-            material.use_nodes = True
-
-            model.seek(30, SEEK_CUR)
-
-            update_material(material, mat_name)
+            b = model.read(26)
 
             specular_length, = unpack("<i", model.read(4))
             assert specular_length == 0
 
-            normalLength, = unpack("<i", model.read(4))
-            assert normalLength == 0
+            diffuse_length, = unpack("<i", model.read(4))
+            assert diffuse_length >= 0
+
+            diffuse_path, = unpack(
+                "<%ss" % diffuse_length,
+                model.read(diffuse_length))
+            debug("inner diffuse path: %s", diffuse_path)
+
+            normal_length, = unpack("<i", model.read(4))
+            assert normal_length == 0
 
             u4, = unpack("<i", model.read(4))
 
@@ -173,48 +247,73 @@ class ImportObject(VChunkFile):
             )
 
             u13_length, = unpack("<i", model.read(4))
-            u13_name, = unpack(
-                "<%ss" % u13_length,
-                model.read(u13_length)
-            )
+            u13_name, = unpack("<%ss" % u13_length, model.read(u13_length))
+            u13_name = u13_name.decode('ASCII')
 
             debug("u13_name: %s", u13_name)
 
             u14_length, = unpack("<i", model.read(4))
-            u14_name, = unpack(
-                "<%ss" % u14_length,
-                model.read(u14_length)
-            )
+            u14_name, = unpack("<%ss" % u14_length, model.read(u14_length))
+            u14_name = u14_name.decode('ASCII')
 
             debug("u14_name: %s", u14_name)
 
             u15_length, = unpack("<i", model.read(4))
-            u15_name, = unpack(
-                "<%ss" % u15_length,
-                model.read(u15_length)
-            )
+            u15_name, = unpack("<%ss" % u15_length, model.read(u15_length))
+            u15_name = u15_name.decode('ASCII')
 
             debug("u15_name: %s", u15_name)
 
             u16, u17, u18, u19, = unpack("<iiii", model.read(4 * 4))
+            assert u19 == 16777216
 
-            u19, = unpack("<i", model.read(4))
+            u20, = unpack("<H", model.read(2))
+            u21, = unpack("<c", model.read(1))
+            u22, = unpack("<i", model.read(4))
+            assert u22 == 1297371724
+
+            material = bpy.data.materials.new(self.mesh.name + "_" + mat_name)
+            material.use_nodes = True
+
+            self.mesh.materials.append(material)
+
+            update_material(material, diffuse_path, mat_name)
 
     def process_vmsh(self, chunk: int, model: BufferedReader):
-        tell = model.tell()
+        header, = unpack("<I", model.read(4))
+        assert header == chunk
 
-        u1, u2, u3, u4 = unpack("<iiii", model.read(4 * 4))
+        version, = unpack("<I", model.read(4))
+        assert version == 1
 
-        count = 15 * 4
-        v = unpack(f"<{count}B", model.read(count))
+        magick, = unpack("<I", model.read(4))
+        assert magick == 0x4455ABCD
 
-        vertex_count, = unpack("<i", model.read(4))
+        v69, = unpack("<i", model.read(4))
 
-        u5 = unpack(f"<{13}B", model.read(13))
+        vd = VisVertexDescriptor(model)
 
-        faces_count, = unpack("<i", model.read(4))
+        vertex_count, = unpack("<I", model.read(4))
+        iMemUsageFlagIndices, = unpack("<B", model.read(1))
 
-        model.seek(tell + 108)
+        if v69 >= 4:
+            iBindFlagVertices, = unpack("<B", model.read(1))
+        
+        if v69 >= 3:
+            bMeshDataIsBigEndian, = unpack("<B", model.read(1))
+            v74, = unpack("<H", model.read(2))
+
+        prim_type, = unpack("<I", model.read(4))
+        index_count, = unpack("<I", model.read(4))
+        index_format, = unpack("<I", model.read(4))
+        current_prim_count, = unpack("<I", model.read(4))
+        mem_usage_flag_indices, = unpack("<B", model.read(1))
+        bind_flag_bertices, = unpack("<B", model.read(1))
+        vertices_double_buffered, = unpack("<B", model.read(1))
+        indices_double_buffered, = unpack("<B", model.read(1))
+        render_state = VisRenderState(model)
+        use_projection, = unpack("<B", model.read(1))
+        effect_config = VisEffectConfig(model)
 
         vertices = []
         uv_list = []
@@ -223,13 +322,19 @@ class ImportObject(VChunkFile):
             vx, vy, vz = unpack("<fff", model.read(12))
             vertices.append([vx, vy, vz])
 
-            model.seek(t + v[16])
-            tu, tv = unpack("<ff", model.read(8))
-            uv_list.append([tu, tv])
+            tex_coord_offset = t + vd.tex_coord_offset[0].u
+            model.seek(tex_coord_offset)
+            u, = unpack("<f", model.read(4))
 
-            model.seek(t + v[8])
+            tex_coord_offset = t + vd.tex_coord_offset[0].v
+            model.seek(tex_coord_offset)
+            v, = unpack("<f", model.read(4))
 
-        count = faces_count * 3
+            uv_list.append([u, v])
+
+            model.seek(t + vd.stride)
+
+        count = current_prim_count * 3
         self.indices = unpack(f"<{count}H", model.read(count * 2))
         faces = list(indices_to_face(self.indices))
 
@@ -246,8 +351,6 @@ class ImportObject(VChunkFile):
                     -uv_list[vert_idx][1]
                 ]
 
-        self.mesh.uv_layers.active = uv_layer
-
         # recalc normals
         self.mesh.calc_normals()
 
@@ -257,153 +360,86 @@ class ImportObject(VChunkFile):
         self.context.collection.objects.link(self.object)
 
     def process_skel(self, chunk: int, model: BufferedReader):
-        pass
-        # class Bone:
-        #     parent_id: int
-        #     name: str
-        #     pos: Vector
-        #     rot: Quaternion
-        #     obj: EditBone = None
+        class Bone:
+            parent_id: int
+            pos: Vector
+            rot: Quaternion
+            obj: EditBone
 
-        #     def __init__(self, parent_id: int, name: str, pos: Vector, rot: Quaternion) -> None:
-        #         self.parent_id = parent_id
-        #         self.name = name
-        #         self.pos = pos
-        #         self.rot = rot
+            def __init__(self, parent_id: int, obj: EditBone, pos: Vector, rot: Quaternion) -> None:
+                self.parent_id = parent_id
+                self.pos = pos
+                self.rot = rot
+                self.obj = obj
 
-        # def create_bones(bones: list[Bone]):
-        #     for bone in bones:
-        #         bone.obj = armature.edit_bones.new(bone.name.decode("ASCII"))
+        armature = bpy.data.armatures.new(self.mesh.name)
+        armature_object = bpy.data.objects.new(armature.name, armature)
 
-        #         debug("name: %s", name)
+        modifier = self.object.modifiers.new(armature.name, 'ARMATURE')
+        modifier.object = armature_object
 
-        # def set_parent_bones(bones: list[Bone]):
-        #     for bone in bones:
-        #         if bone.parent_id != -1:
-        #             parent_bone = bones[bone.parent_id]
-        #             bone.obj.parent = parent_bone.obj
-        #             bone.obj.use_connect = True
+        self.context.collection.objects.link(armature_object)
 
-        #             debug(
-        #                 "bone: %s -> parent: %s",
-        #                 bone.name,
-        #                 parent_bone.name
-        #             )
-        #         else:
-        #             debug("bone: %s no have parent", bone.name)
+        bpy.context.view_layer.objects.active = armature_object
 
-        # def set_position_bones(bones: list[Bone]):
-        #     for bone in bones:
-        #         # ('Y', '-X', '-Y', '-Z')
+        bpy.ops.object.mode_set(mode="EDIT")
+        # ---------------
+        bpy.types.Bone.AxisRollFromMatrix
+        armature = bpy.data.armatures.get("Armature")
+        for bone in armature.edit_bones.values():
+            armature.edit_bones.remove(bone)
 
-        #         bone_correction_matrix = axis_conversion(
-        #             from_forward='Y',
-        #             from_up='-X',
-        #             to_forward='-Y',
-        #             to_up='-Z',
-        #         ).to_3x3()
+        bone = armature.edit_bones.new('asd')
 
-        #         rot = (bone.rot.to_matrix().inverted().normalized()
-        #                @ bone_correction_matrix).to_4x4()
-        #         pos = Matrix.Translation(bone.pos)
+        bone.head = [0, 0, 0]
+        bone.tail = [0, 0, 10]
+        # ---------------
 
-        #         print(" - ", bone.name)
-        #         print(" - - - ")
-        #         print("posMatrix")
-        #         print(pos.to_translation())
-        #         print(" - - - ")
-        #         print("rotMatrix")
-        #         print(rot.to_3x3())
+        bones: list[Bone] = []
 
-        #         if bone.obj.parent:
-        #             print(" - - - ")
-        #             print("bone.parent.head")
-        #             print(bone.obj.parent.head)
-        #             print(" - - - ")
-        #             print("bone.parent.matrix")
-        #             print(bone.obj.parent.matrix)
+        _, count = unpack("<HH", model.read(2 * 2))
+        for _ in range(count):
+            name_length, = unpack("<I", model.read(4))
+            name, = unpack(("<%ss" % name_length), model.read(name_length))
 
-        #             p_head = Matrix.Translation(bone.obj.parent.head).to_4x4()
-        #             b_head: Matrix = pos @ bone.obj.parent.matrix + p_head
+            parent_id, = unpack("<h", model.read(2))
 
-        #             bone.obj.head = b_head.to_translation()
-        #             bone.obj.matrix = rot @ bone.obj.parent.matrix
+            inverse_object_space_position = Vector(
+                unpack("<fff", model.read(4 * 3)))
+            inverse_object_space_orientation = Quaternion(
+                unpack("<ffff", model.read(4 * 4)))
+            local_space_position = Vector(unpack("<fff", model.read(4 * 3)))
+            local_space_orientation = Quaternion(
+                unpack("<ffff", model.read(4 * 4)))
 
-        #             # bvec: Vector = bone.obj.tail - bone.obj.head
-        #             # bvec.normalize()
-        #             # bone.obj.tail = bone.obj.head + 0.01 * bvec
+            name = armature.edit_bones.new(name.decode("ASCII"))
+            p = local_space_position
+            q = local_space_orientation
 
-        #             # print(" - - - ")
-        #             # print("bone.head")
-        #             # print(bone.obj.head)
-        #             # print(" - - - ")
-        #             # print("bone.matrix")
-        #             # print(bone.obj.matrix.to_3x3())
+            bones.append(Bone(parent_id, name, p, q))
 
-        #             # if bone.name == b"RightWeapon_Bone01":
-        #             #     debug(" - - - ")
-        #             #     debug("bone.head")
-        #             #     debug(bone.obj.head)
-        #             #     debug(" - - - ")
-        #             #     debug("bone.matrix")
-        #             #     debug(bone.obj.matrix)
-        #         else:
-        #             bone.obj.head = pos.to_translation()
-        #             bone.obj.matrix = rot
+        for bone in bones:
+            if bone.parent_id == -1:
+                continue
 
-        #         print(" - - - ")
-        #         print("bone.head")
-        #         print(bone.obj.head)
-        #         print(" - - - ")
-        #         print("bone.matrix")
-        #         print(bone.obj.matrix.to_3x3())
+            obj = bones[bone.parent_id].obj
+            bone.obj.parent = obj
 
-        # bvec: Vector = bone.obj.tail - bone.obj.head
-        # bvec.normalize()
-        # bone.obj.tail = bone.obj.head + 0.01 * bvec
+        for bone in bones:
+            if bone.parent_id != -1:
+                m1 = Matrix.Translation(
+                    bone.pos) @ Matrix(bone.obj.parent.matrix)
+                m2: Matrix = m1 + Matrix.Translation(bone.obj.parent.head)
+                bone.obj.head = m2.to_translation()
 
-        # debug("rotdif: %s", (tuple(degrees(a) for a in rotdif.to_euler())))
+                m: Matrix = bone.rot.to_matrix().to_4x4().inverted() * \
+                    Matrix(bone.obj.parent.matrix).to_4x4()
+                bone.obj.matrix = m
+            else:
+                bone.obj.head = Matrix.Translation(bone.pos).to_translation()
+                bone.obj.matrix = bone.rot.to_matrix().to_4x4().inverted()
 
-        # _, count = unpack("<HH", model.read(2 * 2))
-
-        # armature = bpy.data.armatures.new(self.mesh.name)
-        # armature_object = bpy.data.objects.new(armature.name, armature)
-
-        # modifier = self.object.modifiers.new(armature.name, 'ARMATURE')
-        # modifier.object = armature_object
-
-        # self.context.collection.objects.link(armature_object)
-
-        # bpy.context.view_layer.objects.active = armature_object
-
-        # bpy.ops.object.mode_set(mode="EDIT")
-
-        # bones = list[Bone]()
-
-        # for id in range(count):
-        #     name_length, = unpack("<I", model.read(4))
-        #     name, = unpack(("<%ss" % name_length), model.read(name_length))
-
-        #     parent_id, = unpack("<h", model.read(2))
-
-        #     _ = unpack("<fffffff", model.read(4 * 7))
-
-        #     px, py, pz = unpack("<fff", model.read(4 * 3))
-
-        #     qx, qy, qz, qw = unpack("<ffff", model.read(4 * 4))
-
-        #     bones.append(Bone(
-        #         parent_id,
-        #         name,
-        #         Vector((px, py, pz)),
-        #         Quaternion((qx, qy, qz, qw))
-        #     ))
-
-        # create_bones(bones)
-        # set_parent_bones(bones)
-        # set_position_bones(bones)
-
-        # bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
 
     def process_wght(self, chunk: int, model: BufferedReader):
         pass

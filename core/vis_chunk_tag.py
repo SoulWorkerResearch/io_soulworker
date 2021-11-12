@@ -1,6 +1,6 @@
 import enum
 
 
-class VChunkTag(enum.IntEnum):
+class VisChunkTag(enum.IntEnum):
     NONE = 0
     EOF = -1

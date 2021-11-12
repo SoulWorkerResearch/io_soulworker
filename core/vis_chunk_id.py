@@ -1,7 +1,7 @@
 import enum
 
 
-class VChunkId(enum.IntEnum):
+class VisChunkId(enum.IntEnum):
     VMSH = int.from_bytes(b"VMSH", byteorder="big")
     MTRS = int.from_bytes(b"MTRS", byteorder="big")
     SUBM = int.from_bytes(b"SUBM", byteorder="big")

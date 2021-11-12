@@ -1,16 +1,16 @@
-from io_soulworker.core.v_chunk_tag import VChunkTag
+from io_soulworker.core.vis_chunk_tag import VisChunkTag
 from io import BufferedReader
 from io import SEEK_SET
 from pathlib import Path
 from struct import unpack
 
 
-class VChunkFile(object):
+class VisChunkFile(object):
     def __init__(self, path: Path) -> None:
         self.path = path
 
     def on_chunk_start(self, chunk: int, model: BufferedReader) -> None:
-        pass
+        raise NotImplementedError("chunk: %d" % chunk)
 
     def run(self) -> None:
         with open(self.path, "rb") as model:
@@ -36,7 +36,7 @@ class VChunkFile(object):
 
                 chunkName1, = unpack("<i", model.read(4))
                 close_chunk_name, = unpack("<I", model.read(4))
-                chunkEnd, = unpack("<i", model.read(4))
+                tag, = unpack("<i", model.read(4))
 
-                if chunkEnd == VChunkTag.EOF:
+                if tag == VisChunkTag.EOF:
                     break

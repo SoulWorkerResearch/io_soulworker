@@ -4,7 +4,7 @@ from xml.dom.minidom import Element
 from xml.dom.minidom import Node
 from xml.dom.minidom import parse
 from pathlib import Path
-from io_soulworker.core.v_material import VMaterial
+from io_soulworker.core.vis_material import VisMaterial
 from io import BufferedReader
 from io import SEEK_CUR
 from struct import unpack
@@ -23,7 +23,7 @@ def skip_string(file: BufferedReader):
     file.seek(length, SEEK_CUR)
 
 
-def parse_materials(path: Path) -> dict[str, VMaterial]:
+def parse_materials(path: Path) -> dict[str, VisMaterial]:
     if not path.exists():
         warn("no materials.xml present")
         return dict()
@@ -34,12 +34,18 @@ def parse_materials(path: Path) -> dict[str, VMaterial]:
     root: Element = xml.getElementsByTagName("root")[0]
     materials: Element = root.getElementsByTagName("Materials")[0]
 
-    def process(node: Element) -> Tuple[str, VMaterial]:
-        m = VMaterial()
-        m.name = node.getAttribute("name")
-        m.diffuse = node.getAttribute("diffuse")
+    def process(node: Element) -> list[str, VisMaterial]:
+        material = VisMaterial()
+        material.name = node.getAttribute("name")
 
-        return [m.name, m]
+        material.ambient = [int(v)
+                            for v in node.getAttribute("ambient").split(',')]
+
+        material.diffuse = node.getAttribute("diffuse")
+        material.transparency = node.getAttribute("transparency")
+        material.alphathreshold = float(node.getAttribute("alphathreshold"))
+
+        return [material.name, material]
 
     return dict(map(process, (node for node in materials.childNodes if node.nodeType == Node.ELEMENT_NODE)))
 
