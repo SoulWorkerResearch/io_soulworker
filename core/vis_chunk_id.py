@@ -4,6 +4,7 @@ import enum
 class VisChunkId(enum.IntEnum):
     VMSH = int.from_bytes(b"VMSH", byteorder="big")
     MTRS = int.from_bytes(b"MTRS", byteorder="big")
+    MTRL = int.from_bytes(b"MTRL", byteorder="big")
     SUBM = int.from_bytes(b"SUBM", byteorder="big")
     EXPR = int.from_bytes(b"EXPR", byteorder="big")
     SKEL = int.from_bytes(b"SKEL", byteorder="big")

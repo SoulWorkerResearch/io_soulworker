@@ -1,21 +1,47 @@
 from logging import warn
-from typing import Tuple
 from xml.dom.minidom import Element
 from xml.dom.minidom import Node
 from xml.dom.minidom import parse
 from pathlib import Path
-from io_soulworker.core.vis_material import VisMaterial
 from io import BufferedReader
 from io import SEEK_CUR
 from struct import unpack
 from collections import abc
 
+from io_soulworker.core.vis_color import VisColor
+from io_soulworker.core.vis_material import VisMaterial
+from io_soulworker.core.vis_material_effect import VisMaterialEffect
+
+
+def read_mesh_config_effects(reader: BufferedReader) -> list[VisMaterialEffect]:
+    count, = unpack("<I", reader.read(4))
+
+    def read():
+        library = read_string(reader)
+        name = read_string(reader)
+        param = read_string(reader)
+
+        return VisMaterialEffect(library, name, param)
+
+    return [read() for _ in range(count)]
+
+
+def read_color(reader: BufferedReader) -> VisColor:
+    r, g, b, a, = unpack(f"<{4}B", reader.read(4))
+
+    return VisColor(r, g, b, a)
+
+
+def read_string(reader: BufferedReader) -> str:
+    length, = unpack("<I", reader.read(4))
+    value, = unpack("<%ss" % length, reader.read(length))
+
+    return value.decode('ASCII')
+
 
 def indices_to_face(indices: abc, vertices_per_face: int = 3):
-    return map(
-        lambda id: indices[id: id + vertices_per_face],
-        range(0, len(indices), vertices_per_face)
-    )
+    iterator = range(0, len(indices), vertices_per_face)
+    return map(lambda id: indices[id: id + vertices_per_face], iterator)
 
 
 def skip_string(file: BufferedReader):

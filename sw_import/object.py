@@ -1,62 +1,35 @@
-from typing import Union
 import bpy
 
-from bpy.types import Armature, Context, EditBone, ShaderNodeAmbientOcclusion
+from bpy.types import Context
+from bpy.types import EditBone
+from bpy.types import ShaderNodeAmbientOcclusion
 from bpy.types import Object
 from bpy.types import Material
 from bpy.types import Mesh
 from bpy.types import ShaderNodeTexImage
-from bpy.types import Bone
-from mathutils import Color, Matrix, Quaternion, Vector
+from mathutils import Matrix
+from mathutils import Quaternion
+from mathutils import Vector
+
+from pathlib import Path
+from struct import unpack
+from logging import debug
+from logging import error
+from io import BufferedReader
+
 
 from io_soulworker.core.vis_material import VisMaterial
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_chunk_file import VisChunkFile
 from io_soulworker.core.utility import indices_to_face
+from io_soulworker.core.utility import read_mesh_config_effects
+from io_soulworker.core.utility import read_color
+from io_soulworker.core.utility import read_string
 from io_soulworker.core.utility import parse_materials
-
-from pathlib import Path
-from struct import unpack
-from logging import debug, warn
-from logging import error
-from io import BufferedReader
-
 from io_soulworker.core.vis_material_transparency import VisMaterialTransparency
 from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
-from io_soulworker.core.vis_effect_config import VisEffectConfig
+from io_soulworker.core.vis_mesh_effect_config import VisMeshEffectConfig
 from io_soulworker.core.vis_render_state import VisRenderState
-
-
-class MaterialChunk:
-    u1: int
-    chunk_name: int
-    u2: int
-    u3: int
-    mat: str
-    bytes: list[int]
-    specular: str
-    diffuse: str
-    normal: str
-    u4: int
-    u5: str
-    u6: int
-    u7: int
-    u8: int
-    u9: int
-    u10: int
-    u11: int
-    u12: int
-    u13_name: str
-    u14_name: str
-    u15_name: str
-    u16: int
-    u17: int
-    u18: int
-    u19: int
-
-    u20: int
-    u21: int
-    u22: int
 
 
 class SkelValue:
@@ -122,7 +95,7 @@ class ImportObject(VisChunkFile):
         elif chunk == VisChunkId.SUBM:
             self.process_subm(chunk, model)
 
-    def process_mtrs(self, chunk: int, model: BufferedReader):
+    def process_mtrs(self, chunk: int, reader: BufferedReader):
         def update_material(material: Material, diffuse_path: str, token: str):
             node_tree = material.node_tree
             nodes = node_tree.nodes
@@ -196,88 +169,90 @@ class ImportObject(VisChunkFile):
 
             material.alpha_threshold = v_material.alphathreshold
 
-        count, = unpack("<i", model.read(4))
-
+        count, = unpack("<I", reader.read(4))
         for _ in range(count):
-            u1, = unpack("<i", model.read(4))
+            u1, = unpack("<I", reader.read(4))
             assert u1 == 1
 
-            chunk_name, = unpack("<I", model.read(4))
+            chunk_name, = unpack("<i", reader.read(4))
+            assert chunk_name == VisChunkId.MTRL
 
-            u2, = unpack("<i", model.read(4))
+            u2, = unpack("<I", reader.read(4))
 
-            u3, = unpack("<H", model.read(2))
-            assert u3 == 6
+            v23, = unpack("<H", reader.read(2))
 
-            mat_length, = unpack("<I", model.read(4))
-            mat_name, = unpack("<%ss" % mat_length, model.read(mat_length))
-            mat_name = mat_name.decode('ASCII')
-
+            mat_name = read_string(reader)
             debug("mat_name: %s", mat_name)
 
-            b = model.read(26)
+            # casted to VSurfaceFlags_e (combinable)
+            flags, = unpack("<I", reader.read(4))
 
-            specular_length, = unpack("<i", model.read(4))
-            assert specular_length == 0
+            # internal sorting key; has to be in the range 0..15
+            ui_sorting_key, = unpack("<I", reader.read(4))
 
-            diffuse_length, = unpack("<i", model.read(4))
-            assert diffuse_length >= 0
+            # specular multiplier
+            spec_mul, = unpack("<f", reader.read(4))
 
-            diffuse_path, = unpack(
-                "<%ss" % diffuse_length,
-                model.read(diffuse_length))
-            debug("inner diffuse path: %s", diffuse_path)
+            # specular exponent
+            spec_exp, = unpack("<f", reader.read(4))
 
-            normal_length, = unpack("<i", model.read(4))
-            assert normal_length == 0
+            # casted to VIS_TransparencyType
+            ui_transparency_type, = unpack("<B", reader.read(1))
 
-            u4, = unpack("<i", model.read(4))
+            # material ID that is written to G-Buffer in deferred rendering
+            ui_deferred_id, = unpack("<B", reader.read(1))
 
-            u5_length, = unpack("<i", model.read(4))
-            u5_name, = unpack(
-                "<%ss" % u5_length,
-                model.read(u5_length)
-            )
+            if v23 >= 3:
+                depth_bias, = unpack("<f", reader.read(4))
 
-            debug("u5_name: %s", u5_name)
+            if v23 >= 4:
+                depth_bias_clamp, = unpack("<f", reader.read(4))
+                slope_scaled_depth_bias, = unpack("<f", reader.read(4))
 
-            u6, u7, u8, u9, u10, u11, u12 = unpack(
-                "<iiiiiii",
-                model.read(4 * 7)
-            )
+            diffuse_map = read_string(reader)
+            debug("inner diffuse path: %s", diffuse_map)
 
-            u13_length, = unpack("<i", model.read(4))
-            u13_name, = unpack("<%ss" % u13_length, model.read(u13_length))
-            u13_name = u13_name.decode('ASCII')
+            specular_map = read_string(reader)
+            debug("inner specular path: %s", specular_map)
 
-            debug("u13_name: %s", u13_name)
+            normal_map = read_string(reader)
+            debug("inner normal path: %s", normal_map)
 
-            u14_length, = unpack("<i", model.read(4))
-            u14_name, = unpack("<%ss" % u14_length, model.read(u14_length))
-            u14_name = u14_name.decode('ASCII')
+            if v23 >= 2:
+                count, = unpack("<I", reader.read(4))
+                aux_filenames = [read_string(reader) for _ in range(count)]
 
-            debug("u14_name: %s", u14_name)
+                for filename in aux_filenames:
+                    debug("aux filename: %s", filename)
 
-            u15_length, = unpack("<i", model.read(4))
-            u15_name, = unpack("<%ss" % u15_length, model.read(u15_length))
-            u15_name = u15_name.decode('ASCII')
+            user_data = read_string(reader)
+            user_flags, = unpack("<I", reader.read(4))
+            ambient_color = read_color(reader)
+            v19, = unpack("<I", reader.read(4))
+            v18, = unpack("<I", reader.read(4))
+            parallax_scale, = unpack("<f", reader.read(4))
+            parallax_bias, = unpack("<f", reader.read(4))
+            config_effects = read_mesh_config_effects(reader)
 
-            debug("u15_name: %s", u15_name)
+            if v23 >= 5:
+                override_library = read_string(reader)
+                override_material = read_string(reader)
 
-            u16, u17, u18, u19, = unpack("<iiii", model.read(4 * 4))
-            assert u19 == 16777216
+            if v23 >= 6:
+                ui_mobile_shader_flags, = unpack("<I", reader.read(4))
+                
+            u1, = unpack("<I", reader.read(4))
+            assert u1 == 1
 
-            u20, = unpack("<H", model.read(2))
-            u21, = unpack("<c", model.read(1))
-            u22, = unpack("<i", model.read(4))
-            assert u22 == 1297371724
+            chunk_name, = unpack("<I", reader.read(4))
+            assert chunk_name == VisChunkId.MTRL
 
             material = bpy.data.materials.new(self.mesh.name + "_" + mat_name)
             material.use_nodes = True
 
             self.mesh.materials.append(material)
 
-            update_material(material, diffuse_path, mat_name)
+            update_material(material, diffuse_map, mat_name)
 
     def process_vmsh(self, chunk: int, model: BufferedReader):
         header, = unpack("<I", model.read(4))
@@ -298,7 +273,7 @@ class ImportObject(VisChunkFile):
 
         if v69 >= 4:
             iBindFlagVertices, = unpack("<B", model.read(1))
-        
+
         if v69 >= 3:
             bMeshDataIsBigEndian, = unpack("<B", model.read(1))
             v74, = unpack("<H", model.read(2))
@@ -313,7 +288,7 @@ class ImportObject(VisChunkFile):
         indices_double_buffered, = unpack("<B", model.read(1))
         render_state = VisRenderState(model)
         use_projection, = unpack("<B", model.read(1))
-        effect_config = VisEffectConfig(model)
+        effect_config = VisMeshEffectConfig(model)
 
         vertices = []
         uv_list = []
@@ -399,8 +374,7 @@ class ImportObject(VisChunkFile):
 
         _, count = unpack("<HH", model.read(2 * 2))
         for _ in range(count):
-            name_length, = unpack("<I", model.read(4))
-            name, = unpack(("<%ss" % name_length), model.read(name_length))
+            name = read_string(model)
 
             parent_id, = unpack("<h", model.read(2))
 
