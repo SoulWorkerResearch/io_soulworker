@@ -40,3 +40,5 @@ class VisVertexDescriptor:
 
         magick, = unpack("<I", model.read(4))
         assert self.MAGICK == magick
+
+# https://youtu.be/UnIhRpIT7nc

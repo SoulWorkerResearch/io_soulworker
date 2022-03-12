@@ -9,7 +9,7 @@ from struct import unpack
 from collections import abc
 
 from io_soulworker.core.vis_color import VisColor
-from io_soulworker.core.vis_material import VisMaterial
+# from io_soulworker.core.vis_material import VisMaterial
 from io_soulworker.core.vis_material_effect import VisMaterialEffect
 
 
@@ -49,31 +49,31 @@ def skip_string(file: BufferedReader):
     file.seek(length, SEEK_CUR)
 
 
-def parse_materials(path: Path) -> dict[str, VisMaterial]:
-    if not path.exists():
-        warn("no materials.xml present")
-        return dict()
+# def parse_materials(path: Path) -> dict[str, VisMaterial]:
+#     if not path.exists():
+#         warn("no materials.xml present")
+#         return dict()
 
-    xml: Element = parse(path.as_posix())
-    xml.normalize()
+#     xml: Element = parse(path.as_posix())
+#     xml.normalize()
 
-    root: Element = xml.getElementsByTagName("root")[0]
-    materials: Element = root.getElementsByTagName("Materials")[0]
+#     root: Element = xml.getElementsByTagName("root")[0]
+#     materials: Element = root.getElementsByTagName("Materials")[0]
 
-    def process(node: Element) -> list[str, VisMaterial]:
-        material = VisMaterial()
-        material.name = node.getAttribute("name")
+#     def process(node: Element) -> list[str, VisMaterial]:
+#         material = VisMaterial()
+#         material.name = node.getAttribute("name")
 
-        material.ambient = [int(v)
-                            for v in node.getAttribute("ambient").split(',')]
+#         material.ambient = [int(v)
+#                             for v in node.getAttribute("ambient").split(',')]
 
-        material.diffuse = node.getAttribute("diffuse")
-        material.transparency = node.getAttribute("transparency")
-        material.alphathreshold = float(node.getAttribute("alphathreshold"))
+#         material.diffuse = node.getAttribute("diffuse")
+#         material.transparency = node.getAttribute("transparency")
+#         material.alphathreshold = float(node.getAttribute("alphathreshold"))
 
-        return [material.name, material]
+#         return [material.name, material]
 
-    return dict(map(process, (node for node in materials.childNodes if node.nodeType == Node.ELEMENT_NODE)))
+#     return dict(map(process, (node for node in materials.childNodes if node.nodeType == Node.ELEMENT_NODE)))
 
 
 # https://youtu.be/2N4tXf3Ensw
