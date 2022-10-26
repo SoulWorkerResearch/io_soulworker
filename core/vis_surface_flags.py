@@ -1,27 +1,28 @@
-from enum import Enum
+from enum import IntFlag
 
 
-# Flags passed to the shader provider to control automatic shader assignment.
-class VisSurfaceFlags(Enum):
-    # No flags.
+class VisSurfaceFlags(IntFlag):
+    """ Flags passed to the shader provider to control automatic shader assignment. """
+
     NONE = 0x00000000,
+    """ No flags. """
 
-    # Unused.
-    ObjectSpaceCoordinates = 0x00000001,
+    OBJECT_SPACE_COORDINATES = 0x00000001,
+    """ Unused. """
 
-    # Select a shader that uses vertex colors.
-    VertexColor = 0x00000010,
+    VERTEX_COLOR = 0x00000010,
+    """ Select a shader that uses vertex colors. """
 
-    # Don't fall back to default material shaders.
-    NoDefaultShaders = 0x00001000,
+    NO_DEFAULT_SHADERS = 0x00001000,
+    """ Don't fall back to default material shaders. """
 
-    # Don't select dynamic lighting shaders.
-    NoDynamicLightShaders = 0x00002000,
+    NO_DYNAMIC_LIGHT_SHADERS = 0x00002000,
+    """ Don't select dynamic lighting shaders. """
 
-    # Used internally, do not use.
-    TriggerCallback_Internal = 0x10000000,
+    TRIGGER_CALLBACK_INTERNAL = 0x10000000,
+    """ Used internally, do not use. """
 
-    # Select a shader that supports additional forward passes.
-    HasAdditionalForwardPass = 0x20000000,
+    HAS_ADDITIONAL_FORWARD_PASS = 0x20000000,
+    """ Select a shader that supports additional forward passes. """
 
     DEFAULT = NONE

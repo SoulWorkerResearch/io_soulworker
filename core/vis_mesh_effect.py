@@ -1,14 +1,7 @@
-from io import BufferedReader
-from struct import unpack
-
-from io_soulworker.core.utility import read_string
+from io_soulworker.core.binary_reader import BinaryReader
 
 
 class VisMeshEffect:
-    name: str
-    flags: int
-
-    def __init__(self, model: BufferedReader) -> None:
-        self.name = read_string(model)
-
-        self.flags, = unpack("<I", model.read(4))
+    def __init__(self, reader: BinaryReader) -> None:
+        self.name = reader.read_utf8_uint32_string()
+        self.flags = reader.read_uint32()

@@ -2,6 +2,9 @@ import enum
 
 
 class VisChunkId(enum.IntEnum):
+    
+    NONE = int.from_bytes(b"NONE", byteorder="little")
+    VBIN = int.from_bytes(b"VBIN", byteorder="little")
     VMSH = int.from_bytes(b"VMSH", byteorder="big")
     MTRS = int.from_bytes(b"MTRS", byteorder="big")
     MTRL = int.from_bytes(b"MTRL", byteorder="big")

@@ -1,10 +1,11 @@
-from io import BufferedReader
-from struct import unpack
+from io_soulworker.core.binary_reader import BinaryReader
 
 
 class VisUVOffset:
+
     u: int
     v: int
 
-    def __init__(self, model: BufferedReader) -> None:
-        self.u, self.v = unpack("<BB", model.read(2))
+    def __init__(self, reader: BinaryReader) -> None:
+        self.u = reader.read_uint8()
+        self.v = reader.read_uint8()

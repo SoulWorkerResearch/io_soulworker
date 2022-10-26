@@ -1,7 +1,7 @@
 from bpy.types import Panel
 
 
-class ImportObjectPanelDefaultValues(Panel):
+class OutObjectPanelDefaultValues(Panel):
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
     bl_label = "Default"

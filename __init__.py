@@ -1,20 +1,16 @@
-from itertools import combinations
-from math import radians
-from bpy_extras.io_utils import axis_conversion
-from mathutils import Euler, Vector, Matrix, Quaternion
 import bpy
 
-from io_soulworker.sw_import.object_panel_default_values import ImportObjectPanelDefaultValues
-from io_soulworker.sw_import.object_panel_features import ImportObjectPanelFeatures
-from io_soulworker.sw_import.object_runner import ImportObjectRunner
+from logging import basicConfig, debug
+from logging import DEBUG, INFO
 
-from logging import basicConfig
-from logging import DEBUG
+from io_soulworker.out.object_panel_default_values import OutObjectPanelDefaultValues
+from io_soulworker.out.object_panel_features import OutObjectPanelFeatures
+from io_soulworker.out.object_runner import ImportObjectRunner
 
 
 basicConfig(
-    level=DEBUG,
-    format="[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+    level=DEBUG if __debug__ else INFO,
+    format="[%(filename)40s():%(lineno)4s() - %(funcName)20s() ] %(message)s"
 )
 
 
@@ -22,7 +18,7 @@ bl_info = {
     "name": "SoulWorker",
     "author": "sawich",
     "version": (1, 0, 0),
-    "blender": (2, 93, 0),
+    "blender": (3, 4, 0),
     "location": "File > Import/Export",
     "description": "Import-Export SoulWorker content",
     "support": "COMMUNITY",
@@ -31,8 +27,8 @@ bl_info = {
 
 
 classes = {
-    ImportObjectPanelDefaultValues,
-    ImportObjectPanelFeatures,
+    OutObjectPanelDefaultValues,
+    OutObjectPanelFeatures,
     ImportObjectRunner,
 }
 
@@ -57,5 +53,8 @@ def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
+
+if __name__ == "__main__":
+    register()
 
 # https://youtu.be/SdxsT40DaCg

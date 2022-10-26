@@ -1,7 +1,7 @@
 from bpy.types import Panel
 
 
-class ImportObjectPanelFeatures(Panel):
+class OutObjectPanelFeatures(Panel):
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
     bl_label = "Features"

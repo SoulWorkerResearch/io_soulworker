@@ -1,13 +1,8 @@
-from io import BufferedReader
-from struct import unpack
+from io_soulworker.core.binary_reader import BinaryReader
 
 
 class VisRenderState:
-    transp_mode: int
-    unused: int
-    render_flags: int
-
-    def __init__(self, model: BufferedReader) -> None:
-        self.transp_mode, = unpack("<B", model.read(1))
-        self.unused, = unpack("<B", model.read(1))
-        self.render_flags, = unpack("<H", model.read(2))
+    def __init__(self, reader: BinaryReader) -> None:
+        self.transp_mode = reader.read_uint8()
+        self.unused = reader.read_uint8()
+        self.render_flags = reader.read_uint16()

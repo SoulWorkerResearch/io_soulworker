@@ -10,7 +10,7 @@ from bpy.types import Operator
 from bpy.types import PropertyGroup
 from bpy_extras.io_utils import ImportHelper
 
-from io_soulworker.sw_import.object import ImportObject
+from io_soulworker.out.model_importer import ModelImporter
 
 from pathlib import Path
 from logging import error
@@ -70,6 +70,8 @@ class ImportObjectRunner(Operator, ImportHelper):
             collection
         )
 
+    AVAILABLE_EXTENSIONS = [".model", ".vmesh"]
+
     def execute(self, context: Context):
         context.scene.render.engine = "BLENDER_EEVEE"
 
@@ -80,13 +82,13 @@ class ImportObjectRunner(Operator, ImportHelper):
 
         for file in self.files:
             path: Path = root.parent / file.name
-            lower_suffix_path = path.suffix.lower()
+            ext = path.suffix.lower()
 
-            if not path.is_file() or (lower_suffix_path != ".model" and lower_suffix_path != ".vmesh"):
+            if not path.is_file() or ext not in self.AVAILABLE_EXTENSIONS:
                 error("bad path, skipped: %s", path)
                 continue
 
-            importer = ImportObject(path, context, self.emission_strength)
+            importer = ModelImporter(path, context, self.emission_strength)
             importer.run()
 
         return {"FINISHED"}
