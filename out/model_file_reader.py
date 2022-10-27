@@ -35,9 +35,6 @@ class ModelFileReader(VisChunkFileReader):
         elif cid == VisChunkId.SUBM:
             self.__parse_vertices_materials(reader)
 
-    def __init__(self, path: Path) -> None:
-        super().__init__(path)
-
     def __parse_vertices_materials(self, reader: BinaryReader):
 
         self.u1 = reader.read_int32()

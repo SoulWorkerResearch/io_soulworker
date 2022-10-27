@@ -1,26 +1,11 @@
-
 from logging import debug
 
-from mathutils import Vector
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
 from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.core.vis_mesh_effect_config import VisMeshEffectConfig
-
-
-class VisStride:
-    pos: Vector
-    normal: Vector
-    tex: Vector
-
-    def __init__(self, reader: BinaryReader) -> None:
-        self.pos = Vector(
-            (reader.read_float(), reader.read_float(), reader.read_float()))
-        self.normal = Vector(
-            (reader.read_float(), reader.read_float(), reader.read_float()))
-        self.tex = Vector((reader.read_float(), reader.read_float()))
 
 
 class VisMeshChunk(object):
@@ -88,29 +73,20 @@ class VisMeshChunk(object):
         self.vertices = []
         self.uv_list = []
         for _ in range(self.vertex_count):
-            stride = VisStride(reader)
+            t = reader.tell()
 
-            self.vertices.append([stride.pos.x, stride.pos.y, stride.pos.z])
-            self.uv_list.append([stride.tex.x, -stride.tex.y])
+            reader.seek(t + self.descriptor.pos_offset.x)
+            pos = reader.read_vector()
 
-            # t = reader.tell()
+            self.vertices.append([pos.x, pos.y, pos.z])
 
-            # reader.seek(t + self.descriptor.pos_offset)
-            # pos = reader.read_vector()
+            reader.seek(t + self.descriptor.tex_coord_offset[0].x)
+            u = reader.read_float()
+            v = reader.read_float()
 
-            # self.vertices.append([pos.x, pos.y, pos.z])
+            self.uv_list.append([u, -v])
 
-            # reader.seek(t + self.descriptor.tex_coord_offset[0].u)
-            # u = reader.read_float()
+            reader.seek(t + self.descriptor.stride)
 
-            # reader.seek(t + self.descriptor.tex_coord_offset[0].v)
-            # v = reader.read_float()
-
-            # self.uv_list.append([u, -v])
-
-            # reader.seek(t + self.descriptor.stride)
-
-        count = self.current_prim_count * 3
-
-        self.indices = list(reader.read_uint16_array(count))
+        self.indices = list(reader.read_uint16_array(self.vertex_count))
         self.faces = list(indices_to_face(self.indices))

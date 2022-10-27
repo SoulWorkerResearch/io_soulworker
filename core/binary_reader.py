@@ -10,11 +10,15 @@ from io_soulworker.core.vis_color import VisColor
 from io_soulworker.core.vis_shader_transparency_type import VisShaderTransparencyType
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
 
 class BinaryReader(BufferedReader):
     def read_vector(self):
         return Vector([self.read_float(), self.read_float(), self.read_float()])
+
+    def read_uint8_vector2(self):
+        return VisVector2Int(self.read_uint8(), self.read_uint8())
 
     def read_quaternion(self):
         return Quaternion([self.read_float(), self.read_float(), self.read_float(), self.read_float()])
