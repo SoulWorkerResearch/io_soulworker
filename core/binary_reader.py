@@ -7,6 +7,8 @@ from mathutils import Vector
 
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_color import VisColor
+from io_soulworker.core.vis_index_format import VisIndexFormat
+from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_shader_transparency_type import VisShaderTransparencyType
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
@@ -14,8 +16,11 @@ from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
 
 class BinaryReader(BufferedReader):
-    def read_vector(self):
+    def read_float_vector3(self):
         return Vector([self.read_float(), self.read_float(), self.read_float()])
+
+    def read_float_vector2(self):
+        return Vector([self.read_float(), self.read_float()])
 
     def read_uint8_vector2(self):
         return VisVector2Int(self.read_uint8(), self.read_uint8())
@@ -37,10 +42,16 @@ class BinaryReader(BufferedReader):
         return VisColor(self.read_float(), self.read_float(), self.read_float(), self.read_float())
 
     def read_shader_transparency(self) -> VisShaderTransparencyType:
-        return self.read_uint8()
+        return VisShaderTransparencyType(self.read_uint8())
+
+    def read_primitive_type(self) -> VisPrimitiveType:
+        return VisPrimitiveType(self.read_uint32())
 
     def read_surface_flags(self) -> VisSurfaceFlags:
         return VisSurfaceFlags(self.read_uint32())
+
+    def read_index_format(self) -> VisIndexFormat:
+        return VisIndexFormat(self.read_uint32())
 
     def read_transparency(self) -> VisTransparencyType:
         """ Transparency setting for materials in the Vision engine """
@@ -64,8 +75,14 @@ class BinaryReader(BufferedReader):
         for _ in range(count):
             yield self.read_uint16()
 
+    def read_uint32_array(self, count: int):
+        for _ in range(count):
+            yield self.read_uint32()
+
     def read_int32(self) -> int: return int(unpack("<i", self.read(4))[0])
     def read_uint32(self) -> int: return int(unpack("<I", self.read(4))[0])
 
     def __init__(self, path: Path) -> None:
         super().__init__(open(path, "rb"))
+
+# https://youtu.be/K741PecDK3c

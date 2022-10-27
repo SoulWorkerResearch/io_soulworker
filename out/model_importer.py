@@ -1,3 +1,4 @@
+import bmesh
 import bpy
 
 from bpy.types import Context
@@ -14,19 +15,13 @@ from struct import unpack
 from pathlib import Path
 from logging import debug
 from logging import error
+
 from io_soulworker.chunks.vis_mesh_chunk import VisMeshChunk
 from io_soulworker.chunks.vis_surface_chunk import VisSurfaceChunk
 from io_soulworker.chunks.vis_vertices_material_chunk import VisVerticesMaterialChunk
 from io_soulworker.core.binary_reader import BinaryReader
-
-
 from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_file import VisChunkFileReader
-from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
-from io_soulworker.core.vis_mesh_effect_config import VisMeshEffectConfig
-from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.out.model_file_reader import ModelFileReader
 
 
@@ -145,129 +140,128 @@ class ModelImporter(ModelFileReader):
         self.mesh.from_pydata(chunk.vertices, [], chunk.faces)
 
         uv_layer = self.mesh.uv_layers.new()
+
         for face in self.mesh.polygons:
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
-                uv_layer.data[loop_idx].uv = chunk.uv_list[vert_idx]
+                uv_layer.data[loop_idx].uv = chunk.uvs[vert_idx]
 
-        # recalc normals
+        # self.mesh.normals_split_custom_set(chunk.normals)
         self.mesh.calc_normals()
-
-        # push changes
         self.mesh.update()
 
         self.context.collection.objects.link(self.object)
 
-    def process_skel(self, chunk: VisChunkId, reader: BinaryReader):
-        class Bone:
-            parent_id: int
-            pos: Vector
-            rot: Quaternion
-            obj: EditBone
+    # def process_skel(self, chunk: VisChunkId, reader: BinaryReader):
+    #     class Bone:
+    #         parent_id: int
+    #         pos: Vector
+    #         rot: Quaternion
+    #         obj: EditBone
 
-            def __init__(self, parent_id: int, obj: EditBone, pos: Vector, rot: Quaternion) -> None:
-                self.parent_id = parent_id
-                self.pos = pos
-                self.rot = rot
-                self.obj = obj
+    #         def __init__(self, parent_id: int, obj: EditBone, pos: Vector, rot: Quaternion) -> None:
+    #             self.parent_id = parent_id
+    #             self.pos = pos
+    #             self.rot = rot
+    #             self.obj = obj
 
-        armature = bpy.data.armatures.new(self.mesh.name)
-        armature_object = bpy.data.objects.new(armature.name, armature)
+    #     armature = bpy.data.armatures.new(self.mesh.name)
+    #     armature_object = bpy.data.objects.new(armature.name, armature)
 
-        modifier = self.object.modifiers.new(armature.name, 'ARMATURE')
-        modifier.object = armature_object
+    #     modifier = self.object.modifiers.new(armature.name, 'ARMATURE')
+    #     modifier.object = armature_object
 
-        self.context.collection.objects.link(armature_object)
+    #     self.context.collection.objects.link(armature_object)
 
-        bpy.context.view_layer.objects.active = armature_object
+    #     bpy.context.view_layer.objects.active = armature_object
 
-        bpy.ops.object.mode_set(mode="EDIT")
-        # ---------------
-        bpy.types.Bone.AxisRollFromMatrix
-        armature = bpy.data.armatures.get("Armature")
-        for bone in armature.edit_bones.values():
-            armature.edit_bones.remove(bone)
+    #     bpy.ops.object.mode_set(mode="EDIT")
+    #     # ---------------
+    #     bpy.types.Bone.AxisRollFromMatrix
+    #     armature = bpy.data.armatures.get("Armature")
+    #     for bone in armature.edit_bones.values():
+    #         armature.edit_bones.remove(bone)
 
-        bone = armature.edit_bones.new('asd')
+    #     bone = armature.edit_bones.new('asd')
 
-        bone.head = [0, 0, 0]
-        bone.tail = [0, 0, 10]
-        # ---------------
+    #     bone.head = [0, 0, 0]
+    #     bone.tail = [0, 0, 10]
+    #     # ---------------
 
-        bones: list[Bone] = []
+    #     bones: list[Bone] = []
 
-        _, count = unpack("<HH", reader.read(2 * 2))
-        for _ in range(count):
-            name = reader.read_utf8_uint32_string()
+    #     _, count = unpack("<HH", reader.read(2 * 2))
+    #     for _ in range(count):
+    #         name = reader.read_utf8_uint32_string()
 
-            parent_id = reader.read_uint16()
+    #         parent_id = reader.read_uint16()
 
-            inverse_object_space_position = reader.read_vector()
-            inverse_object_space_orientation = reader.read_quaternion()
-            local_space_position = reader.read_vector()
-            local_space_orientation = reader.read_quaternion()
+    #         inverse_object_space_position = reader.read_vector()
+    #         inverse_object_space_orientation = reader.read_quaternion()
+    #         local_space_position = reader.read_vector()
+    #         local_space_orientation = reader.read_quaternion()
 
-            name = armature.edit_bones.new(name.decode("ASCII"))
-            pos = local_space_position
-            ori = local_space_orientation
+    #         name = armature.edit_bones.new(name.decode("ASCII"))
+    #         pos = local_space_position
+    #         ori = local_space_orientation
 
-            bones.append(Bone(parent_id, name, pos, ori))
+    #         bones.append(Bone(parent_id, name, pos, ori))
 
-        for bone in bones:
-            if bone.parent_id == -1:
-                continue
+    #     for bone in bones:
+    #         if bone.parent_id == -1:
+    #             continue
 
-            obj = bones[bone.parent_id].obj
-            bone.obj.parent = obj
+    #         obj = bones[bone.parent_id].obj
+    #         bone.obj.parent = obj
 
-        for bone in bones:
-            if bone.parent_id != -1:
-                m1 = Matrix.Translation(
-                    bone.pos) @ Matrix(bone.obj.parent.matrix)
-                m2: Matrix = m1 + Matrix.Translation(bone.obj.parent.head)
-                bone.obj.head = m2.to_translation()
+    #     for bone in bones:
+    #         if bone.parent_id != -1:
+    #             m1 = Matrix.Translation(
+    #                 bone.pos) @ Matrix(bone.obj.parent.matrix)
+    #             m2: Matrix = m1 + Matrix.Translation(bone.obj.parent.head)
+    #             bone.obj.head = m2.to_translation()
 
-                m: Matrix = bone.rot.to_matrix().to_4x4().inverted() * \
-                    Matrix(bone.obj.parent.matrix).to_4x4()
-                bone.obj.matrix = m
-            else:
-                bone.obj.head = Matrix.Translation(bone.pos).to_translation()
-                bone.obj.matrix = bone.rot.to_matrix().to_4x4().inverted()
+    #             m: Matrix = bone.rot.to_matrix().to_4x4().inverted() * \
+    #                 Matrix(bone.obj.parent.matrix).to_4x4()
+    #             bone.obj.matrix = m
+    #         else:
+    #             bone.obj.head = Matrix.Translation(bone.pos).to_translation()
+    #             bone.obj.matrix = bone.rot.to_matrix().to_4x4().inverted()
 
-        bpy.ops.object.mode_set(mode="OBJECT")
+    #     bpy.ops.object.mode_set(mode="OBJECT")
 
-    def process_wght(self, chunk: VisChunkId, reader: BinaryReader):
-        pass
+    # def process_wght(self, chunk: VisChunkId, reader: BinaryReader):
+    #     pass
 
-    def on_vertices_material(self, chunk: VisVerticesMaterialChunk):
-        # TODO: i have no idea how this can be done without touching the interface.
-        # hope someone can help me with this.
-        def set_material(vertex_group_name: str, material_id: int):
-            bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
-            bpy.ops.object.vertex_group_select()
+    # def on_vertices_material(self, chunk: VisVerticesMaterialChunk):
+    #     # TODO: i have no idea how this can be done without touching the interface.
+    #     # hope someone can help me with this.
+    #     def set_material(vertex_group_name: str, material_id: int):
+    #         bpy.ops.object.mode_set(mode="EDIT")
+    #         bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
+    #         bpy.ops.object.vertex_group_select()
 
-            self.object.active_material_index = material_id
-            bpy.ops.object.material_slot_assign()
-            bpy.ops.mesh.select_all(action="DESELECT")
-            bpy.ops.object.mode_set(mode="OBJECT")
+    #         self.object.active_material_index = material_id
+    #         bpy.ops.object.material_slot_assign()
+    #         bpy.ops.mesh.select_all(action="DESELECT")
+    #         bpy.ops.object.mode_set(mode="OBJECT")
 
-        materials = self.mesh.materials
-        vertex_groups = self.object.vertex_groups
+    #     materials = self.mesh.materials
+    #     vertex_groups = self.object.vertex_groups
 
-        bpy.context.view_layer.objects.active = self.object
+    #     bpy.context.view_layer.objects.active = self.object
 
-        material_name = materials[chunk.material_id].name_full
-        vertex_group = vertex_groups.new(name=material_name)
+    #     material_name = materials[chunk.material_id].name_full
+    #     vertex_group = vertex_groups.new(name=material_name)
 
-        indices = self.mesh_chunk.indices[chunk.indices_start:
-                                          chunk.indices_start + chunk.indices_count]
-        vertex_group.add(indices, 1, "REPLACE")
+    #     indices = self.mesh_chunk.indices[chunk.indices_start:
+    #                                       chunk.indices_start + chunk.indices_count]
+    #     vertex_group.add(indices, 1, "REPLACE")
 
-        set_material(vertex_group.name, chunk.material_id)
+    #     set_material(vertex_group.name, chunk.material_id)
 
-        debug("material_id: %d", chunk.material_id)
-        debug("indices_start: %d", chunk.indices_start)
-        debug("indices_count: %d", chunk.indices_count)
+    #     debug("material_id: %d", chunk.material_id)
+    #     debug("indices_start: %d", chunk.indices_start)
+    #     debug("indices_count: %d", chunk.indices_count)
 
 
 # https://youtu.be/UXQGKfCWCBc

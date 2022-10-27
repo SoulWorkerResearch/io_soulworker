@@ -3,6 +3,7 @@ from logging import debug
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.vis_chunk_id import VisChunkId
+from io_soulworker.core.vis_index_format import VisIndexFormat
 from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
 from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.core.vis_mesh_effect_config import VisMeshEffectConfig
@@ -48,9 +49,9 @@ class VisMeshChunk(object):
             _ = reader.read_uint16()
             """ Unused """
 
-        self.prim_type = reader.read_uint32()
+        self.prim_type = reader.read_primitive_type()
         self.index_count = reader.read_uint32()
-        self.index_format = reader.read_uint32()
+        self.index_format = reader.read_index_format()
         self.current_prim_count = reader.read_uint32()
         self.mem_usage_flag_indices = reader.read_uint8()
 
@@ -70,23 +71,45 @@ class VisMeshChunk(object):
 
         self.effect_config = VisMeshEffectConfig(reader)
 
+        indices_offset = reader.tell() + self.descriptor.stride * self.vertex_count
+
         self.vertices = []
-        self.uv_list = []
+        self.normals = []
+        self.uvs = []
+
         for _ in range(self.vertex_count):
             t = reader.tell()
 
-            reader.seek(t + self.descriptor.pos_offset.x)
-            pos = reader.read_vector()
+            offset = self.descriptor.offsetOf(self.descriptor.pos_offset)
+            reader.seek(t + offset)
+            pos = reader.read_float_vector3()
 
             self.vertices.append([pos.x, pos.y, pos.z])
 
-            reader.seek(t + self.descriptor.tex_coord_offset[0].x)
-            u = reader.read_float()
-            v = reader.read_float()
+            offset = self.descriptor.offsetOf(self.descriptor.normal_offset)
+            reader.seek(t + offset)
+            normal = reader.read_float_vector3()
 
-            self.uv_list.append([u, -v])
+            self.normals.append([normal.x, normal.y, normal.z])
+
+            offset = self.descriptor.offsetOf(self.descriptor.tex_offset[0])
+            reader.seek(t + offset)
+            texture = reader.read_float_vector3()
+
+            self.uvs.append([texture.x, -texture.y])
 
             reader.seek(t + self.descriptor.stride)
 
-        self.indices = list(reader.read_uint16_array(self.vertex_count))
-        self.faces = list(indices_to_face(self.indices))
+        reader.seek(indices_offset)
+
+        self.indices = list(self.__indices(reader))
+
+        self.faces = list(indices_to_face(
+            self.indices, self.index_count // self.current_prim_count))
+
+    def __indices(self, reader: BinaryReader):
+        match self.index_format:
+            case VisIndexFormat._16:
+                return reader.read_uint16_array(self.index_count)
+            case VisIndexFormat._32:
+                return reader.read_uint32_array(self.index_count)
