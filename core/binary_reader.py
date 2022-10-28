@@ -9,9 +9,8 @@ from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_color import VisColor
 from io_soulworker.core.vis_index_format import VisIndexFormat
 from io_soulworker.core.vis_prim_type import VisPrimitiveType
-from io_soulworker.core.vis_shader_transparency_type import VisShaderTransparencyType
-from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
 
@@ -36,13 +35,10 @@ class BinaryReader(BufferedReader):
         length = self.read_uint32()
         value, = unpack("<%ds" % length, self.read(length))
 
-        return value.decode('ASCII')
+        return value.decode('cp949')
 
     def read_color(self) -> VisColor:
         return VisColor(self.read_float(), self.read_float(), self.read_float(), self.read_float())
-
-    def read_shader_transparency(self) -> VisShaderTransparencyType:
-        return VisShaderTransparencyType(self.read_uint8())
 
     def read_primitive_type(self) -> VisPrimitiveType:
         return VisPrimitiveType(self.read_uint32())
@@ -54,9 +50,7 @@ class BinaryReader(BufferedReader):
         return VisIndexFormat(self.read_uint32())
 
     def read_transparency(self) -> VisTransparencyType:
-        """ Transparency setting for materials in the Vision engine """
-
-        return self.read_uint8()
+        return VisTransparencyType(self.read_uint8())
 
     def read_cid(self) -> VisChunkId:
         """ Chunk Id """

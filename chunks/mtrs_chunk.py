@@ -33,18 +33,21 @@ class MtrsChunk:
             self.spec_exp = reader.read_float()
             """ Specular exponent for materials for the Vision engine """
 
-            self.ui_transparency_type = reader.read_transparency()
-            """ Transparency setting for materials in the Vision engine """
+            self.transparency_type = reader.read_transparency()
 
             self.ui_deferred_id = reader.read_uint8()
             """ material ID that is written to G-Buffer in deferred rendering """
 
             if version >= 3:
                 self.depth_bias = reader.read_float()
+                """ z-offset value that is passed to the shader """
 
             if version >= 4:
                 self.depth_bias_clamp = reader.read_float()
+                """ clamped z-offset value that is passed to the shader """
+
                 self.slope_scaled_depth_bias = reader.read_float()
+                """ slope dependent z-offset value that is passed to the shader """
 
             self.diffuse_map = reader.read_utf8_uint32_string()
             debug("diffuse path: %s", self.diffuse_map)
@@ -63,12 +66,23 @@ class MtrsChunk:
                     debug("aux filename: %s", filename)
 
             self.user_data = reader.read_utf8_uint32_string()
+            """ user data string set in editing tools (e.g. vEdit, Maya) """
+
             self.user_flags = reader.read_uint32()
+            """ customizable user flags """
+
             self.ambient_color = reader.read_color()
+            """ the ambient color of this surface """
+
             reader.read_uint32()  # some unused (maybe colors)
             reader.read_uint32()  # some unused (maybe colors)
+
             self.parallax_scale = reader.read_float()
+            """ parallax scale """
+
             self.parallax_bias = reader.read_float()
+            """ parallax bias """
+
             self.config_effects = MtrsChunk.__mesh_config_effects(reader)
 
             if version >= 5:

@@ -12,6 +12,8 @@ from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.core.xml_helper.exchange_transparency import exchange_transparency
 
 
 class ModelFileReader(VisChunkFileReader):
@@ -78,20 +80,23 @@ class ModelFileReader(VisChunkFileReader):
         return values
 
     def __material_from_file(path: Path) -> dict[str, VisMaterial]:
-        def single(name: str, node: Element): float(node.attrib.get(name))
+        def __float(name: str, node: Element): float(node.attrib.get(name))
+        def __int(name: str, node: Element): int(node.attrib.get(name))
 
-        def color(name: str, node: Element): return [
+        def __color(name: str, node: Element): return [
             int(v) for v in node.attrib.get(name).split(',')]
 
         def process(node: Element) -> tuple[str, VisMaterial]:
             material = VisMaterial()
             material.name = node.attrib.get("name")
 
-            material.ambient = color("ambient", node)
+            material.ambient = __color("ambient", node)
 
             material.diffuse = node.attrib.get("diffuse")
-            # material.transparency = node.attrib.get("transparency")
-            material.alphathreshold = single("alphathreshold", node)
+            material.transparency = VisTransparencyType(
+                exchange_transparency(node.attrib.get("transparency")))
+
+            material.alphathreshold = __float("alphathreshold", node)
 
             return [material.name, material]
 

@@ -16,11 +16,11 @@ from struct import unpack
 from pathlib import Path
 from logging import debug
 from logging import error
-from io_soulworker.chunks.skel_chunk import SkelChunk
 
+from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.subm_chunk import SubmChunk, VisVerticesMaterial
+from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
@@ -124,7 +124,7 @@ class ModelImporter(ModelFileReader):
                     texture_node.outputs.get("Color")
                 )
 
-            if chunk.ui_transparency_type != VisTransparencyType.NONE:
+            if chunk.transparency_type != VisTransparencyType.NONE:
                 material.blend_method = "HASHED"
                 material.shadow_method = "HASHED"
 
