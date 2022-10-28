@@ -2,7 +2,7 @@
 from io_soulworker.core.binary_reader import BinaryReader
 
 
-class VisVerticesMaterialChunk:
+class VisVerticesMaterial:
 
     def __init__(self, reader: BinaryReader) -> None:
         self.indices_start = reader.read_int32()
@@ -21,5 +21,22 @@ class VisVerticesMaterialChunk:
         self.u16 = reader.read_float()
         self.u17 = reader.read_float()
 
-        self.material_id = reader.read_int32()
+        self.id = reader.read_int32()
         self.u18 = reader.read_int32()
+
+
+class SubmChunk:
+
+    def __init__(self, reader: BinaryReader) -> None:
+        self.u1 = reader.read_int32()
+        if self.u1 < 0:
+            self.u2 = reader.read_int32()
+            if self.u2 >= 2:
+                self.geometry_count = reader.read_int32()
+                assert self.geometry_count == 0
+
+            count = reader.read_uint32()
+            self.materials = self.__materials(count, reader)
+
+    def __materials(self, count: int, reader: BinaryReader):
+        return [VisVerticesMaterial(reader) for _ in range(count)]

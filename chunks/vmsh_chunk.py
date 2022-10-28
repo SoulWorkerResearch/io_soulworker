@@ -9,7 +9,7 @@ from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.core.vis_mesh_effect_config import VisMeshEffectConfig
 
 
-class VisMeshChunk(object):
+class VMshChunk(object):
 
     MAGICK = 0x4455ABCD
 

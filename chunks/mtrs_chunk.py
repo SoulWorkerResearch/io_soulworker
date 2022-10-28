@@ -1,7 +1,7 @@
 from logging import debug
 from logging import warn
 from pathlib import Path
-from xml.etree.ElementTree import Element, parse
+from xml.etree.ElementTree import parse
 
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
@@ -9,7 +9,7 @@ from io_soulworker.core.vis_chunk_stack_scope import VisChunkStackScope
 from io_soulworker.core.vis_material_effect import VisMaterialEffect
 
 
-class VisSurfaceChunk:
+class MtrsChunk:
 
     def __init__(self, reader: BinaryReader) -> None:
         with VisChunkStackScope(reader) as scope:
@@ -57,8 +57,7 @@ class VisSurfaceChunk:
 
             if version >= 2:
                 count = reader.read_uint32()
-                aux_filenames = [reader.read_utf8_uint32_string(
-                    reader) for _ in range(count)]
+                aux_filenames = MtrsChunk.__names(count, reader)
 
                 for filename in aux_filenames:
                     debug("aux filename: %s", filename)
@@ -70,7 +69,7 @@ class VisSurfaceChunk:
             reader.read_uint32()  # some unused (maybe colors)
             self.parallax_scale = reader.read_float()
             self.parallax_bias = reader.read_float()
-            self.config_effects = self.read_mesh_config_effects(reader)
+            self.config_effects = MtrsChunk.__mesh_config_effects(reader)
 
             if version >= 5:
                 self.override_library = reader.read_utf8_uint32_string()
@@ -79,57 +78,9 @@ class VisSurfaceChunk:
             if version >= 6:
                 self.ui_mobile_shader_flags = reader.read_uint32()
 
-    def read_mesh_config_effects(self, reader: BinaryReader) -> list[VisMaterialEffect]:
+    def __names(count: int, reader: BinaryReader):
+        return [reader.read_utf8_uint32_string(reader) for _ in range(count)]
+
+    def __mesh_config_effects(reader: BinaryReader) -> list[VisMaterialEffect]:
         count = reader.read_uint32()
         return [VisMaterialEffect(reader) for _ in range(count)]
-
-    def load_material(self, path: Path) -> None:
-        paths = self.__materials_paths__(path)
-        for path in paths:
-            debug('try load from: %s', path)
-            if Path.exists(path):
-                self.update_from_file(path)
-                return
-
-        warn("no materials.xml present")
-
-    def update_from_file(self, path: Path) -> None:
-        xml = parse(path).getroot()
-        materialsNode = xml.find('./Materials')
-
-        override = bool(materialsNode.get('override'))
-        if override != True:
-            return
-
-        for material in materialsNode.iter('Material'):
-            debug("name: %s", material.get('name'))
-            pass
-
-        # xml: Element = parse(path.as_posix())
-        # xml.normalize()
-
-        # root: Element = xml.getElementsByTagName("root")[0]
-        # materials: Element = root.getElementsByTagName("Materials")[0]
-
-        # def process(node: Element) -> list[str, VisMaterial]:
-        #     material = VisMaterial()
-        #     material.name = node.getAttribute("name")
-
-        #     material.ambient = [int(v)
-        #                         for v in node.getAttribute("ambient").split(',')]
-
-        #     material.diffuse = node.getAttribute("diffuse")
-        #     material.transparency = node.getAttribute("transparency")
-        #     material.alphathreshold = float(
-        #         node.getAttribute("alphathreshold"))
-
-        #     return [material.name, material]
-
-        # return dict(map(process, (node for node in materials.childNodes if node.nodeType == Node.ELEMENT_NODE)))
-
-    def __materials_paths__(self, path: Path):
-        # NPC_0001_Mirium.model -> NPC_0001_Mirium.model_data\\materials.xml
-        yield path.parent / (path.name + "_data/materials.xml")
-
-        # NPC_0001_Mirium.model -> Overrides\\NPC_0001_Mirium.model_data\\materials.xml
-        yield path.parent / "Overrides" / (path.name + "_data/materials.xml")
