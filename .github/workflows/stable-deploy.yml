@@ -21,7 +21,7 @@ jobs:
       - name: Deploy
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          title: "Development Snapshot"
+          title: "Stable Relase"
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: io_soulworker.zip
