@@ -2,15 +2,13 @@
 
 ## ✨ Installing
 
-- Download as ZIP;
-- **Rename ZIP file to io_soulworker.zip;**
-- **Rename root folder in ZIP to io_soulworker;**
-- Open Blender;
-- Edit -> Preferences;
-- Add-ons -> Install;
-- Select downloaded ZIP;
-- Typo in search "soulworker";
-- Mark result;
+- Download io_soulworker.zip from releases;
+- Install Add-on ()
+  <details>
+    <summary>If you don't know how to install add-ons check spoiler content</summary>
+    
+    https://www.youtube.com/watch?v=vYh1qh9y1MI
+    </details>
 - File -> Import -> SoulWorker (.model).
 
 ## 😏 Features
