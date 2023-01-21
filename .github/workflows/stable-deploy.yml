@@ -1,0 +1,28 @@
+name: Snapshot Deploy
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Install Zip utility
+        run: sudo apt install zip -y
+
+      - name: Make archive
+        run: zip -r io_soulworker io_soulworker
+
+      - name: Deploy
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          title: "Development Snapshot"
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: io_soulworker.zip
+          automatic_release_tag: "stable"
