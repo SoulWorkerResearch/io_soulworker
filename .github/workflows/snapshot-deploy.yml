@@ -13,12 +13,13 @@ jobs:
         uses: actions/checkout@main
 
       - name: Install Zip utility
-        run: apt install zip -y
+        run: sudo apt install zip -y
 
       - name: Make archive
         run: zip -r io_soulworker io_soulworker
 
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      - name: Deploy
+        uses: "marvinpinto/action-automatic-releases@latest"
         with:
           title: "Development Snapshot"
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
