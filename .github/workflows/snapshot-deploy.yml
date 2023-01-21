@@ -25,3 +25,4 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: true
           files: io_soulworker.zip
+          automatic_release_tag: "latest"
