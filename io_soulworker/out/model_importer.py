@@ -24,24 +24,6 @@ from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.out.model_file_reader import ModelFileReader
 
 
-class SkelValue:
-
-    name: str
-    parent_id: int
-    inverse_object_space_position: Vector
-    inverse_object_space_orientation: Quaternion
-    local_space_position: Vector
-    local_space_orientation: Quaternion
-
-    def __init__(self, name: str, parent_id: int, inverse_object_space_position: Vector, inverse_object_space_orientation: Quaternion, local_space_position: Vector, local_space_orientation: Quaternion) -> None:
-        self.name = name
-        self.parent_id = parent_id
-        self.inverse_object_space_position = inverse_object_space_position
-        self.inverse_object_space_orientation = inverse_object_space_orientation
-        self.local_space_position = local_space_position
-        self.local_space_orientation = local_space_orientation
-
-
 class ModelImporter(ModelFileReader):
 
     mesh: Mesh = None

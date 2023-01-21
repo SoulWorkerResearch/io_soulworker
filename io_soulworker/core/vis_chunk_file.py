@@ -1,3 +1,4 @@
+from logging import debug
 from pathlib import Path
 
 from io_soulworker.core.binary_reader import BinaryReader
@@ -17,7 +18,7 @@ class VisChunkFileReader(object):
     def run(self) -> None:
         with BinaryReader(self.path) as reader:
             header = VisBinHeader(reader)
-            print("[VisChunkFile] version: ", header.version)
+            debug("[VisChunkFile] version: ", header.version)
 
             while True:
                 with VisChunkScope(reader) as scope:

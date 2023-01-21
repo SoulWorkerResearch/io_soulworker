@@ -5,14 +5,14 @@ from xml.etree.ElementTree import parse
 
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_stack_scope import VisChunkStackScope
+from io_soulworker.core.vis_chunk_scope import VisChunkScope
 from io_soulworker.core.vis_material_effect import VisMaterialEffect
 
 
 class MtrsChunk:
 
     def __init__(self, reader: BinaryReader) -> None:
-        with VisChunkStackScope(reader) as scope:
+        with VisChunkScope(reader) as scope:
             assert scope.cid == VisChunkId.MTRL
 
             version = reader.read_uint16()
