@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "JacquesLucke.blender-development",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "redhat.vscode-yaml"
+    ]
+}
