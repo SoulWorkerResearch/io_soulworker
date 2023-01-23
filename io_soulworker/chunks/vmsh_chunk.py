@@ -40,8 +40,7 @@ class VMshChunk(object):
             -1 else self.VERTEXT_USAGE_FLAGS
 
         if self.version >= 4:
-            debug('unsupported version')
-            raise
+            iBindFlagVertices = reader.read_uint8()
 
         if self.version >= 3:
             self.bMeshDataIsBigEndian = reader.read_uint8()
@@ -58,8 +57,7 @@ class VMshChunk(object):
         if (self.version < 4):
             pass
         else:
-            debug('unsupported version')
-            raise
+            iBindFlagIndices = reader.read_uint8()
 
         self.vertices_double_buffered = reader.read_uint8()
         self.indices_double_buffered = reader.read_uint8()

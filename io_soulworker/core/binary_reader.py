@@ -11,6 +11,7 @@ from io_soulworker.core.vis_color import VisColor
 from io_soulworker.core.vis_index_format import VisIndexFormat
 from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
@@ -57,6 +58,9 @@ class BinaryReader(BufferedReader):
 
     def read_transparency(self) -> VisTransparencyType:
         return VisTransparencyType(self.read_uint8())
+
+    def read_render_state_flags(self) -> VisRenderStateFlag:
+        return VisRenderStateFlag(self.read_uint16())
 
     def read_cid(self) -> VisChunkId:
         """ Chunk Id """
