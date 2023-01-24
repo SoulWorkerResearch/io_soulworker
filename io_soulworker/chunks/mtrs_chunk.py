@@ -83,7 +83,7 @@ class MtrsChunk:
             """ the ambient color of this surface """
 
             self.brightness = reader.read_uint32()
-            self.light_olor = reader.read_uint32()
+            self.light_color = reader.read_uint32()
 
             self.parallax_scale = reader.read_float()
             """ parallax scale """

@@ -110,7 +110,6 @@ class VMshChunk(object):
 
         vertices_per_face = self.index_count // self.current_prim_count
         self.faces = list(indices_to_face(self.indices, vertices_per_face))
-        _ = 1
 
     def __indices(self, reader: BinaryReader):
         match self.index_format:

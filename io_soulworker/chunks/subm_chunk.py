@@ -20,7 +20,7 @@ class VisVerticesMaterial:
         self.id = reader.read_int32()
 
         if version < 2:
-            if version < 1:
+            if version == 1:
                 _ = reader.read_int32()
                 _ = reader.read_int16()
                 _ = reader.read_int16()
@@ -31,8 +31,6 @@ class VisVerticesMaterial:
         else:
             geometry_index = reader.read_int32()
             assert materials >= geometry_index
-
-        self.u18 = reader.read_int32()
 
 
 class SubmChunk:
