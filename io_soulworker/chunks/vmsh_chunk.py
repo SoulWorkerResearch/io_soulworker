@@ -35,9 +35,7 @@ class VMshChunk(object):
 
         self.vertex_count = reader.read_uint32()
 
-        vertex_usage_flags = reader.read_uint8()
-        self.m_iMemUsageFlagVertices = vertex_usage_flags if self.VERTEXT_USAGE_FLAGS == \
-            -1 else self.VERTEXT_USAGE_FLAGS
+        self.vertex_usage_flags = reader.read_uint8()
 
         if self.version >= 4:
             iBindFlagVertices = reader.read_uint8()
@@ -59,6 +57,8 @@ class VMshChunk(object):
 
         self.vertices_double_buffered = reader.read_uint8()
         self.indices_double_buffered = reader.read_uint8()
+        if self.version >= 5:
+            self.double_buffering_from_file = reader.read_uint8()
 
         self.render_state = VisRenderState(reader)
 
@@ -66,9 +66,6 @@ class VMshChunk(object):
         self.texture_channels_count = reader.read_uint8()
 
         self.effect_config = VisMeshEffectConfig(reader)
-
-        if (self.version == 5):
-            _ = reader.read_uint8()
 
         indices_offset = reader.tell() + self.descriptor.stride * self.vertex_count
 
