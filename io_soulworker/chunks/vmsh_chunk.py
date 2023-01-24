@@ -69,6 +69,9 @@ class VMshChunk(object):
 
         self.effect_config = VisMeshEffectConfig(reader)
 
+        if (self.version == 5):
+            _ = reader.read_uint8()
+
         indices_offset = reader.tell() + self.descriptor.stride * self.vertex_count
 
         self.vertices = []
@@ -78,23 +81,28 @@ class VMshChunk(object):
         for _ in range(self.vertex_count):
             t = reader.tell()
 
-            offset = self.descriptor.offsetOf(self.descriptor.pos_offset)
-            reader.seek(t + offset)
-            pos = reader.read_float_vector3()
+            if (self.descriptor.hasComponent(self.descriptor.pos_offset)):
+                offset = self.descriptor.offsetOf(self.descriptor.pos_offset)
+                reader.seek(t + offset)
 
-            self.vertices.append([pos.x, pos.y, pos.z])
+                pos = reader.read_float_vector3()
+                self.vertices.append([pos.x, pos.y, pos.z])
 
-            offset = self.descriptor.offsetOf(self.descriptor.normal_offset)
-            reader.seek(t + offset)
-            normal = reader.read_float_vector3()
+            if (self.descriptor.hasComponent(self.descriptor.normal_offset)):
+                offset = self.descriptor.offsetOf(
+                    self.descriptor.normal_offset)
+                reader.seek(t + offset)
 
-            self.normals.append([normal.x, normal.y, normal.z])
+                normal = reader.read_float_vector3()
+                self.normals.append([normal.x, normal.y, normal.z])
 
-            offset = self.descriptor.offsetOf(self.descriptor.tex_offset[0])
-            reader.seek(t + offset)
-            texture = reader.read_float_vector3()
+            if (self.descriptor.hasComponent(self.descriptor.tex_offset[0])):
+                offset = self.descriptor.offsetOf(
+                    self.descriptor.tex_offset[0])
+                reader.seek(t + offset)
 
-            self.uvs.append([texture.x, -texture.y])
+                texture = reader.read_float_vector3()
+                self.uvs.append([texture.x, -texture.y])
 
             reader.seek(t + self.descriptor.stride)
 
@@ -102,8 +110,9 @@ class VMshChunk(object):
 
         self.indices = list(self.__indices(reader))
 
-        self.faces = list(indices_to_face(
-            self.indices, self.index_count // self.current_prim_count))
+        vertices_per_face = self.index_count // self.current_prim_count
+        self.faces = list(indices_to_face(self.indices, vertices_per_face))
+        _ = 1
 
     def __indices(self, reader: BinaryReader):
         match self.index_format:

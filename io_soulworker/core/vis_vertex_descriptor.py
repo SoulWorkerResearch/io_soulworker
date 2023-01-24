@@ -36,6 +36,7 @@ class VisVertexDescriptor(object):
     hash: int
     """ Hash value. Set automatically when computing the hash or at serialization time. """
 
+    def hasComponent(self, value: int): return value != -1
     def offsetOf(self, value: int): return value & self.VERTEXDESC_OFFSET_MASK
 
     def __init__(self, reader: BinaryReader) -> None:
