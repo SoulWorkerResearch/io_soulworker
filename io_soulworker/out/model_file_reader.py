@@ -50,16 +50,16 @@ class ModelFileReader(VisChunkFileReader):
         self.on_mesh(VMshChunk(cid, reader))
 
     def __parse_materials(self, reader: BinaryReader):
-        mats = ModelFileReader.__xml_material(reader)
+        overrides = ModelFileReader.__xml_material(reader)
 
         count = reader.read_uint32()
 
         for _ in range(count):
             chunk = MtrsChunk(reader)
 
-            mat = mats.get(chunk.name)
-            if mat:
-                chunk.diffuse_map = mat.diffuse
+            override = overrides.get(chunk.name)
+            if override:
+                chunk.diffuse_map = override.diffuse
 
             self.on_surface(chunk)
 

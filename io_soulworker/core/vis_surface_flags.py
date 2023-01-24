@@ -26,3 +26,4 @@ class VisSurfaceFlags(IntFlag):
     """ Select a shader that supports additional forward passes. """
 
     DEFAULT = NONE
+    """ Default flags set at construction time (by default we assume UV1 is supported) """

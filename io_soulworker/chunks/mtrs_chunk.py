@@ -21,11 +21,16 @@ class MtrsChunk:
             self.name = reader.read_utf8_uint32_string()
             debug("mat_name: %s", self.name)
 
-            self.flags = reader.read_uint32()
+            self.flags = reader.read_surface_flags()
             debug("flags: %s", repr(self.flags))
+
+            if version >= 9:
+                self.lighting_method = reader.read_lighting_method()
 
             self.ui_sorting_key = reader.read_uint32()
             """ internal sorting key; has to be in the range 0..15 """
+
+            assert self.ui_sorting_key < 15
 
             self.spec_mul = reader.read_float()
             """ Specular multiplier for material for the Vision engine """
@@ -48,6 +53,9 @@ class MtrsChunk:
 
                 self.slope_scaled_depth_bias = reader.read_float()
                 """ slope dependent z-offset value that is passed to the shader """
+
+            if version >= 7:
+                self.custom_alpha_threshold = reader.read_float()
 
             self.diffuse_map = reader.read_utf8_uint32_string()
             debug("diffuse path: %s", self.diffuse_map)
@@ -74,8 +82,8 @@ class MtrsChunk:
             self.ambient_color = reader.read_color()
             """ the ambient color of this surface """
 
-            reader.read_uint32()  # some unused (maybe colors)
-            reader.read_uint32()  # some unused (maybe colors)
+            self.brightness = reader.read_uint32()
+            self.light_olor = reader.read_uint32()
 
             self.parallax_scale = reader.read_float()
             """ parallax scale """
@@ -97,4 +105,6 @@ class MtrsChunk:
 
     def __mesh_config_effects(reader: BinaryReader) -> list[VisMaterialEffect]:
         count = reader.read_uint32()
+        assert count < 1
+
         return [VisMaterialEffect(reader) for _ in range(count)]

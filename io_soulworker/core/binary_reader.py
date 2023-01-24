@@ -9,6 +9,7 @@ from mathutils import Vector
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_color import VisColor
 from io_soulworker.core.vis_index_format import VisIndexFormat
+from io_soulworker.core.vis_lighting_method import VisLightingMethod
 from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
@@ -52,6 +53,9 @@ class BinaryReader(BufferedReader):
 
     def read_surface_flags(self) -> VisSurfaceFlags:
         return VisSurfaceFlags(self.read_uint32())
+
+    def read_lighting_method(self) -> VisLightingMethod:
+        return VisLightingMethod(self.read_uint8())
 
     def read_index_format(self) -> VisIndexFormat:
         return VisIndexFormat(self.read_uint32())
