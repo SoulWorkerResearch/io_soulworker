@@ -24,24 +24,6 @@ from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.out.model_file_reader import ModelFileReader
 
 
-class SkelValue:
-
-    name: str
-    parent_id: int
-    inverse_object_space_position: Vector
-    inverse_object_space_orientation: Quaternion
-    local_space_position: Vector
-    local_space_orientation: Quaternion
-
-    def __init__(self, name: str, parent_id: int, inverse_object_space_position: Vector, inverse_object_space_orientation: Quaternion, local_space_position: Vector, local_space_orientation: Quaternion) -> None:
-        self.name = name
-        self.parent_id = parent_id
-        self.inverse_object_space_position = inverse_object_space_position
-        self.inverse_object_space_orientation = inverse_object_space_orientation
-        self.local_space_position = local_space_position
-        self.local_space_orientation = local_space_orientation
-
-
 class ModelImporter(ModelFileReader):
 
     mesh: Mesh = None
@@ -50,6 +32,7 @@ class ModelImporter(ModelFileReader):
     emission_strength: float
 
     def __init__(self, path: Path, context: Context, emission_strength: float) -> None:
+
         super().__init__(path)
 
         self.emission_strength = emission_strength
@@ -64,7 +47,9 @@ class ModelImporter(ModelFileReader):
         self.object = bpy.data.objects.new(self.mesh.name, self.mesh)
 
     def on_surface(self, chunk: MtrsChunk):
+
         def create_blender_nodes(material: Material):
+
             node_tree = material.node_tree
             nodes = node_tree.nodes
 
@@ -137,6 +122,7 @@ class ModelImporter(ModelFileReader):
         self.mesh.materials.append(material)
 
     def on_mesh(self, chunk: VMshChunk):
+
         self.mesh_chunk = chunk
 
         # fill vertices, edges and faces from file
@@ -155,9 +141,9 @@ class ModelImporter(ModelFileReader):
         self.context.collection.objects.link(self.object)
 
     def on_skeleton(self, chunk: SkelChunk):
-        pass
 
         armature = bpy.data.armatures.new(self.mesh.name + "_a")
+        armature.display_type = 'STICK'
         armature_object = bpy.data.objects.new(armature.name + "_o", armature)
 
         modifier = self.object.modifiers.new(armature.name + "_m", 'ARMATURE')
@@ -167,13 +153,13 @@ class ModelImporter(ModelFileReader):
 
         bpy.context.view_layer.objects.active = armature_object
 
-        bpy.ops.object.mode_set(mode="EDIT")
-
         def __create_bones(armature: Armature, chunk: SkelChunk):
+
             for bone in chunk.bones:
                 armature.edit_bones.new(bone.name)
 
         def __update_connections(armature: Armature, chunk: SkelChunk):
+
             for bone in chunk.bones:
                 obj: EditBone = armature.edit_bones.get(bone.name)
 
@@ -191,25 +177,26 @@ class ModelImporter(ModelFileReader):
                 obj.parent = value
 
         def __update_positions(armature: Armature, chunk: SkelChunk):
+
             for bone in chunk.bones:
                 obj: EditBone = armature.edit_bones.get(bone.name)
 
-                rotMatrix = bone.local_space_orientation.to_matrix().inverted()
-                posMatrix = Matrix.Translation(bone.local_space_position)
-
-                rm = rotMatrix.to_4x4()
-                pm = posMatrix.to_translation()
-
                 if obj.parent:
-                    obj.head = pm @ obj.parent.matrix + obj.parent.head
-                    obj.matrix = rm @ obj.parent.matrix
-                else:
-                    obj.head = pm
-                    obj.matrix = rm
+                    src = next(
+                        (v for v in chunk.bones if v.name == obj.parent.name), None)
 
-                bvec = obj.tail - obj.head
-                bvec.normalize()
-                obj.tail = obj.head + 0.01 * bvec
+                    if src is None:
+                        raise
+
+                    src.inverse_object_space_orientation.to_axis_angle()
+
+                    obj.tail = src.local_space_position
+                    obj.head = bone.local_space_position
+                else:
+                    obj.tail = (0, 0, 0)
+                    obj.head = bone.local_space_position
+
+        bpy.ops.object.mode_set(mode="EDIT")
 
         __create_bones(armature, chunk)
         __update_connections(armature, chunk)
@@ -223,9 +210,11 @@ class ModelImporter(ModelFileReader):
     #     pass
 
     def on_vertices_material(self, chunk: SubmChunk):
+
         # TODO: i have no idea how this can be done without touching the interface.
         # hope someone can help me with this.
         def set_material(vertex_group_name: str, material_id: int):
+
             bpy.ops.object.mode_set(mode="EDIT")
             bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
             bpy.ops.object.vertex_group_select()

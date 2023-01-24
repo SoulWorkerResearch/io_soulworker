@@ -35,13 +35,10 @@ class VMshChunk(object):
 
         self.vertex_count = reader.read_uint32()
 
-        vertex_usage_flags = reader.read_uint8()
-        self.m_iMemUsageFlagVertices = vertex_usage_flags if self.VERTEXT_USAGE_FLAGS == \
-            -1 else self.VERTEXT_USAGE_FLAGS
+        self.vertex_usage_flags = reader.read_uint8()
 
         if self.version >= 4:
-            debug('unsupported version')
-            raise
+            iBindFlagVertices = reader.read_uint8()
 
         if self.version >= 3:
             self.bMeshDataIsBigEndian = reader.read_uint8()
@@ -55,14 +52,13 @@ class VMshChunk(object):
         self.current_prim_count = reader.read_uint32()
         self.mem_usage_flag_indices = reader.read_uint8()
 
-        if (self.version < 4):
-            pass
-        else:
-            debug('unsupported version')
-            raise
+        if (self.version >= 4):
+            iBindFlagIndices = reader.read_uint8()
 
         self.vertices_double_buffered = reader.read_uint8()
         self.indices_double_buffered = reader.read_uint8()
+        if self.version >= 5:
+            self.double_buffering_from_file = reader.read_uint8()
 
         self.render_state = VisRenderState(reader)
 
@@ -80,23 +76,28 @@ class VMshChunk(object):
         for _ in range(self.vertex_count):
             t = reader.tell()
 
-            offset = self.descriptor.offsetOf(self.descriptor.pos_offset)
-            reader.seek(t + offset)
-            pos = reader.read_float_vector3()
+            if (self.descriptor.hasComponent(self.descriptor.pos_offset)):
+                offset = self.descriptor.offsetOf(self.descriptor.pos_offset)
+                reader.seek(t + offset)
 
-            self.vertices.append([pos.x, pos.y, pos.z])
+                pos = reader.read_float_vector3()
+                self.vertices.append([pos.x, pos.y, pos.z])
 
-            offset = self.descriptor.offsetOf(self.descriptor.normal_offset)
-            reader.seek(t + offset)
-            normal = reader.read_float_vector3()
+            if (self.descriptor.hasComponent(self.descriptor.normal_offset)):
+                offset = self.descriptor.offsetOf(
+                    self.descriptor.normal_offset)
+                reader.seek(t + offset)
 
-            self.normals.append([normal.x, normal.y, normal.z])
+                normal = reader.read_float_vector3()
+                self.normals.append([normal.x, normal.y, normal.z])
 
-            offset = self.descriptor.offsetOf(self.descriptor.tex_offset[0])
-            reader.seek(t + offset)
-            texture = reader.read_float_vector3()
+            if (self.descriptor.hasComponent(self.descriptor.tex_offset[0])):
+                offset = self.descriptor.offsetOf(
+                    self.descriptor.tex_offset[0])
+                reader.seek(t + offset)
 
-            self.uvs.append([texture.x, -texture.y])
+                texture = reader.read_float_vector3()
+                self.uvs.append([texture.x, -texture.y])
 
             reader.seek(t + self.descriptor.stride)
 
@@ -104,8 +105,8 @@ class VMshChunk(object):
 
         self.indices = list(self.__indices(reader))
 
-        self.faces = list(indices_to_face(
-            self.indices, self.index_count // self.current_prim_count))
+        vertices_per_face = self.index_count // self.current_prim_count
+        self.faces = list(indices_to_face(self.indices, vertices_per_face))
 
     def __indices(self, reader: BinaryReader):
         match self.index_format:
