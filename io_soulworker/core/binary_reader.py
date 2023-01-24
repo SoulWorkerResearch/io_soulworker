@@ -46,7 +46,7 @@ class BinaryReader(BufferedReader):
         return value.decode('cp949')
 
     def read_color(self) -> VisColor:
-        return VisColor(self.read_float(), self.read_float(), self.read_float(), self.read_float())
+        return VisColor(self.read_uint8(), self.read_uint8(), self.read_uint8(), self.read_uint8())
 
     def read_primitive_type(self) -> VisPrimitiveType:
         return VisPrimitiveType(self.read_uint32())

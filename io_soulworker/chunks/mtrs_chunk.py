@@ -15,8 +15,8 @@ class MtrsChunk:
         with VisChunkScope(reader) as scope:
             assert scope.cid == VisChunkId.MTRL
 
-            version = reader.read_uint16()
-            debug('version: %d', version)
+            self.version = reader.read_uint16()
+            debug('version: %d', self.version)
 
             self.name = reader.read_utf8_uint32_string()
             debug("mat_name: %s", self.name)
@@ -24,7 +24,7 @@ class MtrsChunk:
             self.flags = reader.read_surface_flags()
             debug("flags: %s", repr(self.flags))
 
-            if version >= 9:
+            if self.version >= 9:
                 self.lighting_method = reader.read_lighting_method()
 
             self.ui_sorting_key = reader.read_uint32()
@@ -43,18 +43,18 @@ class MtrsChunk:
             self.ui_deferred_id = reader.read_uint8()
             """ material ID that is written to G-Buffer in deferred rendering """
 
-            if version >= 3:
+            if self.version >= 3:
                 self.depth_bias = reader.read_float()
                 """ z-offset value that is passed to the shader """
 
-            if version >= 4:
+            if self.version >= 4:
                 self.depth_bias_clamp = reader.read_float()
                 """ clamped z-offset value that is passed to the shader """
 
                 self.slope_scaled_depth_bias = reader.read_float()
                 """ slope dependent z-offset value that is passed to the shader """
 
-            if version >= 7:
+            if self.version >= 7:
                 self.custom_alpha_threshold = reader.read_float()
 
             self.diffuse_map = reader.read_utf8_uint32_string()
@@ -66,7 +66,7 @@ class MtrsChunk:
             self.normal_map = reader.read_utf8_uint32_string()
             debug("normal path: %s", self.normal_map)
 
-            if version >= 2:
+            if self.version >= 2:
                 count = reader.read_uint32()
                 aux_filenames = MtrsChunk.__names(count, reader)
 
@@ -91,20 +91,20 @@ class MtrsChunk:
             self.parallax_bias = reader.read_float()
             """ parallax bias """
 
-            self.config_effects = MtrsChunk.__mesh_config_effects(reader)
+            self.config_effects = self.__mesh_config_effects(reader)
 
-            if version >= 5:
+            if self.version >= 5:
                 self.override_library = reader.read_utf8_uint32_string()
                 self.override_material = reader.read_utf8_uint32_string()
 
-            if version >= 6:
+            if self.version >= 6:
                 self.ui_mobile_shader_flags = reader.read_uint32()
 
     def __names(count: int, reader: BinaryReader):
         return [reader.read_utf8_uint32_string(reader) for _ in range(count)]
 
-    def __mesh_config_effects(reader: BinaryReader) -> list[VisMaterialEffect]:
+    def __mesh_config_effects(self, reader: BinaryReader) -> list[VisMaterialEffect]:
         count = reader.read_uint32()
-        assert count < 1
+        assert count <= 1
 
-        return [VisMaterialEffect(reader) for _ in range(count)]
+        return [VisMaterialEffect(self.version, reader) for _ in range(count)]
