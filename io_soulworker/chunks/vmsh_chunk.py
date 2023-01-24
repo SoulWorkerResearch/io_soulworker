@@ -54,9 +54,7 @@ class VMshChunk(object):
         self.current_prim_count = reader.read_uint32()
         self.mem_usage_flag_indices = reader.read_uint8()
 
-        if (self.version < 4):
-            pass
-        else:
+        if (self.version >= 4):
             iBindFlagIndices = reader.read_uint8()
 
         self.vertices_double_buffered = reader.read_uint8()

@@ -210,7 +210,6 @@ class ModelImporter(ModelFileReader):
     #     pass
 
     def on_vertices_material(self, chunk: SubmChunk):
-        pass
 
         # TODO: i have no idea how this can be done without touching the interface.
         # hope someone can help me with this.
