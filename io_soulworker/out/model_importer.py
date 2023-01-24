@@ -153,8 +153,6 @@ class ModelImporter(ModelFileReader):
 
         bpy.context.view_layer.objects.active = armature_object
 
-        bpy.ops.object.mode_set(mode="EDIT")
-
         def __create_bones(armature: Armature, chunk: SkelChunk):
 
             for bone in chunk.bones:
@@ -197,6 +195,8 @@ class ModelImporter(ModelFileReader):
                 else:
                     obj.tail = (0, 0, 0)
                     obj.head = bone.local_space_position
+
+        bpy.ops.object.mode_set(mode="EDIT")
 
         __create_bones(armature, chunk)
         __update_connections(armature, chunk)
