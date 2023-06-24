@@ -135,7 +135,6 @@ class ModelImporter(ModelFileReader):
                 uv_layer.data[loop_idx].uv = chunk.uvs[vert_idx]
 
         # self.mesh.normals_split_custom_set(chunk.normals)
-        self.mesh.calc_normals()
         self.mesh.update()
 
         self.context.collection.objects.link(self.object)
