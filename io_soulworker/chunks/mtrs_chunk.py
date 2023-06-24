@@ -1,7 +1,4 @@
 from logging import debug
-from logging import warn
-from pathlib import Path
-from xml.etree.ElementTree import parse
 
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
