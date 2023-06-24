@@ -50,3 +50,7 @@
 
 Some models use materials that are not in the root folder.\
 Please unpack the game resources **keeping the original structure**.
+
+## 🛠️ For developers
+
+- My VSCode profile [link](https://insiders.vscode.dev/profile/github/dc728520c44120984fb6e00e6e43534b)
