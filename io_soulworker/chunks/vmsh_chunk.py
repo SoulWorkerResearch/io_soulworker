@@ -1,5 +1,3 @@
-from logging import debug
-
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.vis_chunk_id import VisChunkId
