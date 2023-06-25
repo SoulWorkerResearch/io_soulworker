@@ -1,30 +1,32 @@
-import bpy
+from __future__ import annotations
 
-from bpy.types import Context
-from bpy.types import EditBone
-from bpy.types import Object
-from bpy.types import Mesh
-from bpy.types import ShaderNodeTexImage
-from bpy.types import Material
-from bpy.types import Armature
-
-
+from logging import debug, error
 from pathlib import Path
-from logging import debug
-from logging import error
 
-from io_soulworker.chunks.skel_chunk import SkelChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
+import bpy
+from bpy.types import (
+    Armature,
+    Context,
+    EditBone,
+    Material,
+    Mesh,
+    Object,
+    ShaderNodeBsdfPrincipled,
+    ShaderNodeTexImage,
+)
+
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
+from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
+from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.out.model_file_reader import ModelFileReader
 
 
 class ModelImporter(ModelFileReader):
 
-    mesh: Mesh = None
-    object: Object = None
+    mesh: Mesh
+    object: Object
     context: Context
     emission_strength: float
 
@@ -50,7 +52,7 @@ class ModelImporter(ModelFileReader):
             node_tree = material.node_tree
             nodes = node_tree.nodes
 
-            pbsdf_node = nodes.get("Principled BSDF")
+            pbsdf_node: ShaderNodeBsdfPrincipled = nodes["Principled BSDF"]
 
             # if not v_material.diffuse_map:
             #     debug("no diffuse_map")
@@ -78,20 +80,20 @@ class ModelImporter(ModelFileReader):
                     error("FILE NOT FOUND %s", path)
                     return
 
-            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
+            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage") 
             debug("texture path: %s", path)
 
             texture_node.image = bpy.data.images.load(path.__str__())
             debug("texture loaded: %s", path)
 
             node_tree.links.new(
-                pbsdf_node.inputs.get("Base Color"),
-                texture_node.outputs.get("Color")
+                pbsdf_node.inputs["Base Color"],
+                texture_node.outputs["Color"]
             )
 
             node_tree.links.new(
-                pbsdf_node.inputs.get("Alpha"),
-                texture_node.outputs.get("Alpha")
+                pbsdf_node.inputs["Alpha"],
+                texture_node.outputs["Alpha"]
             )
 
             if "GLOW" in material.name:
@@ -99,8 +101,8 @@ class ModelImporter(ModelFileReader):
                 pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
 
                 node_tree.links.new(
-                    pbsdf_node.inputs.get("Emission"),
-                    texture_node.outputs.get("Color")
+                    pbsdf_node.inputs["Emission"],
+                    texture_node.outputs["Color"]
                 )
 
             if chunk.transparency_type != VisTransparencyType.NONE:
@@ -147,7 +149,7 @@ class ModelImporter(ModelFileReader):
 
         self.context.collection.objects.link(armature_object)
 
-        bpy.context.view_layer.objects.active = armature_object
+        self.context.view_layer.objects.active = armature_object
 
         def __create_bones(armature: Armature, chunk: SkelChunk):
 
@@ -157,7 +159,7 @@ class ModelImporter(ModelFileReader):
         def __update_connections(armature: Armature, chunk: SkelChunk):
 
             for bone in chunk.bones:
-                obj: EditBone = armature.edit_bones.get(bone.name)
+                obj = armature.edit_bones[bone.name]
 
                 if 0 > bone.parent_id or bone.parent_id > len(chunk.bones):
                     debug('bad bone parent index: %d', bone.parent_id)
@@ -175,7 +177,7 @@ class ModelImporter(ModelFileReader):
         def __update_positions(armature: Armature, chunk: SkelChunk):
 
             for bone in chunk.bones:
-                obj: EditBone = armature.edit_bones.get(bone.name)
+                obj = armature.edit_bones[bone.name]
 
                 if obj.parent:
                     src = next(
@@ -191,7 +193,7 @@ class ModelImporter(ModelFileReader):
                 else:
                     obj.tail = (0, 0, 0)
                     obj.head = bone.local_space_position
-
+        
         bpy.ops.object.mode_set(mode="EDIT")
 
         __create_bones(armature, chunk)
