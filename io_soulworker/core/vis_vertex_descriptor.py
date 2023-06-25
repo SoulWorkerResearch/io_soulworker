@@ -10,31 +10,61 @@ class VisVertexDescriptor(object):
     VERTEXDESC_OFFSET_MASK = 0x0fff
 
     stride: int
-    """ Stride of the vertex structure; must be set to the size of the vertex structure. """
+    """
+        Stride of the vertex structure; 
+        must be set to the size of the vertex structure.
+    """
 
     pos_offset: int
-    """ Offset of the position vector in the structure. Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz to force a specific format. """
+    """
+        Offset of the position vector in the structure.
+        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
+        to force a specific format.
+    """
 
     color_offset: int
-    """ Offset of the color vector in the structure. Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz to force a specific format. """
+    """
+        Offset of the color vector in the structure.
+        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
+        to force a specific format.
+    """
 
     normal_offset: int
-    """ Offset of the normal vector in the structure. Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz to force a specific format. """
+    """
+        Offset of the normal vector in the structure.
+        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
+        to force a specific format.
+    """
 
     tex_offset: list[int]
-    """ Offset of the sets of texture coordinates in the structure. Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz to force a specific format. """
+    """
+        Offset of the sets of texture coordinates in the structure.
+        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
+        to force a specific format.
+    """
 
     secondary_color_offset: int
-    """ Offset of the secondary color. Not supported on all platforms. """
+    """
+        Offset of the secondary color. Not supported on all platforms.
+    """
 
     first_text_coord: int
-    """ Index of the first used texture coordinate set. Set automatically by ComputeHash() or at serialization time. """
+    """
+        Index of the first used texture coordinate set.
+        Set automatically by ComputeHash() or at serialization time.
+    """
 
     last_text_coord: int
-    """ Index of the last used texture coordinate set. Set automatically by ComputeHash() or at serialization time. """
+    """
+        Index of the last used texture coordinate set.
+        Set automatically by ComputeHash() or at serialization time.
+    """
 
     hash: int
-    """ Hash value. Set automatically when computing the hash or at serialization time. """
+    """
+        Hash value. 
+        Set automatically when computing the hash or at serialization time. 
+    """
 
     def hasComponent(self, value: int): return value != -1
     def offsetOf(self, value: int): return value & self.VERTEXDESC_OFFSET_MASK
