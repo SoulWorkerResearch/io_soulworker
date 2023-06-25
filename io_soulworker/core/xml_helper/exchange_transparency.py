@@ -1,3 +1,5 @@
+from logging import warn
+
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 
 
@@ -27,4 +29,5 @@ def exchange_transparency(name: str) -> VisTransparencyType:
     if name == "premultipliedalpha":
         return VisTransparencyType.PREMULTIPLIEDALPHA
 
-    assert 0
+    warn('Undefined transparency type')
+    return VisTransparencyType.NONE
