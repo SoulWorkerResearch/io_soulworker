@@ -1,19 +1,18 @@
-import bpy
+from logging import error
+from pathlib import Path
 
-from bpy.props import CollectionProperty
-from bpy.props import FloatProperty
-from bpy.props import BoolProperty
-from bpy.types import Context
-from bpy.types import LayerCollection
-from bpy.types import Collection
-from bpy.types import Operator
-from bpy.types import PropertyGroup
+import bpy
+from bpy.props import BoolProperty, CollectionProperty, FloatProperty
+from bpy.types import (
+    Collection,
+    Context,
+    LayerCollection,
+    Operator,
+    OperatorFileListElement,
+)
 from bpy_extras.io_utils import ImportHelper
 
 from io_soulworker.out.model_importer import ModelImporter
-
-from pathlib import Path
-from logging import error
 
 
 class FileRunner(Operator, ImportHelper):
@@ -33,17 +32,15 @@ class FileRunner(Operator, ImportHelper):
     )
 
     # selected files
-    files: CollectionProperty(type=PropertyGroup)
+    files: CollectionProperty(type=OperatorFileListElement)
 
-    def draw(self, context):
+    def draw_menu(self, context):
         # disable draw standard controls
         pass
 
     def create_collection(self, context: Context, name: str):
 
         def get_layer_collection(layer_collection: LayerCollection, collection: Collection):
-            found = None
-
             if (layer_collection.name == collection.name):
                 return layer_collection
 
@@ -52,6 +49,9 @@ class FileRunner(Operator, ImportHelper):
 
                 if found:
                     return found
+                
+            raise Exception("No active layer")
+                
 
         # collection for loaded object
         collection = bpy.data.collections.new(name)

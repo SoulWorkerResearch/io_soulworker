@@ -10,5 +10,5 @@ class VisBinHeader:
 
     def __init__(self, reader: BinaryReader) -> None:
 
-        self.cid = reader.read_cid()
+        self.cid =  reader.read_cid()
         self.version = reader.read_uint32()

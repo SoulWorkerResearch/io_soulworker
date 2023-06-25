@@ -1,9 +1,10 @@
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.vis_vector_3_int import VisVector3Int
 from io_soulworker.core.vis_vector_2_int import VisVector2Int
+from io_soulworker.core.vis_vector_3_int import VisVector3Int
 
 
 class VisMaterial:
+    
     name: str
     """ name of this surface """
 

@@ -1,6 +1,8 @@
 from io import SEEK_SET
 from logging import debug
 from traceback import print_exception
+from types import TracebackType
+from typing import Optional, Type
 
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
@@ -30,9 +32,12 @@ class VisChunkScope(object):
 
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self,
+                 exc_type: Optional[Type[BaseException]],
+                 exc_value: Optional[BaseException],
+                 traceback: Optional[TracebackType]) -> bool:
         if self.depth < 0:
-            return
+            return True
 
         if exc_type is not None:
             print_exception(exc_type, exc_value, traceback)
@@ -45,6 +50,8 @@ class VisChunkScope(object):
 
         exit_cid = self.reader.read_cid()
         debug("exit chunk id: %s", self.__get_chunk_name(exit_cid))
+
+        return False
 
     def __get_chunk_name(self, id: VisChunkId) -> str:
         return id.to_bytes(4, "big").decode("ascii")
