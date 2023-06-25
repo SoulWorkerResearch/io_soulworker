@@ -8,9 +8,6 @@ from bpy.types import ShaderNodeTexImage
 from bpy.types import Material
 from bpy.types import Armature
 
-from mathutils import Matrix
-from mathutils import Quaternion
-from mathutils import Vector
 
 from pathlib import Path
 from logging import debug

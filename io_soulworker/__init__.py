@@ -1,6 +1,6 @@
 import bpy
 
-from logging import basicConfig, debug
+from logging import basicConfig
 from logging import DEBUG, INFO
 
 from io_soulworker.out.object_panel_default_values import OutObjectPanelDefaultValues

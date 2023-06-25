@@ -46,7 +46,10 @@ class BinaryReader(BufferedReader):
         return value.decode('cp949')
 
     def read_color(self) -> VisColor:
-        return VisColor(self.read_uint8(), self.read_uint8(), self.read_uint8(), self.read_uint8())
+        return VisColor(self.read_uint8(),
+                        self.read_uint8(),
+                        self.read_uint8(),
+                        self.read_uint8())
 
     def read_primitive_type(self) -> VisPrimitiveType:
         return VisPrimitiveType(self.read_uint32())
@@ -94,3 +97,6 @@ class BinaryReader(BufferedReader):
         super().__init__(open(path, "rb"))
 
 # https://youtu.be/K741PecDK3c
+#
+# This video is no longer available # because the YouTube account 
+#         associated with this video has been terminated.
