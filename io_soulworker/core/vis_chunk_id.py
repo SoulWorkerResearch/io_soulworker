@@ -2,7 +2,7 @@ import enum
 
 
 class VisChunkId(enum.IntEnum):
-    
+
     NONE = int.from_bytes(b"NONE", byteorder="little")
     VBIN = int.from_bytes(b"VBIN", byteorder="little")
     VMSH = int.from_bytes(b"VMSH", byteorder="big")
