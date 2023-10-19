@@ -135,75 +135,50 @@ class ModelImporter(ModelFileReader):
                 uv_layer.data[loop_idx].uv = chunk.uvs[vert_idx]
 
         # self.mesh.normals_split_custom_set(chunk.normals)
+        self.mesh.calc_normals()
         self.mesh.update()
 
         self.context.collection.objects.link(self.object)
 
     def on_skeleton(self, chunk: SkelChunk):
-
-        armature = bpy.data.armatures.new(self.mesh.name + "_a")
-        armature.display_type = 'STICK'
-        armature_object = bpy.data.objects.new(armature.name + "_o", armature)
-
-        modifier = self.object.modifiers.new(armature.name + "_m", 'ARMATURE')
-        modifier.object = armature_object
-
-        self.context.collection.objects.link(armature_object)
-
+        armature = bpy.data.armatures.new("Skeleton")
+        armature_object = bpy.data.objects.new("Bones", armature)
+        bpy.context.scene.collection.objects.link(armature_object)
         bpy.context.view_layer.objects.active = armature_object
-
-        def __create_bones(armature: Armature, chunk: SkelChunk):
-
-            for bone in chunk.bones:
-                armature.edit_bones.new(bone.name)
-
-        def __update_connections(armature: Armature, chunk: SkelChunk):
-
-            for bone in chunk.bones:
-                obj: EditBone = armature.edit_bones.get(bone.name)
-
-                if 0 > bone.parent_id or bone.parent_id > len(chunk.bones):
-                    debug('bad bone parent index: %d', bone.parent_id)
-                    continue
-
-                parent = chunk.bones[bone.parent_id]
-                value = armature.edit_bones.get(parent.name)
-
-                if not isinstance(value, EditBone):
-                    debug('baparent bone not found: %s', parent.name)
-                    continue
-
-                obj.parent = value
-
-        def __update_positions(armature: Armature, chunk: SkelChunk):
-
-            for bone in chunk.bones:
-                obj: EditBone = armature.edit_bones.get(bone.name)
-
-                if obj.parent:
-                    src = next(
-                        (v for v in chunk.bones if v.name == obj.parent.name), None)
-
-                    if src is None:
-                        raise
-
-                    src.inverse_object_space_orientation.to_axis_angle()
-
-                    obj.tail = src.local_space_position
-                    obj.head = bone.local_space_position
-                else:
-                    obj.tail = (0, 0, 0)
-                    obj.head = bone.local_space_position
-
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for i in bpy.context.scene.collection.objects:
+            i.select_set(state=False)  # deselect all objects
+        armature_object.select_set(state=True)
         bpy.ops.object.mode_set(mode="EDIT")
+        boneParentList = []
+        boneParentMat = {}
+        for bone in chunk.bones:
 
-        __create_bones(armature, chunk)
-        __update_connections(armature, chunk)
-        __update_positions(armature, chunk)
+            boneParentList.append(bone.name)
+            new = armature.edit_bones.new(bone.name)
+            boneLocalMat = bone.local_rot_euler.to_matrix().to_4x4()
+            boneLocalMat.translation = bone.local_pos
 
+            armature_mat = boneLocalMat
+            if(bone.parent_id != 65535): #-1
+              armature_mat = boneParentMat[boneParentList[bone.parent_id]] @ boneLocalMat
+            boneParentMat[bone.name] = armature_mat
+
+            newMatBone = bone.local_rot.to_matrix().to_4x4()
+            newMatBone.translation = armature_mat.to_translation()
+            new.transform(newMatBone)
+            new.tail = new.head + Vector((0.01, 0.01, 0.01))
+            for obj in chunk.bones:
+              if obj.id == bone.parent_id:
+                debug("Found parent for %s, its %s",bone.name,obj.name)
+                for editbone in armature.edit_bones:
+                    if editbone.name == obj.name:
+                        debug("Attached parent.")
+                        new.parent = editbone
+                        break
+                break
         bpy.ops.object.mode_set(mode="OBJECT")
-
-        armature_object.update_from_editmode()
+        bpy.context.view_layer.update()
 
     # def process_wght(self, chunk: VisChunkId, reader: BinaryReader):
     #     pass
