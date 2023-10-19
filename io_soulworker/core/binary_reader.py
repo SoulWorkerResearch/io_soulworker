@@ -18,6 +18,9 @@ from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
 
 class BinaryReader(BufferedReader):
+    def read_float_vector4(self):
+        return Vector([self.read_float(), self.read_float(), self.read_float(), self.read_float()])
+    
     def read_float_vector3(self):
         return Vector([self.read_float(), self.read_float(), self.read_float()])
 
@@ -41,6 +44,8 @@ class BinaryReader(BufferedReader):
 
     def read_utf8_uint32_string(self) -> str:
         length = self.read_uint32()
+        if(length <= 0):
+            return ""
         value, = unpack("<%ds" % length, self.read(length))
 
         return value.decode('cp949')
