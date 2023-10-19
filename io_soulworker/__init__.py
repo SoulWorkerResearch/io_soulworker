@@ -1,12 +1,10 @@
+from logging import DEBUG, INFO, basicConfig
+
 import bpy
 
-from logging import basicConfig
-from logging import DEBUG, INFO
-
+from io_soulworker.out.file_runner import FileRunner
 from io_soulworker.out.object_panel_default_values import OutObjectPanelDefaultValues
 from io_soulworker.out.object_panel_features import OutObjectPanelFeatures
-from io_soulworker.out.file_runner import FileRunner
-
 
 basicConfig(
     level=DEBUG if __debug__ else INFO,
@@ -18,7 +16,7 @@ bl_info = {
     "name": "SoulWorker",
     "author": "sawich",
     "version": (1, 0, 0),
-    "blender": (3, 4, 0),
+    "blender": (4, 0, 0),
     "location": "File > Import/Export",
     "description": "Import-Export SoulWorker content",
     "support": "COMMUNITY",

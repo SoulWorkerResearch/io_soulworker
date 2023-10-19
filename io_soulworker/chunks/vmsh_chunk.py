@@ -2,9 +2,9 @@ from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_index_format import VisIndexFormat
-from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
-from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.core.vis_mesh_effect_config import VisMeshEffectConfig
+from io_soulworker.core.vis_render_state import VisRenderState
+from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
 
 
 class VMshChunk(object):
@@ -36,7 +36,8 @@ class VMshChunk(object):
         self.vertex_usage_flags = reader.read_uint8()
 
         if self.version >= 4:
-            iBindFlagVertices = reader.read_uint8()
+            reader.read_uint8()
+            """ iBindFlagVertices """ 
 
         if self.version >= 3:
             self.bMeshDataIsBigEndian = reader.read_uint8()
@@ -51,7 +52,8 @@ class VMshChunk(object):
         self.mem_usage_flag_indices = reader.read_uint8()
 
         if (self.version >= 4):
-            iBindFlagIndices = reader.read_uint8()
+            reader.read_uint8()
+            """ iBindFlagIndices """
 
         self.vertices_double_buffered = reader.read_uint8()
         self.indices_double_buffered = reader.read_uint8()
@@ -75,24 +77,22 @@ class VMshChunk(object):
             t = reader.tell()
 
             if (self.descriptor.hasComponent(self.descriptor.pos_offset)):
-                offset = self.descriptor.offsetOf(self.descriptor.pos_offset)
-                reader.seek(t + offset)
+                off = self.descriptor.offsetOf(self.descriptor.pos_offset)
+                reader.seek(t + off)
 
                 pos = reader.read_float_vector3()
                 self.vertices.append([pos.x, pos.y, pos.z])
 
             if (self.descriptor.hasComponent(self.descriptor.normal_offset)):
-                offset = self.descriptor.offsetOf(
-                    self.descriptor.normal_offset)
-                reader.seek(t + offset)
+                off = self.descriptor.offsetOf(self.descriptor.normal_offset)
+                reader.seek(t + off)
 
                 normal = reader.read_float_vector3()
                 self.normals.append([normal.x, normal.y, normal.z])
 
             if (self.descriptor.hasComponent(self.descriptor.tex_offset[0])):
-                offset = self.descriptor.offsetOf(
-                    self.descriptor.tex_offset[0])
-                reader.seek(t + offset)
+                off = self.descriptor.offsetOf(self.descriptor.tex_offset[0])
+                reader.seek(t + off)
 
                 texture = reader.read_float_vector3()
                 self.uvs.append([texture.x, -texture.y])
@@ -112,3 +112,5 @@ class VMshChunk(object):
                 return reader.read_uint16_array(self.index_count)
             case VisIndexFormat._32:
                 return reader.read_uint32_array(self.index_count)
+
+        raise Exception("Unknown indices type")

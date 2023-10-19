@@ -2,14 +2,14 @@ from logging import debug
 
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_scope import VisChunkScope
+from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
 from io_soulworker.core.vis_material_effect import VisMaterialEffect
 
 
 class MtrsChunk:
 
     def __init__(self, reader: BinaryReader) -> None:
-        with VisChunkScope(reader) as scope:
+        with VisChunkReaderScope(reader) as scope:
             assert scope.cid == VisChunkId.MTRL
 
             self.version = reader.read_uint16()
@@ -97,8 +97,9 @@ class MtrsChunk:
             if self.version >= 6:
                 self.ui_mobile_shader_flags = reader.read_uint32()
 
+    @staticmethod
     def __names(count: int, reader: BinaryReader):
-        return [reader.read_utf8_uint32_string(reader) for _ in range(count)]
+        return [reader.read_utf8_uint32_string() for _ in range(count)]
 
     def __mesh_config_effects(self, reader: BinaryReader) -> list[VisMaterialEffect]:
         count = reader.read_uint32()

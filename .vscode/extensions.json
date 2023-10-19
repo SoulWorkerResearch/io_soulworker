@@ -3,6 +3,7 @@
         "JacquesLucke.blender-development",
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "redhat.vscode-yaml"
+        "redhat.vscode-yaml",
+        "ms-python.autopep8"
     ]
 }

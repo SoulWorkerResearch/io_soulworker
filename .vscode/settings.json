@@ -14,22 +14,23 @@
     ],
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true,
+        "source.organizeImports": true
+    },
+    "editor.formatOnSave": true,
     "[python]": {
-        "editor.defaultFormatter": "ms-python.python",
-        "editor.codeActionsOnSave": {
-            "source.fixAll.ruff": true,
-            "source.organizeImports.ruff": true
-        }
+        "editor.defaultFormatter": "ms-python.autopep8",
     },
     "[yaml]": {
         "editor.defaultFormatter": "redhat.vscode-yaml"
     },
     "[jsonc]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
+        "editor.defaultFormatter": "vscode.json-language-features"
     },
     "[json]": {
         "editor.defaultFormatter": "vscode.json-language-features"
     },
     "explorer.excludeGitIgnore": true,
-    "python.analysis.typeCheckingMode": "basic"
+    // "python.analysis.typeCheckingMode": "basic"
 }

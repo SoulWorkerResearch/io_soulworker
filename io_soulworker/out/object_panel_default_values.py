@@ -2,6 +2,7 @@ from bpy.types import Panel
 
 
 class OutObjectPanelDefaultValues(Panel):
+    bl_idname = "IO_SOULWORKER_PT_import"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
     bl_label = "Default"
@@ -12,7 +13,7 @@ class OutObjectPanelDefaultValues(Panel):
         space_data = context.space_data
         active_operator = space_data.active_operator
 
-        return active_operator.bl_idname == "IO_SOULWORKER_OT_import"
+        return active_operator.bl_idname == OutObjectPanelDefaultValues.bl_idname
 
     def draw(self, context):
         layout = self.layout

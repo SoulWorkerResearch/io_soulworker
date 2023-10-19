@@ -16,6 +16,9 @@ from io_soulworker.out.model_importer import ModelImporter
 
 
 class FileRunner(Operator, ImportHelper):
+    
+    AVAILABLE_EXTENSIONS = [".model", ".vmesh"]
+
     bl_idname = "io_soulworker.import"
     bl_label = "Select"
 
@@ -41,6 +44,7 @@ class FileRunner(Operator, ImportHelper):
     def create_collection(self, context: Context, name: str):
 
         def get_layer_collection(layer_collection: LayerCollection, collection: Collection):
+
             if (layer_collection.name == collection.name):
                 return layer_collection
 
@@ -70,7 +74,6 @@ class FileRunner(Operator, ImportHelper):
             collection
         )
 
-    AVAILABLE_EXTENSIONS = [".model", ".vmesh"]
 
     def execute(self, context: Context):
         context.scene.render.engine = "BLENDER_EEVEE"

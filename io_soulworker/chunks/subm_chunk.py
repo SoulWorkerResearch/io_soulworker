@@ -20,7 +20,10 @@ class VisVerticesMaterial:
         self.id = reader.read_int32()
 
         if version < 2:
+
+            # unused by soulworker
             if version == 1:
+
                 _ = reader.read_int32()
                 _ = reader.read_int16()
                 _ = reader.read_int16()
@@ -37,8 +40,10 @@ class SubmChunk:
 
     def __init__(self, reader: BinaryReader) -> None:
         self.iSubMeshCount = reader.read_int32()
+        
         if self.iSubMeshCount < 0:
             self.version = reader.read_int32()
+            
             if self.version >= 2:
                 self.geometry_count = reader.read_int32()
 

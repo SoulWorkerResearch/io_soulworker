@@ -8,7 +8,7 @@ from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
 
 
-class VisChunkScope(object):
+class VisChunkReaderScope(object):
 
     cid = VisChunkId.NONE
     depth = 0
@@ -36,6 +36,7 @@ class VisChunkScope(object):
                  exc_type: Optional[Type[BaseException]],
                  exc_value: Optional[BaseException],
                  traceback: Optional[TracebackType]) -> bool:
+        
         if self.depth < 0:
             return True
 

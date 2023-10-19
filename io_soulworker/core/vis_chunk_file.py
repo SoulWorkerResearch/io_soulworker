@@ -4,7 +4,7 @@ from pathlib import Path
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_bin_header import VisBinHeader
 from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_scope import VisChunkScope
+from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
 
 
 class VisChunkFileReader(object):
@@ -21,7 +21,7 @@ class VisChunkFileReader(object):
             debug("[VisChunkFile] version: ", header.version)
 
             while True:
-                with VisChunkScope(reader) as scope:
+                with VisChunkReaderScope(reader) as scope:
                     self.on_chunk_start(scope.cid, reader)
 
                     if scope.depth < 0:
