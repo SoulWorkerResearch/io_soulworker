@@ -16,3 +16,4 @@ class VisChunkId(enum.IntEnum):
     CBPR = int.from_bytes(b"CBPR", byteorder="big")
     BNDS = int.from_bytes(b"BNDS", byteorder="big")
     HEAD = int.from_bytes(b"HEAD", byteorder="big")
+    VERS = int.from_bytes(b"VERS", byteorder="big")
