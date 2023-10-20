@@ -1,0 +1,2 @@
+*.model filter=lfs diff=lfs merge=lfs binary
+*.xml filter=lfs diff=lfs merge=lfs diff=xml text

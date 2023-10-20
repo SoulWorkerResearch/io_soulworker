@@ -37,7 +37,7 @@ class VMshChunk(object):
 
         if self.version >= 4:
             reader.read_uint8()
-            """ iBindFlagVertices """ 
+            """ iBindFlagVertices """
 
         if self.version >= 3:
             self.bMeshDataIsBigEndian = reader.read_uint8()
@@ -94,7 +94,7 @@ class VMshChunk(object):
                 off = self.descriptor.offsetOf(self.descriptor.tex_offset[0])
                 reader.seek(t + off)
 
-                texture = reader.read_float_vector3()
+                texture = reader.read_float_vector2()
                 self.uvs.append([texture.x, -texture.y])
 
             reader.seek(t + self.descriptor.stride)
