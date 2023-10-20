@@ -12,6 +12,11 @@ jobs:
       - name: "Checkout"
         uses: "actions/checkout@main"
 
+      - name: "Install python"
+        uses: "actions/setup-python@main"
+        with:
+          python-version: "3"
+
       - name: "Print python version"
         shell: "pwsh"
         run: "py -v"
