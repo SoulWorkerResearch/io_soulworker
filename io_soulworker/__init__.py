@@ -1,4 +1,4 @@
-from logging import DEBUG, INFO, basicConfig
+from logging import DEBUG, INFO, basicConfig, debug
 
 import bpy
 
@@ -49,7 +49,10 @@ def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
     for cls in classes:
-        bpy.utils.unregister_class(cls)
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            debug('Failed to unload class: %s', cls.__name__)
 
 
 if __name__ == "__main__":

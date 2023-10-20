@@ -12,13 +12,13 @@ class VisChunkFileReader(object):
     def __init__(self, path: Path) -> None:
         self.path = path
 
-    def on_chunk_start(self, chunk: VisChunkId, _: BinaryReader) -> None:
+    def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
         raise NotImplementedError("chunk: %d" % chunk)
 
     def run(self) -> None:
         with BinaryReader(self.path) as reader:
             header = VisBinHeader(reader)
-            debug("[VisChunkFile] version: ", header.version)
+            debug("[VisChunkFile] version: %d", header.version)
 
             while True:
                 with VisChunkReaderScope(reader) as scope:

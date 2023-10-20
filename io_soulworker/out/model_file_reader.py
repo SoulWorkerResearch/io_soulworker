@@ -17,26 +17,28 @@ from io_soulworker.core.xml_helper.exchange_transparency import exchange_transpa
 
 class ModelFileReader(VisChunkFileReader):
 
-    def on_surface(self, _: MtrsChunk): debug('Not impl callback')
-    def on_mesh(self, _: VMshChunk): debug('Not impl callback')
-    def on_skeleton(self, _: SkelChunk): debug('Not impl callback')
+    def on_surface(self, chunk: MtrsChunk): debug('Not impl callback')
+    def on_mesh(self, chunk: VMshChunk): debug('Not impl callback')
+    def on_skeleton(self, chunk: SkelChunk): debug('Not impl callback')
     def on_skeleton_weights(self): debug('Not impl callback')
-    def on_vertices_material(self, _: SubmChunk): debug('Not impl callback')
 
-    def on_chunk_start(self, cid: VisChunkId, reader: BinaryReader) -> None:
-        if cid == VisChunkId.MTRS:
+    def on_vertices_material(
+        self, chunk: SubmChunk): debug('Not impl callback')
+
+    def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
+        if chunk == VisChunkId.MTRS:
             self.__parse_materials(reader)
 
-        elif cid == VisChunkId.VMSH:
-            self.__parse_mesh(cid, reader)
+        elif chunk == VisChunkId.VMSH:
+            self.__parse_mesh(chunk, reader)
 
-        elif cid == VisChunkId.SKEL:
+        elif chunk == VisChunkId.SKEL:
             self.__parse_skeleton(reader)
 
-        elif cid == VisChunkId.WGHT:
+        elif chunk == VisChunkId.WGHT:
             self.on_skeleton_weights()
 
-        elif cid == VisChunkId.SUBM:
+        elif chunk == VisChunkId.SUBM:
             self.__parse_vertices_materials(reader)
 
     def __parse_skeleton(self, reader: BinaryReader):
@@ -66,7 +68,7 @@ class ModelFileReader(VisChunkFileReader):
     def __xml_material(reader: BinaryReader) -> dict[str, VisMaterial]:
         paths = ModelFileReader.__materials_paths(Path(reader.name))
 
-        values = dict()
+        values = dict[str, VisMaterial]()
 
         for path in paths:
             debug('try load from: %s', path)
@@ -80,7 +82,7 @@ class ModelFileReader(VisChunkFileReader):
     @staticmethod
     def __material_from_file(path: Path) -> dict[str, VisMaterial]:
         def __float(name: str, node: Element): return float(node.attrib[name])
-        def __int(name: str, node: Element): return int(node.attrib[name])
+        # def __int(name: str, node: Element): return int(node.attrib[name])
 
         def __color(name: str, node: Element): return [
             int(v) for v in node.attrib[name].split(',')]

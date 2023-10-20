@@ -1,22 +1,19 @@
-from __future__ import annotations
-
 from logging import debug, error
 from pathlib import Path
 
 import bpy
 from bpy.types import (
-    Armature,
     Context,
-    EditBone,
     Material,
     Mesh,
     Object,
     ShaderNodeBsdfPrincipled,
     ShaderNodeTexImage,
 )
+from mathutils import Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.skel_chunk import SkelChunk, VisBone
 from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
@@ -80,7 +77,7 @@ class ModelImporter(ModelFileReader):
                     error("FILE NOT FOUND %s", path)
                     return
 
-            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage") 
+            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
             debug("texture path: %s", path)
 
             texture_node.image = bpy.data.images.load(path.__str__())
@@ -139,70 +136,118 @@ class ModelImporter(ModelFileReader):
         self.context.collection.objects.link(self.object)
 
     def on_skeleton(self, chunk: SkelChunk):
-
         armature = bpy.data.armatures.new(self.mesh.name + "_a")
         armature.display_type = 'STICK'
-        armature_object = bpy.data.objects.new(armature.name + "_o", armature)
+        armature_object = bpy.data.objects.new(self.mesh.name + "_o", armature)
 
-        modifier = self.object.modifiers.new(armature.name + "_m", 'ARMATURE')
+        modifier = self.object.modifiers.new(self.mesh.name + "_m", 'ARMATURE')
         modifier.object = armature_object
 
         self.context.collection.objects.link(armature_object)
-
         self.context.view_layer.objects.active = armature_object
 
-        def __create_bones(armature: Armature, chunk: SkelChunk):
-
-            for bone in chunk.bones:
-                armature.edit_bones.new(bone.name)
-
-        def __update_connections(armature: Armature, chunk: SkelChunk):
-
-            for bone in chunk.bones:
-                obj = armature.edit_bones[bone.name]
-
-                if 0 > bone.parent_id or bone.parent_id > len(chunk.bones):
-                    debug('bad bone parent index: %d', bone.parent_id)
-                    continue
-
-                parent = chunk.bones[bone.parent_id]
-                value = armature.edit_bones.get(parent.name)
-
-                if not isinstance(value, EditBone):
-                    debug('baparent bone not found: %s', parent.name)
-                    continue
-
-                obj.parent = value
-
-        def __update_positions(armature: Armature, chunk: SkelChunk):
-
-            for bone in chunk.bones:
-                obj = armature.edit_bones[bone.name]
-
-                if obj.parent:
-                    src = next(
-                        (v for v in chunk.bones if v.name == obj.parent.name), None)
-
-                    if src is None:
-                        raise
-
-                    src.inverse_object_space_orientation.to_axis_angle()
-
-                    obj.tail = src.local_space_position
-                    obj.head = bone.local_space_position
-                else:
-                    obj.tail = (0, 0, 0)
-                    obj.head = bone.local_space_position
-        
         bpy.ops.object.mode_set(mode="EDIT")
 
-        __create_bones(armature, chunk)
-        __update_connections(armature, chunk)
-        __update_positions(armature, chunk)
+        boneParentList: list[str] = []
+        boneParentMat = {}
+        for bone in chunk.bones:
+
+            boneParentList.append(bone.name)
+            new = armature.edit_bones.new(bone.name)
+            boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
+            boneLocalMat.translation = bone.local_space_position
+
+            armature_mat = boneLocalMat
+            if (bone.parent_id != VisBone.INVALID_ID):
+                armature_mat = boneParentMat[boneParentList[bone.parent_id]
+                                             ] @ boneLocalMat
+            boneParentMat[bone.name] = armature_mat
+
+            newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
+            newMatBone.translation = armature_mat.to_translation()
+            new.transform(newMatBone)
+            new.tail = new.head + Vector((0.01, 0.01, 0.01))
+            for obj in chunk.bones:
+                if obj.id == bone.parent_id:
+                    debug("Found parent for %s, its %s", bone.name, obj.name)
+                    for editbone in armature.edit_bones:
+                        if editbone.name == obj.name:
+                            debug("Attached parent.")
+                            new.parent = editbone
+                            break
+                    break
 
         bpy.ops.object.mode_set(mode="OBJECT")
+        self.context.view_layer.update()
 
-        armature_object.update_from_editmode()
+    # def on_skeleton(self, chunk: SkelChunk):
+
+    #     armature = bpy.data.armatures.new(self.mesh.name + "_a")
+    #     armature.display_type = 'STICK'
+    #     armature_object = bpy.data.objects.new(armature.name + "_o", armature)
+
+    #     modifier = self.object.modifiers.new(armature.name + "_m", 'ARMATURE')
+    #     modifier.object = armature_object
+
+    #     self.context.collection.objects.link(armature_object)
+
+    #     self.context.view_layer.objects.active = armature_object
+
+    #     def __create_bones(armature: Armature, chunk: SkelChunk):
+
+    #         for bone in chunk.bones:
+    #             armature.edit_bones.new(bone.name)
+
+    #     def __update_connections(armature: Armature, chunk: SkelChunk):
+
+    #         for bone in chunk.bones:
+    #             obj = armature.edit_bones[bone.name]
+
+    #             if 0 > bone.parent_id:
+    #                 continue
+
+    #             if bone.parent_id > len(chunk.bones):
+    #                 debug('bad bone parent index: %d', bone.parent_id)
+    #                 continue
+
+    #             parent = chunk.bones[bone.parent_id]
+    #             value = armature.edit_bones.get(parent.name)
+
+    #             if not isinstance(value, EditBone):
+    #                 debug('baparent bone not found: %s', parent.name)
+    #                 continue
+
+    #             obj.parent = value
+
+    #     def __update_positions(armature: Armature, chunk: SkelChunk):
+
+    #         for bone in chunk.bones:
+    #             obj = armature.edit_bones[bone.name]
+
+    #             if obj.parent:
+    #                 src = next(
+    #                     (v for v in chunk.bones if v.name == obj.parent.name), None)
+
+    #                 if src is None:
+    #                     raise
+
+    #                 src.inverse_object_space_orientation.to_axis_angle()
+
+    #                 obj.tail = src.local_space_position
+    #                 obj.head = bone.local_space_position
+    #             else:
+    #                 obj.tail = (0, 0, 0)
+    #                 obj.head = bone.local_space_position
+
+    #     bpy.ops.object.mode_set(mode="EDIT")
+
+    #     __create_bones(armature, chunk)
+    #     __update_connections(armature, chunk)
+    #     __update_positions(armature, chunk)
+
+    #     bpy.ops.object.mode_set(mode="OBJECT")
+
+    #     armature_object.update_from_editmode()
 
     # def process_wght(self, chunk: VisChunkId, reader: BinaryReader):
     #     pass

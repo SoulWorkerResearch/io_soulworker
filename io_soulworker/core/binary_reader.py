@@ -17,7 +17,10 @@ from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
 class BinaryReader(BufferedReader):
 
-    FLOAT_MASK = 0x80000000800000008000000080000000
+    FLOAT_MASK = 0x80000000
+
+    def read_float_vector4(self) -> Vector:
+        return Vector([self.read_float(), self.read_float(), self.read_float(), self.read_float()])
 
     def read_float_vector3(self) -> Vector:
         return Vector([self.read_float(), self.read_float(), self.read_float()])
@@ -34,19 +37,16 @@ class BinaryReader(BufferedReader):
         z = self.read_float()
         w = BinaryReader.fxor(self.read_float(), BinaryReader.FLOAT_MASK)
 
-        return Quaternion([w, x, y, z])
+        return Quaternion((w, x, y, z))
 
     @staticmethod
-    def fxor(a: float, b: int):
-        rtrn = []
+    def fxor(a: float, b: int) -> float:
 
-        ab = pack('d', a)
-        bb = pack('d', b)
+        value = unpack('<I', pack('<f', a))[0]
+        value ^= b
+        value = unpack('<f', pack('<I', value))[0]
 
-        for ba, bb in zip(ab, bb):
-            rtrn.append(ba ^ bb)
-
-        return unpack('d', bytes(rtrn))[0]
+        return value
 
     def skip_utf8_uint32_string(self) -> None:
         length = self.read_uint32()
@@ -56,6 +56,7 @@ class BinaryReader(BufferedReader):
         length = self.read_uint32()
         value, = unpack("<%ds" % length, self.read(length))
 
+        # Korean encoding
         return value.decode('cp949')
 
     def read_color(self) -> VisColor:
@@ -121,5 +122,5 @@ class BinaryReader(BufferedReader):
 
 #   https://youtu.be/K741PecDK3c
 #
-#   This video is no longer available # because the YouTube account
+#   This video is no longer available because the YouTube account
 #           associated with this video has been terminated.
