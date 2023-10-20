@@ -13,6 +13,7 @@ from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.core.vis_vector_2_float import VisVector2Float
 from io_soulworker.core.vis_vector_2_int import VisVector2Int
 
 
@@ -27,7 +28,7 @@ class BinaryReader(BufferedReader):
         return Vector([self.read_float(), self.read_float(), self.read_float()])
 
     def read_float_vector2(self) -> Vector:
-        return Vector([self.read_float(), self.read_float()])
+        return VisVector2Float(self.read_float(), self.read_float())
 
     def read_uint8_vector2(self) -> VisVector2Int:
         return VisVector2Int(self.read_uint8(), self.read_uint8())
