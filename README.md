@@ -40,7 +40,8 @@
 #### 🚚 Import
 
 - [x] Mesh
-- [ ] Skelet
+- [x] Skelet
+- [ ] Skelet bones weights
 - [x] Material
 - [ ] Animation
 
