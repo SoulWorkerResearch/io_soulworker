@@ -10,6 +10,15 @@
 
 [![Discord](https://img.shields.io/discord/606442027873206292?style=flat-square)](http://discord.gg/SequFJP)
 
+
+## ❤️ Contributors
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/fearek"><img src="https://avatars.githubusercontent.com/u/46384967?v=4?s=100" width="100px;" alt=""/><br /><sub><b>fearek</b></sub></td>
+  </tr>
+<table>
+
 ## ✨ Installing
 
 - Download io_soulworker.zip from releases;
