@@ -82,8 +82,10 @@ class BinaryReader(BufferedReader):
 
     def read_cid(self) -> VisChunkId:
         """ Chunk ID """
-
-        return VisChunkId(self.read_int32())
+        try:
+            return VisChunkId(self.read_int32())
+        except Exception:
+            return VisChunkId.NONE
 
     def read_float(self) -> float:
         return float(unpack("<f", self.read(4))[0])
