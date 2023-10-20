@@ -1,2 +1,3 @@
 autopep8
+mathutils
 fake-bpy-module-latest
