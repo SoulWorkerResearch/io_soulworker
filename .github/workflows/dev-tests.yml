@@ -12,9 +12,9 @@ jobs:
       - name: "Checkout"
         uses: "actions/checkout@main"
 
-      - name: "Activate venv"
+      - name: "Print python version"
         shell: "pwsh"
-        run: "./venv/Scripts/activate"
+        run: "py -v"
 
       - name: "Install dependencies"
         shell: "pwsh"
