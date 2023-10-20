@@ -13,7 +13,7 @@ class TestBinaryReader(TestCase):
     def test(self):
 
         for file in Defines.TEST_FILES:
-            info("Test file: %s", file)
+            info("(reader) Test file: %s", file)
 
             with BinaryReader(file) as reader:
                 header = VisBinHeader(reader)

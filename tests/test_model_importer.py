@@ -15,7 +15,7 @@ class TestModelImporter(TestCase):
     def test(self):
 
         for file in Defines.TEST_FILES:
-            info("Test file: %s", file)
+            info("(importer) Test file: %s", file)
 
             reader = ChunkReader(file)
             reader.run()
