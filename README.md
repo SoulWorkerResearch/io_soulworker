@@ -1,3 +1,5 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct-single.svg)](https://stand-with-ukraine.pp.ua)
+
 # SoulWorker IO
 
 ![Lines of code](https://img.shields.io/tokei/lines/github/SoulWorkerResearch/io_soulworker?style=for-the-badge)
