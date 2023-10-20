@@ -15,11 +15,12 @@ jobs:
       - name: "Install python"
         uses: "actions/setup-python@main"
         with:
+          check-latest: true
           python-version: "3"
 
       - name: "Print python version"
         shell: "pwsh"
-        run: "py -v"
+        run: "python -v"
 
       - name: "Install dependencies"
         shell: "pwsh"
