@@ -1,4 +1,5 @@
 from io import SEEK_CUR, BufferedReader
+from logging import debug
 from pathlib import Path
 from struct import pack, unpack
 
@@ -82,9 +83,11 @@ class BinaryReader(BufferedReader):
 
     def read_cid(self) -> VisChunkId:
         """ Chunk ID """
+        value = self.read_int32()
         try:
-            return VisChunkId(self.read_int32())
+            return VisChunkId(value)
         except Exception:
+            debug('Failed to parse chunk id from value: %d', value)
             return VisChunkId.NONE
 
     def read_float(self) -> float:
