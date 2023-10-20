@@ -2,7 +2,7 @@ name: Dev Tests
 
 on:
   push:
-    branches: ["dev"]
+    branches: ["main", "dev"]
 
 jobs:
   build:
@@ -17,10 +17,6 @@ jobs:
         with:
           check-latest: true
           python-version: "3"
-
-      - name: "Print python version"
-        shell: "pwsh"
-        run: "python -v"
 
       - name: "Install dependencies"
         shell: "pwsh"
