@@ -5,6 +5,7 @@ from xml.etree.ElementTree import Element, parse
 
 from io_soulworker.chunks.bbbx_chunk import BBBXChunk
 from io_soulworker.chunks.bnds_chunk import BNDSChunk
+from io_soulworker.chunks.cbpr_chunk import CBPRChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
@@ -28,7 +29,7 @@ class ModelFileReader(VisChunkFileReader):
     def on_skeleton(self, chunk: SkelChunk):
         debug('Not impl callback')
 
-    def on_bounding_boxes(self, chunk: SkelChunk):
+    def on_bounding_boxes(self, chunk: BBBXChunk):
         debug('Not impl callback')
 
     def on_skeleton_weights(self):
@@ -37,7 +38,10 @@ class ModelFileReader(VisChunkFileReader):
     def on_vertices_material(self, chunk: SubmChunk):
         debug('Not impl callback')
 
-    def on_bnds(self, chunk: SubmChunk):
+    def on_bnds(self, chunk: BNDSChunk):
+        debug('Not impl callback')
+
+    def on_cbpr(self, chunk: CBPRChunk):
         debug('Not impl callback')
 
     def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
@@ -60,7 +64,10 @@ class ModelFileReader(VisChunkFileReader):
             self.on_bounding_boxes(BBBXChunk(reader))
 
         elif chunk == VisChunkId.BNDS:
-            self.on_bounding_boxes(BNDSChunk(reader))
+            self.on_bnds(BNDSChunk(reader))
+
+        elif chunk == VisChunkId.CBPR:
+            self.on_cbpr(CBPRChunk(reader))
 
     def __parse_materials(self, reader: BinaryReader):
         overrides = ModelFileReader.__xml_material(reader)
