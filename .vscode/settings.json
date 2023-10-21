@@ -2,6 +2,7 @@
     "json.schemaDownload.enable": true,
     "editor.tabSize": 4,
     "debug.terminal.clearBeforeReusing": true,
+    "files.autoSave": "onFocusChange",
     "files.exclude": {
         "**/__pycache__": true
     },
