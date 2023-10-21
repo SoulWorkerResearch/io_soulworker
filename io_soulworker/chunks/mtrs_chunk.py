@@ -10,7 +10,7 @@ class MtrsChunk:
 
     def __init__(self, reader: BinaryReader) -> None:
         with VisChunkReaderScope(reader) as scope:
-            assert scope.cid == VisChunkId.MTRL
+            assert scope.chunk == VisChunkId.MTRL
 
             self.version = reader.read_uint16()
             debug('version: %d', self.version)

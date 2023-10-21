@@ -3,6 +3,7 @@ from logging import debug
 from pathlib import Path
 from xml.etree.ElementTree import Element, parse
 
+from io_soulworker.chunks.bbbx_chunk import BBBXChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
@@ -17,38 +18,42 @@ from io_soulworker.core.xml_helper.exchange_transparency import exchange_transpa
 
 class ModelFileReader(VisChunkFileReader):
 
-    def on_surface(self, chunk: MtrsChunk): debug('Not impl callback')
-    def on_mesh(self, chunk: VMshChunk): debug('Not impl callback')
-    def on_skeleton(self, chunk: SkelChunk): debug('Not impl callback')
-    def on_skeleton_weights(self): debug('Not impl callback')
+    def on_surface(self, chunk: MtrsChunk):
+        debug('Not impl callback')
 
-    def on_vertices_material(
-        self, chunk: SubmChunk): debug('Not impl callback')
+    def on_mesh(self, chunk: VMshChunk):
+        debug('Not impl callback')
+
+    def on_skeleton(self, chunk: SkelChunk):
+        debug('Not impl callback')
+
+    def on_bounding_boxes(self, chunk: SkelChunk):
+        debug('Not impl callback')
+
+    def on_skeleton_weights(self):
+        debug('Not impl callback')
+
+    def on_vertices_material(self, chunk: SubmChunk):
+        debug('Not impl callback')
 
     def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
         if chunk == VisChunkId.MTRS:
             self.__parse_materials(reader)
 
         elif chunk == VisChunkId.VMSH:
-            self.__parse_mesh(chunk, reader)
+            self.on_mesh(VMshChunk(chunk, reader))
 
         elif chunk == VisChunkId.SKEL:
-            self.__parse_skeleton(reader)
+            self.on_skeleton(SkelChunk(reader))
 
         elif chunk == VisChunkId.WGHT:
-            self.on_skeleton_weights()
+            self.on_skeleton_weights(SkelChunk(reader))
 
         elif chunk == VisChunkId.SUBM:
-            self.__parse_vertices_materials(reader)
+            self.on_vertices_material(SubmChunk(reader))
 
-    def __parse_skeleton(self, reader: BinaryReader):
-        self.on_skeleton(SkelChunk(reader))
-
-    def __parse_vertices_materials(self, reader: BinaryReader):
-        self.on_vertices_material(SubmChunk(reader))
-
-    def __parse_mesh(self, cid: VisChunkId, reader: BinaryReader):
-        self.on_mesh(VMshChunk(cid, reader))
+        elif chunk == VisChunkId.BBBX:
+            self.on_bounding_boxes(BBBXChunk(reader))
 
     def __parse_materials(self, reader: BinaryReader):
         overrides = ModelFileReader.__xml_material(reader)

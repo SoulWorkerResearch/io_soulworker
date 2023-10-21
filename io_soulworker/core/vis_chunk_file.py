@@ -22,7 +22,7 @@ class VisChunkFileReader(object):
 
             while True:
                 with VisChunkReaderScope(reader) as scope:
-                    self.on_chunk_start(scope.cid, reader)
+                    self.on_chunk_start(scope.chunk, reader)
 
                     if scope.depth < 0:
                         break

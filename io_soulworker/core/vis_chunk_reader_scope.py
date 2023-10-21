@@ -10,7 +10,7 @@ from io_soulworker.core.vis_chunk_id import VisChunkId
 
 class VisChunkReaderScope(object):
 
-    cid = VisChunkId.NONE
+    chunk = VisChunkId.NONE
     depth = 0
 
     def __init__(self, reader: BinaryReader) -> None:
@@ -24,8 +24,8 @@ class VisChunkReaderScope(object):
             debug("end of file")
             return self
 
-        self.cid = self.reader.read_cid()
-        debug("enter chunk id: %s", self.__get_chunk_name(self.cid))
+        self.chunk = self.reader.read_cid()
+        debug("enter chunk id: %s", self.__get_chunk_name(self.chunk))
 
         self.length = self.reader.read_uint32()
         self.pos = self.reader.tell()
@@ -36,7 +36,7 @@ class VisChunkReaderScope(object):
                  exc_type: Optional[Type[BaseException]],
                  exc_value: Optional[BaseException],
                  traceback: Optional[TracebackType]) -> bool:
-        
+
         if self.depth < 0:
             return True
 

@@ -31,7 +31,9 @@ class VisVerticesMaterial:
                 _ = reader.read_uint8()
                 _ = reader.read_float()
                 _ = reader.read_float()
+
         else:
+
             geometry_index = reader.read_int32()
             assert materials >= geometry_index
 
@@ -40,10 +42,10 @@ class SubmChunk:
 
     def __init__(self, reader: BinaryReader) -> None:
         self.iSubMeshCount = reader.read_int32()
-        
+
         if self.iSubMeshCount < 0:
             self.version = reader.read_int32()
-            
+
             if self.version >= 2:
                 self.geometry_count = reader.read_int32()
 
