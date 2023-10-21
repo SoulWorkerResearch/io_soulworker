@@ -1,13 +1,21 @@
+from logging import debug
+
 from io_soulworker.chunks.wght_chunk import WGHTChunk
 from io_soulworker.core.binary_reader import BinaryReader
 
 
 class WGHTChunkReader:
 
-    def all(self, count: int) -> list[WGHTChunk]:
+    def all_of(self, vertices_count: int) -> list[WGHTChunk]:
 
-        return [WGHTChunk(self.reader) for _ in count]
+        def re(i: int):
+            debug('read: %d', i)
+            return WGHTChunk(self.__reader__)
+
+        return [re(i) for i in range(vertices_count)]
 
     def __init__(self, reader: BinaryReader):
 
-        self.reader = reader
+        self.__reader__ = reader
+
+        self.u1 = reader.read_uint32()

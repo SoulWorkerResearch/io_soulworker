@@ -13,6 +13,7 @@ from bpy.types import (
 from mathutils import Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
+from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
 from io_soulworker.chunks.skel_chunk import SkelChunk, VisBone
 from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
@@ -159,14 +160,15 @@ class ModelImporter(ModelFileReader):
 
             armature_mat = boneLocalMat
             if (bone.parent_id != VisBone.INVALID_ID):
-                armature_mat = boneParentMat[boneParentList[bone.parent_id]] @ boneLocalMat
+                armature_mat = boneParentMat[boneParentList[bone.parent_id]
+                                             ] @ boneLocalMat
             boneParentMat[bone.name] = armature_mat
 
             newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
             newMatBone.translation = armature_mat.to_translation()
             new.transform(newMatBone)
             new.tail = new.head + Vector((0.01, 0.01, 0.01))
-            
+
             if bone.parent_id != VisBone.INVALID_ID:
                 editbone = armature.edit_bones[bone.parent_id]
                 new.parent = editbone
@@ -211,6 +213,11 @@ class ModelImporter(ModelFileReader):
             debug("material_id: %d", material.id)
             debug("indices_start: %d", material.indices_start)
             debug("indices_count: %d", material.indices_count)
+
+    def on_skeleton_weights(self, reader: WGHTChunkReader):
+
+        count = len(self.mesh.vertices)
+        reader.all_of(count)
 
 
 # https://youtu.be/UXQGKfCWCBc

@@ -33,7 +33,7 @@ class ModelFileReader(VisChunkFileReader):
     def on_bounding_boxes(self, chunk: BBBXChunk):
         debug('Not impl callback')
 
-    def on_skeleton_weights(self, chunk: WGHTChunkReader):
+    def on_skeleton_weights(self, reader: WGHTChunkReader):
         debug('Not impl callback')
 
     def on_vertices_material(self, chunk: SubmChunk):
