@@ -4,6 +4,7 @@ from pathlib import Path
 from xml.etree.ElementTree import Element, parse
 
 from io_soulworker.chunks.bbbx_chunk import BBBXChunk
+from io_soulworker.chunks.bnds_chunk import BNDSChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
@@ -36,6 +37,9 @@ class ModelFileReader(VisChunkFileReader):
     def on_vertices_material(self, chunk: SubmChunk):
         debug('Not impl callback')
 
+    def on_bnds(self, chunk: SubmChunk):
+        debug('Not impl callback')
+
     def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
         if chunk == VisChunkId.MTRS:
             self.__parse_materials(reader)
@@ -54,6 +58,9 @@ class ModelFileReader(VisChunkFileReader):
 
         elif chunk == VisChunkId.BBBX:
             self.on_bounding_boxes(BBBXChunk(reader))
+
+        elif chunk == VisChunkId.BNDS:
+            self.on_bounding_boxes(BNDSChunk(reader))
 
     def __parse_materials(self, reader: BinaryReader):
         overrides = ModelFileReader.__xml_material(reader)
