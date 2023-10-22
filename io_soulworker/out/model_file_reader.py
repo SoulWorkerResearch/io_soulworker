@@ -46,6 +46,7 @@ class ModelFileReader(VisChunkFileReader):
         debug('Not impl callback')
 
     def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
+
         if chunk == VisChunkId.MTRS:
             self.__parse_materials(reader)
 
@@ -65,12 +66,14 @@ class ModelFileReader(VisChunkFileReader):
             self.on_bounding_boxes(BBBXChunk(reader))
 
         elif chunk == VisChunkId.BNDS:
+
             self.on_bnds(BNDSChunk(reader))
 
         elif chunk == VisChunkId.CBPR:
             self.on_cbpr(CBPRChunk(reader))
 
     def __parse_materials(self, reader: BinaryReader):
+
         overrides = ModelFileReader.__xml_material(reader)
 
         count = reader.read_uint32()
@@ -86,6 +89,7 @@ class ModelFileReader(VisChunkFileReader):
 
     @staticmethod
     def __xml_material(reader: BinaryReader) -> dict[str, VisMaterial]:
+
         paths = ModelFileReader.__materials_paths(Path(reader.name))
 
         values = dict[str, VisMaterial]()
@@ -101,6 +105,7 @@ class ModelFileReader(VisChunkFileReader):
 
     @staticmethod
     def __material_from_file(path: Path) -> dict[str, VisMaterial]:
+
         def __float(name: str, node: Element): return float(node.attrib[name])
         # def __int(name: str, node: Element): return int(node.attrib[name])
 
@@ -132,6 +137,7 @@ class ModelFileReader(VisChunkFileReader):
 
     @staticmethod
     def __materials_paths(path: Path):
+
         # NPC_0001_Mirium.model -> NPC_0001_Mirium.model_data\\materials.xml
         yield path.parent / (path.name + "_data/materials.xml")
 

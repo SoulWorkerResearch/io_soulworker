@@ -16,6 +16,7 @@ class VisChunkFileReader(object):
         raise NotImplementedError("chunk: %d" % chunk)
 
     def run(self) -> None:
+
         with BinaryReader(self.path) as reader:
             header = VisBinHeader(reader)
             debug("[VisChunkFile] version: %d", header.version)

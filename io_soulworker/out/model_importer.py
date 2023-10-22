@@ -14,7 +14,7 @@ from mathutils import Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
-from io_soulworker.chunks.skel_chunk import SkelChunk, VisBone
+from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
@@ -38,7 +38,7 @@ class ModelImporter(ModelFileReader):
         self.context = context
 
         # create mesh
-        self.mesh: Mesh = bpy.data.meshes.new(self.path.stem)
+        self.mesh = bpy.data.meshes.new(self.path.stem)
 
         # create object
         self.object = bpy.data.objects.new(self.mesh.name, self.mesh)
@@ -84,30 +84,31 @@ class ModelImporter(ModelFileReader):
             texture_node.image = bpy.data.images.load(path.__str__())
             debug("texture loaded: %s", path)
 
-            node_tree.links.new(
-                pbsdf_node.inputs["Base Color"],
-                texture_node.outputs["Color"]
-            )
+            input = pbsdf_node.inputs["Base Color"],
+            output = texture_node.outputs["Color"]
 
-            node_tree.links.new(
-                pbsdf_node.inputs["Alpha"],
-                texture_node.outputs["Alpha"]
-            )
+            node_tree.links.new(input, output)
+
+            input = pbsdf_node.inputs["Alpha"],
+            output = texture_node.outputs["Alpha"]
+
+            node_tree.links.new(input, output)
 
             if "GLOW" in material.name:
                 debug("has glow")
+
                 pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
 
-                node_tree.links.new(
-                    pbsdf_node.inputs["Emission"],
-                    texture_node.outputs["Color"]
-                )
+                input = pbsdf_node.inputs["Emission"]
+                output = texture_node.outputs["Color"]
+
+                node_tree.links.new(input, output)
 
             if chunk.transparency_type != VisTransparencyType.NONE:
+                debug("has alpha")
+
                 material.blend_method = "HASHED"
                 material.shadow_method = "HASHED"
-
-                debug("has alpha")
 
             # material.alpha_threshold = v_material.alphathreshold
 
@@ -123,7 +124,7 @@ class ModelImporter(ModelFileReader):
         self.mesh_chunk = chunk
 
         # fill vertices, edges and faces from file
-        self.mesh.from_pydata(chunk.vertices, [], chunk.faces)
+        self.mesh.from_pydata(chunk.vertices, None, chunk.faces)
 
         uv_layer = self.mesh.uv_layers.new()
 
@@ -131,14 +132,15 @@ class ModelImporter(ModelFileReader):
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
                 uv_layer.data[loop_idx].uv = chunk.uvs[vert_idx]
 
-        # self.mesh.normals_split_custom_set(chunk.normals)
         self.mesh.update()
 
         self.context.collection.objects.link(self.object)
 
     def on_skeleton(self, chunk: SkelChunk):
+
         armature = bpy.data.armatures.new(self.mesh.name + "_a")
         armature.display_type = 'STICK'
+
         armature_object = bpy.data.objects.new(self.mesh.name + "_o", armature)
 
         modifier = self.object.modifiers.new(self.mesh.name + "_m", 'ARMATURE')
@@ -149,31 +151,34 @@ class ModelImporter(ModelFileReader):
 
         bpy.ops.object.mode_set(mode="EDIT")
 
-        boneParentList: list[str] = []
-        boneParentMat = {}
-        for bone in chunk.bones:
+        try:
+            boneParentList: list[str] = []
+            boneParentMat = {}
+            for bone in chunk.bones:
 
-            boneParentList.append(bone.name)
-            new = armature.edit_bones.new(bone.name)
-            boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
-            boneLocalMat.translation = bone.local_space_position
+                boneParentList.append(bone.name)
+                new = armature.edit_bones.new(bone.name)
+                boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
+                boneLocalMat.translation = bone.local_space_position
 
-            armature_mat = boneLocalMat
-            if (bone.parent_id != VisBone.INVALID_ID):
-                armature_mat = boneParentMat[boneParentList[bone.parent_id]
-                                             ] @ boneLocalMat
-            boneParentMat[bone.name] = armature_mat
+                armature_mat = boneLocalMat
+                if (bone.parent_id != SkelChunk.BoneEntity.INVALID_ID):
+                    armature_mat = boneParentMat[boneParentList[bone.parent_id]
+                                                 ] @ boneLocalMat
+                boneParentMat[bone.name] = armature_mat
 
-            newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
-            newMatBone.translation = armature_mat.to_translation()
-            new.transform(newMatBone)
-            new.tail = new.head + Vector((0.01, 0.01, 0.01))
+                newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
+                newMatBone.translation = armature_mat.to_translation()
+                new.transform(newMatBone)
+                new.tail = new.head + Vector((0.01, 0.01, 0.01))
 
-            if bone.parent_id != VisBone.INVALID_ID:
-                editbone = armature.edit_bones[bone.parent_id]
-                new.parent = editbone
+                if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+                    editbone = armature.edit_bones[bone.parent_id]
+                    new.parent = editbone
 
-        bpy.ops.object.mode_set(mode="OBJECT")
+        finally:
+            bpy.ops.object.mode_set(mode="OBJECT")
+
         self.context.view_layer.update()
 
     # def process_wght(self, chunk: VisChunkId, reader: BinaryReader):
@@ -186,14 +191,18 @@ class ModelImporter(ModelFileReader):
         def set_material(vertex_group_name: str, material_id: int):
 
             bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
-            bpy.ops.object.vertex_group_select()
 
-            self.object.active_material_index = material_id
+            try:
+                bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
+                bpy.ops.object.vertex_group_select()
 
-            bpy.ops.object.material_slot_assign()
-            bpy.ops.mesh.select_all(action="DESELECT")
-            bpy.ops.object.mode_set(mode="OBJECT")
+                self.object.active_material_index = material_id
+
+                bpy.ops.object.material_slot_assign()
+                bpy.ops.mesh.select_all(action="DESELECT")
+
+            finally:
+                bpy.ops.object.mode_set(mode="OBJECT")
 
         materials = self.mesh.materials
         vertex_groups = self.object.vertex_groups
@@ -204,15 +213,17 @@ class ModelImporter(ModelFileReader):
             name = materials[material.id].name_full
             vertex_group = vertex_groups.new(name=name)
 
-            indices = self.mesh_chunk.indices[material.indices_start:
-                                              material.indices_start + material.indices_count]
+            start = material.indices_start
+            count = start + material.indices_count
+
+            indices = self.mesh_chunk.indices[start: count]
             vertex_group.add(indices, 1, "REPLACE")
 
             set_material(vertex_group.name, material.id)
 
             debug("material_id: %d", material.id)
-            debug("indices_start: %d", material.indices_start)
-            debug("indices_count: %d", material.indices_count)
+            debug("indices_start: %d", start)
+            debug("indices_count: %d", count)
 
     def on_skeleton_weights(self, reader: WGHTChunkReader):
 
