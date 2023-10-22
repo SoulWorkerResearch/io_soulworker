@@ -151,36 +151,34 @@ class ModelImporter(ModelFileReader):
 
         bpy.ops.object.mode_set(mode="EDIT")
 
-        try:
-            boneParentList: list[str] = []
-            boneParentMat = {}
+        boneParentList: list[str] = []
+        boneParentMat = {}
 
-            for bone in chunk.bones:
-                boneParentList.append(bone.name)
-                new = armature.edit_bones.new(bone.name)
+        for bone in chunk.bones:
+            boneParentList.append(bone.name)
+            new = armature.edit_bones.new(bone.name)
 
-                boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
-                boneLocalMat.translation = bone.local_space_position
+            boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
+            boneLocalMat.translation = bone.local_space_position
 
-                armature_mat = boneLocalMat
+            armature_mat = boneLocalMat
 
-                if (bone.parent_id != SkelChunk.BoneEntity.INVALID_ID):
-                    id = boneParentList[bone.parent_id]
-                    armature_mat = boneParentMat[id] @ boneLocalMat
+            if (bone.parent_id != SkelChunk.BoneEntity.INVALID_ID):
+                id = boneParentList[bone.parent_id]
+                armature_mat = boneParentMat[id] @ boneLocalMat
 
-                boneParentMat[bone.name] = armature_mat
+            boneParentMat[bone.name] = armature_mat
 
-                newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
-                newMatBone.translation = armature_mat.to_translation()
+            newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
+            newMatBone.translation = armature_mat.to_translation()
 
-                new.transform(newMatBone)
-                new.tail = new.head + Vector((0.01, 0.01, 0.01))
+            new.transform(newMatBone)
+            new.tail = new.head + Vector((0.01, 0.01, 0.01))
 
-                if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
-                    editbone = armature.edit_bones[bone.parent_id]
-                    new.parent = editbone
+            if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+                editbone = armature.edit_bones[bone.parent_id]
+                new.parent = editbone
 
-        finally:
             bpy.ops.object.mode_set(mode="OBJECT")
 
         self.context.view_layer.update()
@@ -196,17 +194,15 @@ class ModelImporter(ModelFileReader):
 
             bpy.ops.object.mode_set(mode="EDIT")
 
-            try:
-                bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
-                bpy.ops.object.vertex_group_select()
+            bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
+            bpy.ops.object.vertex_group_select()
 
-                self.object.active_material_index = material_id
+            self.object.active_material_index = material_id
 
-                bpy.ops.object.material_slot_assign()
-                bpy.ops.mesh.select_all(action="DESELECT")
+            bpy.ops.object.material_slot_assign()
+            bpy.ops.mesh.select_all(action="DESELECT")
 
-            finally:
-                bpy.ops.object.mode_set(mode="OBJECT")
+            bpy.ops.object.mode_set(mode="OBJECT")
 
         materials = self.mesh.materials
         vertex_groups = self.object.vertex_groups
