@@ -106,11 +106,11 @@ class ModelFileReader(VisChunkFileReader):
     @staticmethod
     def __material_from_file(path: Path) -> dict[str, VisMaterial]:
 
-        def __float(name: str, node: Element): return float(node.attrib[name])
-        # def __int(name: str, node: Element): return int(node.attrib[name])
+        def __float(name: str, node: Element):
+            return float(node.attrib[name])
 
-        def __color(name: str, node: Element): return [
-            int(v) for v in node.attrib[name].split(',')]
+        def __color(name: str, node: Element):
+            return [int(v) for v in node.attrib[name].split(',')]
 
         def create(node: Element) -> tuple[str, VisMaterial]:
             material = VisMaterial()
@@ -138,8 +138,10 @@ class ModelFileReader(VisChunkFileReader):
     @staticmethod
     def __materials_paths(path: Path):
 
+        file = Path(path.name + "_data", "materials.xml")
+
         # NPC_0001_Mirium.model -> NPC_0001_Mirium.model_data\\materials.xml
-        yield path.parent / (path.name + "_data/materials.xml")
+        yield path.parent / file
 
         # NPC_0001_Mirium.model -> Overrides\\NPC_0001_Mirium.model_data\\materials.xml
-        yield path.parent / "Overrides" / (path.name + "_data/materials.xml")
+        yield path.parent / "Overrides" / file

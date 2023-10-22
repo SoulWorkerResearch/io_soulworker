@@ -81,7 +81,7 @@ class ModelImporter(ModelFileReader):
             texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
             debug("texture path: %s", path)
 
-            texture_node.image = bpy.data.images.load(path.__str__())
+            texture_node.image = bpy.data.images.load(str(path))
             debug("texture loaded: %s", path)
 
             input = pbsdf_node.inputs["Base Color"]
@@ -179,7 +179,7 @@ class ModelImporter(ModelFileReader):
                 editbone = armature.edit_bones[bone.parent_id]
                 new.parent = editbone
 
-            bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
 
         self.context.view_layer.update()
 
