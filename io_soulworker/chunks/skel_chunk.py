@@ -3,8 +3,6 @@
 from io_soulworker.core.binary_reader import BinaryReader
 
 
-
-
 class SkelChunk(object):
 
     class BoneEntity(object):
@@ -13,15 +11,6 @@ class SkelChunk(object):
 
         def __init__(self, reader: BinaryReader) -> None:
             self.name = reader.read_utf8_uint32_string()
-
-            global counter
-            self.id = counter
-
-            if counter == 0:
-                self.id = SkelChunk.BoneEntity.INVALID_ID
-
-            counter += 1
-
             self.parent_id = reader.read_int16()
 
             self.inverse_object_space_position = reader.read_float_vector3()
@@ -35,9 +24,6 @@ class SkelChunk(object):
     def __init__(self, reader: BinaryReader) -> None:
         self.version = reader.read_uint16()
         assert self.version == self.VERSION
-
-        global counter
-        counter = 0
 
         count = reader.read_uint16()
         self.bones = [SkelChunk.BoneEntity(reader) for _ in range(count)]

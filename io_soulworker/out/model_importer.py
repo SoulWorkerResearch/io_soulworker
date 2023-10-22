@@ -84,12 +84,12 @@ class ModelImporter(ModelFileReader):
             texture_node.image = bpy.data.images.load(path.__str__())
             debug("texture loaded: %s", path)
 
-            input = pbsdf_node.inputs["Base Color"],
+            input = pbsdf_node.inputs["Base Color"]
             output = texture_node.outputs["Color"]
 
             node_tree.links.new(input, output)
 
-            input = pbsdf_node.inputs["Alpha"],
+            input = pbsdf_node.inputs["Alpha"]
             output = texture_node.outputs["Alpha"]
 
             node_tree.links.new(input, output)
@@ -124,7 +124,7 @@ class ModelImporter(ModelFileReader):
         self.mesh_chunk = chunk
 
         # fill vertices, edges and faces from file
-        self.mesh.from_pydata(chunk.vertices, None, chunk.faces)
+        self.mesh.from_pydata(chunk.vertices, [], chunk.faces)
 
         uv_layer = self.mesh.uv_layers.new()
 
@@ -154,21 +154,25 @@ class ModelImporter(ModelFileReader):
         try:
             boneParentList: list[str] = []
             boneParentMat = {}
-            for bone in chunk.bones:
 
+            for bone in chunk.bones:
                 boneParentList.append(bone.name)
                 new = armature.edit_bones.new(bone.name)
+
                 boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
                 boneLocalMat.translation = bone.local_space_position
 
                 armature_mat = boneLocalMat
+
                 if (bone.parent_id != SkelChunk.BoneEntity.INVALID_ID):
-                    armature_mat = boneParentMat[boneParentList[bone.parent_id]
-                                                 ] @ boneLocalMat
+                    id = boneParentList[bone.parent_id]
+                    armature_mat = boneParentMat[id] @ boneLocalMat
+
                 boneParentMat[bone.name] = armature_mat
 
                 newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
                 newMatBone.translation = armature_mat.to_translation()
+
                 new.transform(newMatBone)
                 new.tail = new.head + Vector((0.01, 0.01, 0.01))
 

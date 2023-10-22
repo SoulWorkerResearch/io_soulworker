@@ -13,4 +13,4 @@ class BBBXChunk:
     def __init__(self, reader: BinaryReader):
 
         count = reader.read_uint16()
-        self.values = [BBBXChunk.Entity(v) for v in count]
+        self.values = [BBBXChunk.Entity(reader) for _ in range(count)]
