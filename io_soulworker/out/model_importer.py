@@ -21,6 +21,13 @@ from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.out.model_file_reader import ModelFileReader
 
 
+class NodesHelper:
+
+    @staticmethod
+    def create_hair_nodes():
+        pass
+
+
 class ModelImporter(ModelFileReader):
 
     mesh: Mesh
@@ -47,6 +54,19 @@ class ModelImporter(ModelFileReader):
 
         def create_blender_nodes(material: Material):
 
+            def get_texture_path(path: Path):
+                if path.exists() and path.is_file():
+                    return path
+
+                error("FILE NOT FOUND %s", path)
+
+                path = self.path.parent / 'Textures' / path.name
+                if path.exists() and path.is_file():
+                    return path
+
+                error("FILE NOT FOUND %s", path)
+                return None
+
             node_tree = material.node_tree
             nodes = node_tree.nodes
 
@@ -68,15 +88,10 @@ class ModelImporter(ModelFileReader):
             #     )
             # else:
 
-            path = self.path.parent / chunk.diffuse_map
-
-            if not path.exists() or not path.is_file():
-                error("FILE NOT FOUND %s", path)
-
-                path = self.path.parent / 'Textures' / path.name
-                if not path.exists() or not path.is_file():
-                    error("FILE NOT FOUND %s", path)
-                    return
+            path = get_texture_path(self.path.parent / chunk.diffuse_map)
+            if path is None:
+                error("No textures found for material: %s", material.name)
+                return
 
             texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
             debug("texture path: %s", path)
@@ -93,6 +108,9 @@ class ModelImporter(ModelFileReader):
             output = texture_node.outputs["Alpha"]
 
             node_tree.links.new(input, output)
+
+            if "MO_HAIR" in material.name:
+                NodesHelper.create_hair_nodes()
 
             if "GLOW" in material.name:
                 debug("has glow")
@@ -228,7 +246,7 @@ class ModelImporter(ModelFileReader):
     def on_skeleton_weights(self, reader: WGHTChunkReader):
 
         count = len(self.mesh.vertices)
-        reader.all_of(count)
+        values = reader.all_of(count)
 
 
 # https://youtu.be/UXQGKfCWCBc

@@ -12,6 +12,7 @@ from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.binary_reader import BinaryReader
+from io_soulworker.core.materials_xml.shader_tag import ShaderTag
 from io_soulworker.core.vis_chunk_file import VisChunkFileReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_material import VisMaterial
@@ -115,6 +116,8 @@ class ModelFileReader(VisChunkFileReader):
         def create(node: Element) -> tuple[str, VisMaterial]:
             material = VisMaterial()
             material.name = node.attrib["name"]
+
+            shader = ShaderTag(node.find('Shader'))
 
             material.ambient = __color("ambient", node)
 

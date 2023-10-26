@@ -37,12 +37,12 @@ class BinaryReader(BufferedReader):
         x = self.read_float()
         y = self.read_float()
         z = self.read_float()
-        w = BinaryReader.fxor(self.read_float(), BinaryReader.FLOAT_MASK)
+        w = BinaryReader.__fxor__(self.read_float(), BinaryReader.FLOAT_MASK)
 
         return Quaternion((w, x, y, z))
 
     @staticmethod
-    def fxor(a: float, b: int) -> float:
+    def __fxor__(a: float, b: int) -> float:
 
         value = unpack('<I', pack('<f', a))[0]
         value ^= b

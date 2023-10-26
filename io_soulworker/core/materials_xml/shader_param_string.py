@@ -10,6 +10,9 @@ class ShaderParamString(dict):
         rows = line.split(';')
 
         for row in rows:
+            if (row == ''):
+                continue
+
             [name, value] = row.split('=')
 
             match name:
@@ -28,7 +31,8 @@ class ShaderParamString(dict):
 
                 # MaterialParams=0,2,-0.03,-0.015
                 case 'MaterialParams':
-                    self['material_params'] = Vector(value.split(','))
+                    values = [float(v) for v in value.split(',')]
+                    self['material_params'] = Vector(values)
 
                 # AlphaThreshold=0.25
                 case 'AlphaThreshold':
@@ -36,45 +40,45 @@ class ShaderParamString(dict):
 
                 # ToonTexture=Character\Common_Textures\ToonTexture.dds
                 case 'ToonTexture':
-                    self['ToonTexture'] = value
+                    self['toon_texture'] = value
 
                 # OutlineThickness=0.012
                 case 'OutlineThickness':
-                    self['OutlineThickness'] = float(value)
+                    self['outline_thickness'] = float(value)
 
                 # OutlineColor=0,0,0,1
                 case 'OutlineColor':
-                    [r, g, b, a] = value.split(',')
-                    self['OutlineColor'] = VisColor(r, g, b, a)
+                    values = [int(v) for v in value.split(',')]
+                    self['outline_color'] = VisColor(*values)
 
                 # DiffuseHue=1.2
                 case 'DiffuseHue':
-                    self['DiffuseHue'] = float(value)
+                    self['diffuse_hue'] = float(value)
 
                 # HairColor=0.9411765,0.7921569,0.5490196,1
                 case 'HairColor':
-                    [r, g, b, a] = value.split(',')
-                    self['HairColor'] = VisColor(r, g, b, a)
+                    values = [float(v) for v in value.split(',')]
+                    self['hair_color'] = VisColor(*values)
 
                 # ShadowColor=0.8039216,0.09803922,0.09803922,0.254902
                 case 'ShadowColor':
-                    [r, g, b, a] = value.split(',')
-                    self['ShadowColor'] = VisColor(r, g, b, a)
+                    values = [float(v) for v in value.split(',')]
+                    self['shadow_color'] = VisColor(*values)
 
                 # HairDarknessColor=0.7843137,0.5176471,0.3647059,1
                 case 'HairDarknessColor':
-                    [r, g, b, a] = value.split(',')
-                    self['HairDarknessColor'] = VisColor(r, g, b, a)
+                    values = [float(v) for v in value.split(',')]
+                    self['hair_darkness_color'] = VisColor(*values)
 
                 # MaskTexture=Character\Player\PC_A\Textures\PC_A_Parts_Default_Hair_01_Mask_01.dds
                 case 'MaskTexture':
-                    self['MaskTexture'] = value
+                    self['mask_texture'] = value
 
                 # globalAlpha=1
                 case 'globalAlpha':
-                    self['globalAlpha'] = value
+                    self['global_alpha'] = value
 
                 # LightVec=-1,1,-1
                 case 'LightVec':
-                    self['LightVec'] = Vector(value.split(','))
-            pass
+                    values = [int(v) for v in value.split(',')]
+                    self['light_vec'] = Vector(values)
