@@ -32,11 +32,6 @@
 
 ## 😏 Features
 
-#### 🦉 Misc
-
-- [x] Transparent
-- [x] Glow
-
 #### 🚚 Import
 
 - [x] Mesh
