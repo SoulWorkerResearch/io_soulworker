@@ -51,6 +51,9 @@ class ModelLileReader(ModelChunkReader):
     context: Context
     emission_strength: float
 
+    # index - bone id
+    vertex_groups: list[VertexGroup] = []
+
     def __init__(self, path: Path, context: Context, emission_strength: float) -> None:
 
         super().__init__(path)
@@ -215,7 +218,7 @@ class ModelLileReader(ModelChunkReader):
 
         for bone in chunk.bones:
 
-            vertex_group = vertex_groups.new(name=bone.name)
+            self.vertex_groups.append(vertex_groups.new(name=bone.name))
 
             boneParentList.append(bone.name)
             new = armature.edit_bones.new(bone.name)
@@ -237,7 +240,7 @@ class ModelLileReader(ModelChunkReader):
 
             new.transform(newMatBone)
 
-            new.head = new.tail + Vector((0, 1, 0))
+            # new.tail = new.head + Vector((0, 1, 0))
 
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
 
@@ -299,25 +302,16 @@ class ModelLileReader(ModelChunkReader):
         count = len(self.mesh.vertices)
         chunks = reader.all_of(count)
 
-        # modifier: ArmatureModifier = self.object.modifiers.get(
-        #     NameHelper.of_armature_modifier(self.mesh.name)
-        # )
-
-        # bone_names = modifier.object.pose.bones.keys()
-
         for vertex_index, chunk in enumerate(chunks):
 
             for entity in chunk.values:
 
-                # bone_name = bone_names[entity.bone_index]
-                bone = self.test_bones[entity.bone_index]
-
-                vertex_group: VertexGroup = self.object.vertex_groups[bone.name]
+                vertex_group = self.vertex_groups[entity.bone_index]
 
                 vertex_group.add(
                     index=[vertex_index],
                     weight=entity.weight,
-                    type="REPLACE"
+                    type="ADD"
                 )
 
 # https://youtu.be/UXQGKfCWCBc
