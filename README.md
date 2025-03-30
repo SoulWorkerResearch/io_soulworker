@@ -41,7 +41,7 @@
 
 - [x] Mesh
 - [x] Skelet
-- [ ] Skelet bones weights
+- [x] Skelet bones weights
 - [x] Material
 - [ ] Animation
 
@@ -52,17 +52,7 @@
 - [ ] Material
 - [ ] Animation
 
-#### 🔮 I think these are good bloom settings for glow textures
-
-| Threshold | Knee  | Radius |  Color  | Intensity | Clamp |
-| :-------: | :---: | :----: | :-----: | :-------: | :---: |
-|   0.800   | 0.300 |  3.00  | #ffffff |   0.450   |  1.0  |
-
 # ⚠️ IMPORTANT
 
 Some models use materials that are not in the root folder.\
 Please unpack the game resources **keeping the original structure**.
-
-## 🛠️ For developers
-
-- My VSCode profile [link](https://insiders.vscode.dev/profile/github/dc728520c44120984fb6e00e6e43534b)
