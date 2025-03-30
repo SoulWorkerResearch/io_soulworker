@@ -7,11 +7,9 @@ class WGHTChunk:
 
         def __init__(self, reader: BinaryReader):
 
-            # Vertex id ???
-            self.vertex = reader.read_uint16()
-
-            # Weight ???
+            self.bone_index = reader.read_uint16()
             self.weight = reader.read_uint16() * 0.000015259022
+            # self.weight = reader.read_uint16() / 255.0 / 255.0
 
     def __init__(self, reader: BinaryReader):
 

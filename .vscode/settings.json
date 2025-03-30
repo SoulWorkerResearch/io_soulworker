@@ -1,4 +1,5 @@
 {
+    "debug.inlineValues": "on",
     "json.schemaDownload.enable": true,
     "editor.tabSize": 4,
     "debug.terminal.clearBeforeReusing": true,

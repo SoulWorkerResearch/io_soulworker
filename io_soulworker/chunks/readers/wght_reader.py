@@ -13,4 +13,4 @@ class WGHTChunkReader:
 
         self.__reader__ = reader
 
-        self.u1 = reader.read_uint32()
+        self.version = reader.read_uint32()

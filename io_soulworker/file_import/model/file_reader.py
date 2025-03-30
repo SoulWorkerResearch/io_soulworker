@@ -1,7 +1,8 @@
-from logging import debug, error
+from logging import debug, error, warning
 from pathlib import Path
 
 import bpy
+
 from bpy.types import (
     Context,
     Material,
@@ -9,7 +10,11 @@ from bpy.types import (
     Object,
     ShaderNodeBsdfPrincipled,
     ShaderNodeTexImage,
+    ArmatureModifier,
+    Armature,
+    VertexGroup
 )
+
 from mathutils import Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
@@ -26,6 +31,17 @@ class NodesHelper:
     @staticmethod
     def create_hair_nodes():
         pass
+
+
+class NameHelper:
+
+    @staticmethod
+    def of_armature_object(name: str) -> str:
+        return name + "_a"
+
+    @staticmethod
+    def of_armature_modifier(name: str) -> str:
+        return name + "_m"
 
 
 class ModelLileReader(ModelChunkReader):
@@ -97,7 +113,10 @@ class ModelLileReader(ModelChunkReader):
             debug("texture path: %s", path)
 
             texture_node.image = bpy.data.images.load(
-                str(path), check_existing=True)
+                str(path),
+                check_existing=True
+            )
+
             debug("texture loaded: %s", path)
 
             node_tree.links.new(
@@ -164,13 +183,22 @@ class ModelLileReader(ModelChunkReader):
 
     def on_skeleton(self, chunk: SkelChunk):
 
-        armature = bpy.data.armatures.new(self.mesh.name + "_Armature")
+        armature = bpy.data.armatures.new(
+            NameHelper.of_armature_object(self.mesh.name)
+        )
+
         armature.display_type = 'STICK'
 
         armature_object = bpy.data.objects.new(
-            self.mesh.name + "_Armature", armature)
+            NameHelper.of_armature_object(self.mesh.name),
+            armature
+        )
 
-        modifier = self.object.modifiers.new(self.mesh.name + "_m", 'ARMATURE')
+        modifier: ArmatureModifier = self.object.modifiers.new(
+            NameHelper.of_armature_modifier(self.mesh.name),
+            'ARMATURE'
+        )
+
         modifier.object = armature_object
 
         self.context.collection.objects.link(armature_object)
@@ -181,7 +209,13 @@ class ModelLileReader(ModelChunkReader):
         boneParentList: list[str] = []
         boneParentMat = {}
 
+        vertex_groups = self.object.vertex_groups
+
+        self.test_bones = chunk.bones
+
         for bone in chunk.bones:
+
+            vertex_group = vertex_groups.new(name=bone.name)
 
             boneParentList.append(bone.name)
             new = armature.edit_bones.new(bone.name)
@@ -202,6 +236,7 @@ class ModelLileReader(ModelChunkReader):
             newMatBone.translation = armature_mat.to_translation()
 
             new.transform(newMatBone)
+
             new.head = new.tail + Vector((0, 1, 0))
 
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
@@ -213,12 +248,16 @@ class ModelLileReader(ModelChunkReader):
 
         bpy.ops.object.mode_set(mode="OBJECT")
 
+        bpy.context.view_layer.objects.active = armature_object
+
+        bpy.ops.object.parent_set(type='BONE', keep_transform=True)
+
         self.context.view_layer.update()
 
     def on_vertices_material(self, chunk: SubmChunk):
 
         # TODO: i have no idea how this can be done without touching the interface.
-        # hope someone can help me with this.
+        #       hope someone can help me with this.
         def set_material(vertex_group_name: str, material_id: int):
 
             bpy.ops.object.mode_set(mode="EDIT")
@@ -239,6 +278,7 @@ class ModelLileReader(ModelChunkReader):
         bpy.context.view_layer.objects.active = self.object
 
         for material in chunk.materials:
+
             name = materials[material.id].name_full
             vertex_group = vertex_groups.new(name=name)
 
@@ -257,12 +297,28 @@ class ModelLileReader(ModelChunkReader):
     def on_skeleton_weights(self, reader: WGHTChunkReader):
 
         count = len(self.mesh.vertices)
-        values = reader.all_of(count)
+        chunks = reader.all_of(count)
 
-        for vertex, weight in zip(self.mesh.vertices, values):
+        # modifier: ArmatureModifier = self.object.modifiers.get(
+        #     NameHelper.of_armature_modifier(self.mesh.name)
+        # )
 
-            vertex.groups[0].weight = weight.weight
+        # bone_names = modifier.object.pose.bones.keys()
 
+        for vertex_index, chunk in enumerate(chunks):
+
+            for entity in chunk.values:
+
+                # bone_name = bone_names[entity.bone_index]
+                bone = self.test_bones[entity.bone_index]
+
+                vertex_group: VertexGroup = self.object.vertex_groups[bone.name]
+
+                vertex_group.add(
+                    index=[vertex_index],
+                    weight=entity.weight,
+                    type="REPLACE"
+                )
 
 # https://youtu.be/UXQGKfCWCBc
 # https://youtu.be/6S-0XgGTn-E?list=RD6S-0XgGTn-E
