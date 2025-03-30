@@ -240,8 +240,6 @@ class ModelLileReader(ModelChunkReader):
 
             new.transform(newMatBone)
 
-            # new.tail = new.head + Vector((0, 1, 0))
-
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
 
                 editbone = armature.edit_bones[bone.parent_id]
