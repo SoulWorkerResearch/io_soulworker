@@ -3,7 +3,7 @@ from enum import IntFlag
 
 
 class VisRenderStateFlag(IntFlag):
-    """ flags for simple render state flags """
+    """ Flags for simple render state flags """
 
     NONE = 0x00000000,
     """  """

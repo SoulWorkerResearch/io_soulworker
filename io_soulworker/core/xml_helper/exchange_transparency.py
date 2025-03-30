@@ -5,41 +5,44 @@ from io_soulworker.core.vis_transparency_type import VisTransparencyType
 
 def exchange_transparency(name: str) -> VisTransparencyType:
 
-    if name == "opaque":
-        return VisTransparencyType.NONE
+    match name.lower():
 
-    if name == "modulate":
-        return VisTransparencyType.MULTIPLICATIVE
+        case "opaque":
+            return VisTransparencyType.NONE
 
-    if name == "alpha":
-        return VisTransparencyType.ALPHA
+        case "modulate":
+            return VisTransparencyType.MULTIPLICATIVE
 
-    if name == "additive":
-        return VisTransparencyType.ADDITIVE
+        case "alpha":
+            return VisTransparencyType.ALPHA
 
-    if name == "colorkey" or name == "alphatest":
-        return VisTransparencyType.COLORKEY
+        case "additive":
+            return VisTransparencyType.ADDITIVE
 
-    if name == "addmodulate":
-        return VisTransparencyType.ADD_MODULATE
+        case "colorkey" | "alphatest":
+            return VisTransparencyType.COLORKEY
 
-    if name == "additivenoalpha":
-        return VisTransparencyType.ADDITIVE_NOALPHA
+        case "addmodulate":
+            return VisTransparencyType.ADD_MODULATE
 
-    if name == "nocolorwrite":
-        return VisTransparencyType.NOCOLORWRITE
+        case "additivenoalpha":
+            return VisTransparencyType.ADDITIVE_NOALPHA
 
-    if name == "modulate2x":
-        return VisTransparencyType.MODULATE2X
+        case "nocolorwrite":
+            return VisTransparencyType.NOCOLORWRITE
 
-    if name == "subtractive":
-        return VisTransparencyType.SUBTRACTIVE
+        case "modulate2x":
+            return VisTransparencyType.MODULATE2X
 
-    if name == "alphasmooth":
-        return VisTransparencyType.ALPHA_NOALPHATEST
+        case "subtractive":
+            return VisTransparencyType.SUBTRACTIVE
 
-    if name == "premultipliedalpha":
-        return VisTransparencyType.PREMULTIPLIEDALPHA
+        case "alphasmooth":
+            return VisTransparencyType.ALPHA_NOALPHATEST
 
-    warn('Undefined transparency type')
-    return VisTransparencyType.NONE
+        case "premultipliedalpha":
+            return VisTransparencyType.PREMULTIPLIEDALPHA
+
+        case _:
+            warn('Undefined transparency type')
+            return VisTransparencyType.NONE

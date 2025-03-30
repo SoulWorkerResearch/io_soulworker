@@ -20,7 +20,7 @@ from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.core.xml_helper.exchange_transparency import exchange_transparency
 
 
-class ModelFileReader(VisChunkFileReader):
+class ModelChunkReader(VisChunkFileReader):
 
     def on_surface(self, chunk: MtrsChunk):
         debug('Not impl callback')
@@ -75,7 +75,7 @@ class ModelFileReader(VisChunkFileReader):
 
     def __parse_materials(self, reader: BinaryReader):
 
-        overrides = ModelFileReader.__xml_material(reader)
+        overrides = ModelChunkReader.__xml_material(reader)
 
         count = reader.read_uint32()
 
@@ -91,7 +91,7 @@ class ModelFileReader(VisChunkFileReader):
     @staticmethod
     def __xml_material(reader: BinaryReader) -> dict[str, VisMaterial]:
 
-        paths = ModelFileReader.__materials_paths(Path(reader.name))
+        paths = ModelChunkReader.__materials_paths(Path(reader.name))
 
         values = dict[str, VisMaterial]()
 
@@ -100,7 +100,7 @@ class ModelFileReader(VisChunkFileReader):
 
             if Path.exists(path):
                 debug('load from: %s', path)
-                values.update(ModelFileReader.__material_from_file(path))
+                values.update(ModelChunkReader.__material_from_file(path))
 
         return values
 
@@ -117,7 +117,9 @@ class ModelFileReader(VisChunkFileReader):
             material = VisMaterial()
             material.name = node.attrib["name"]
 
-            shader = ShaderTag(node.find('Shader'))
+            shader_node = node.find('Shader')
+            if shader_node is not None:
+                shader = ShaderTag(node.find('Shader'))
 
             material.ambient = __color("ambient", node)
 

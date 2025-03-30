@@ -1,7 +1,9 @@
+
 from logging import error
 from pathlib import Path
 
 import bpy
+
 from bpy.props import BoolProperty, CollectionProperty, FloatProperty
 from bpy.types import (
     Collection,
@@ -10,32 +12,46 @@ from bpy.types import (
     Operator,
     OperatorFileListElement,
 )
+
 from bpy_extras.io_utils import ImportHelper
 
-from io_soulworker.out.model_importer import ModelImporter
+from io_soulworker.file_import.model.file_reader import ModelLileReader
 
 
-class FileRunner(Operator, ImportHelper):
-    
+# https://github.com/microsoft/pylance-release/issues/5457#issuecomment-2074153709
+def in_blender():
+    return type(bpy.app.version) == tuple
+
+
+class FileImportRunner(Operator, ImportHelper):
+
     AVAILABLE_EXTENSIONS = [".model", ".vmesh"]
 
     bl_idname = "io_soulworker.import"
     bl_label = "Select"
 
-    is_create_collection: BoolProperty(
-        name="Create collection",
-        default=False,
-    )
+    # https://github.com/microsoft/pylance-release/issues/5457#issuecomment-2074153709
+    if in_blender():
+        is_create_collection: BoolProperty(
+            name="Create collection",
+            default=False,
+        )  # type: ignore
 
-    emission_strength: FloatProperty(
-        name="Emission Strength",
-        default=7,
-        soft_min=0,
-        min=0,
-    )
+        emission_strength: FloatProperty(
+            name="Emission Strength",
+            default=7,
+            soft_min=0,
+            min=0,
+        )  # type: ignore
 
-    # selected files
-    files: CollectionProperty(type=OperatorFileListElement)
+        # selected files
+        files: CollectionProperty(type=OperatorFileListElement)  # type: ignore
+
+    else:
+
+        is_create_collection: bool
+        emission_strength: float
+        files: list[OperatorFileListElement]
 
     def draw_menu(self, context):
         # disable draw standard controls
@@ -53,9 +69,8 @@ class FileRunner(Operator, ImportHelper):
 
                 if found:
                     return found
-                
+
             raise Exception("No active layer")
-                
 
         # collection for loaded object
         collection = bpy.data.collections.new(name)
@@ -74,9 +89,8 @@ class FileRunner(Operator, ImportHelper):
             collection
         )
 
-
     def execute(self, context: Context):
-        context.scene.render.engine = "BLENDER_EEVEE"
+        context.scene.render.engine = "BLENDER_EEVEE_NEXT"
 
         root = Path(self.properties.filepath)
 
@@ -91,7 +105,7 @@ class FileRunner(Operator, ImportHelper):
                 error("bad path, skipped: %s", path)
                 continue
 
-            importer = ModelImporter(path, context, self.emission_strength)
+            importer = ModelLileReader(path, context, self.emission_strength)
             importer.run()
 
         return {"FINISHED"}

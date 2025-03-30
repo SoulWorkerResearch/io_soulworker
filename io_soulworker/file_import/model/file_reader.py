@@ -18,7 +18,7 @@ from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.out.model_file_reader import ModelFileReader
+from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 
 
 class NodesHelper:
@@ -28,7 +28,7 @@ class NodesHelper:
         pass
 
 
-class ModelImporter(ModelFileReader):
+class ModelLileReader(ModelChunkReader):
 
     mesh: Mesh
     object: Object
@@ -96,18 +96,19 @@ class ModelImporter(ModelFileReader):
             texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
             debug("texture path: %s", path)
 
-            texture_node.image = bpy.data.images.load(str(path))
+            texture_node.image = bpy.data.images.load(
+                str(path), check_existing=True)
             debug("texture loaded: %s", path)
 
-            input = pbsdf_node.inputs["Base Color"]
-            output = texture_node.outputs["Color"]
+            node_tree.links.new(
+                pbsdf_node.inputs["Base Color"],
+                texture_node.outputs["Color"]
+            )
 
-            node_tree.links.new(input, output)
-
-            input = pbsdf_node.inputs["Alpha"]
-            output = texture_node.outputs["Alpha"]
-
-            node_tree.links.new(input, output)
+            node_tree.links.new(
+                pbsdf_node.inputs["Alpha"],
+                texture_node.outputs["Alpha"]
+            )
 
             if "MO_HAIR" in material.name:
                 NodesHelper.create_hair_nodes()
@@ -115,18 +116,23 @@ class ModelImporter(ModelFileReader):
             if "GLOW" in material.name:
                 debug("has glow")
 
-                pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
+                # pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
 
-                input = pbsdf_node.inputs["Emission"]
-                output = texture_node.outputs["Color"]
+                node_tree.links.new(
+                    pbsdf_node.inputs["Emission Strength"],
+                    texture_node.outputs["Alpha"]
+                )
 
-                node_tree.links.new(input, output)
+                node_tree.links.new(
+                    pbsdf_node.inputs["Emission Color"],
+                    texture_node.outputs["Color"]
+                )
 
             if chunk.transparency_type != VisTransparencyType.NONE:
                 debug("has alpha")
 
-                material.blend_method = "HASHED"
-                material.shadow_method = "HASHED"
+                # material.blend_method = "HASHED"
+                # material.shadow_method = "HASHED"
 
             # material.alpha_threshold = v_material.alphathreshold
 
@@ -147,7 +153,9 @@ class ModelImporter(ModelFileReader):
         uv_layer = self.mesh.uv_layers.new()
 
         for face in self.mesh.polygons:
+
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
+
                 uv_layer.data[loop_idx].uv = chunk.uvs[vert_idx]
 
         self.mesh.update()
@@ -156,10 +164,11 @@ class ModelImporter(ModelFileReader):
 
     def on_skeleton(self, chunk: SkelChunk):
 
-        armature = bpy.data.armatures.new(self.mesh.name + "_a")
+        armature = bpy.data.armatures.new(self.mesh.name + "_Armature")
         armature.display_type = 'STICK'
 
-        armature_object = bpy.data.objects.new(self.mesh.name + "_o", armature)
+        armature_object = bpy.data.objects.new(
+            self.mesh.name + "_Armature", armature)
 
         modifier = self.object.modifiers.new(self.mesh.name + "_m", 'ARMATURE')
         modifier.object = armature_object
@@ -173,6 +182,7 @@ class ModelImporter(ModelFileReader):
         boneParentMat = {}
 
         for bone in chunk.bones:
+
             boneParentList.append(bone.name)
             new = armature.edit_bones.new(bone.name)
 
@@ -182,6 +192,7 @@ class ModelImporter(ModelFileReader):
             armature_mat = boneLocalMat
 
             if (bone.parent_id != SkelChunk.BoneEntity.INVALID_ID):
+
                 id = boneParentList[bone.parent_id]
                 armature_mat = boneParentMat[id] @ boneLocalMat
 
@@ -191,18 +202,18 @@ class ModelImporter(ModelFileReader):
             newMatBone.translation = armature_mat.to_translation()
 
             new.transform(newMatBone)
-            new.tail = new.head + Vector((0.01, 0.01, 0.01))
+            new.head = new.tail + Vector((0, 1, 0))
 
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+
                 editbone = armature.edit_bones[bone.parent_id]
                 new.parent = editbone
+
+                new.head = new.parent.tail
 
         bpy.ops.object.mode_set(mode="OBJECT")
 
         self.context.view_layer.update()
-
-    # def process_wght(self, chunk: VisChunkId, reader: BinaryReader):
-    #     pass
 
     def on_vertices_material(self, chunk: SubmChunk):
 
@@ -248,6 +259,10 @@ class ModelImporter(ModelFileReader):
         count = len(self.mesh.vertices)
         values = reader.all_of(count)
 
+        for vertex, weight in zip(self.mesh.vertices, values):
+
+            vertex.groups[0].weight = weight.weight
+
 
 # https://youtu.be/UXQGKfCWCBc
-# best music for best coders lol
+# https://youtu.be/6S-0XgGTn-E?list=RD6S-0XgGTn-E

@@ -1,11 +1,11 @@
 from bpy.types import Panel
 
 
-class OutObjectPanelFeatures(Panel):
+class FileImportObjectPanelDefaultValues(Panel):
     bl_idname = "IO_SOULWORKER_PT_import"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
-    bl_label = "Features"
+    bl_label = "Default"
     bl_parent_id = "FILE_PT_operator"
 
     @classmethod
@@ -13,7 +13,7 @@ class OutObjectPanelFeatures(Panel):
         space_data = context.space_data
         active_operator = space_data.active_operator
 
-        return active_operator.bl_idname == OutObjectPanelFeatures.bl_idname
+        return active_operator.bl_idname == FileImportObjectPanelDefaultValues.bl_idname
 
     def draw(self, context):
         layout = self.layout
@@ -23,4 +23,4 @@ class OutObjectPanelFeatures(Panel):
         space_data = context.space_data
         active_operator = space_data.active_operator
 
-        layout.prop(active_operator, 'is_create_collection')
+        layout.prop(active_operator, 'emission_strength')

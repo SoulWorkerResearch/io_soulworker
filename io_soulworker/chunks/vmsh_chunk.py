@@ -57,6 +57,7 @@ class VMshChunk(object):
 
         self.vertices_double_buffered = reader.read_uint8()
         self.indices_double_buffered = reader.read_uint8()
+
         if self.version >= 5:
             self.double_buffering_from_file = reader.read_uint8()
 
@@ -76,22 +77,22 @@ class VMshChunk(object):
         for _ in range(self.vertex_count):
             t = reader.tell()
 
-            if (self.descriptor.hasComponent(self.descriptor.pos_offset)):
-                off = self.descriptor.offsetOf(self.descriptor.pos_offset)
+            if (self.descriptor.has_component(self.descriptor.pos_offset)):
+                off = self.descriptor.offset_of(self.descriptor.pos_offset)
                 reader.seek(t + off)
 
                 pos = reader.read_float_vector3()
                 self.vertices.append([pos.x, pos.y, pos.z])
 
-            if (self.descriptor.hasComponent(self.descriptor.normal_offset)):
-                off = self.descriptor.offsetOf(self.descriptor.normal_offset)
+            if (self.descriptor.has_component(self.descriptor.normal_offset)):
+                off = self.descriptor.offset_of(self.descriptor.normal_offset)
                 reader.seek(t + off)
 
                 normal = reader.read_float_vector3()
                 self.normals.append([normal.x, normal.y, normal.z])
 
-            if (self.descriptor.hasComponent(self.descriptor.tex_offset[0])):
-                off = self.descriptor.offsetOf(self.descriptor.tex_offset[0])
+            if (self.descriptor.has_component(self.descriptor.tex_offset[0])):
+                off = self.descriptor.offset_of(self.descriptor.tex_offset[0])
                 reader.seek(t + off)
 
                 texture = reader.read_float_vector2()

@@ -2,11 +2,11 @@
 from logging import info
 from unittest import TestCase
 
-from io_soulworker.out.model_file_reader import ModelFileReader
+from io_soulworker.file_import.model.file_reader import ModelLileReader
 from tests.defines import Defines
 
 
-class ChunkReader(ModelFileReader):
+class ChunkReader(ModelLileReader):
     pass
 
 
