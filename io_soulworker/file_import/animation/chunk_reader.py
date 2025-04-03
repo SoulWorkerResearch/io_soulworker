@@ -42,9 +42,9 @@ class AnimationFileChunkReader(VisChunkFileReader):
             name = reader.read_utf8_uint32_string()
 
             self.on_animation(skeleton_index, name)
-            self.run_sub(reader, scope.length)
+            self.run_sub(reader, scope)
 
-        elif scope.chunk == VisChunkId.XBSV:
+        elif scope.chunk == VisChunkId.VSBX:
 
             self.on_visability_bounding_box(XbsvChunk(reader))
 
@@ -60,4 +60,4 @@ class AnimationFileChunkReader(VisChunkFileReader):
 
             version = reader.read_uint16()
 
-            self.run_sub(reader, scope.length)
+            self.run_sub(reader, scope)

@@ -44,7 +44,7 @@ class VisChunkId(enum.IntEnum):
     ATDR = int.from_bytes(b"ATDR", byteorder="big")
 
     # Visability Bounding Box
-    XBSV = int.from_bytes(b"XBSV", byteorder="big")
+    VSBX = int.from_bytes(b"VSBX", byteorder="big")
 
     # Animation Delata Motion
     ATDM = int.from_bytes(b"ATDM", byteorder="big")

@@ -26,7 +26,8 @@ def in_blender():
 
 class FileImportRunner(Operator, ImportHelper):
 
-    AVAILABLE_EXTENSIONS = [".model", ".vmesh"]
+    AVAILABLE_EXTENSIONS = [".model", ".vmesh", ".anim"]
+    """Import SoulWorker model and animation files."""
 
     bl_idname = "io_soulworker.import"
     bl_label = "Select"
@@ -110,13 +111,14 @@ class FileImportRunner(Operator, ImportHelper):
                 error("bad path, skipped: %s", path)
                 continue
 
-            # ModelFileReader(path, context, self.emission_strength).run()
+            if ext == ".anim":
 
-            path = path.with_suffix(".anim")
-
-            if path.is_file():
-
-                debug("animation path: %s", path)
+                debug("import animation: %s", path)
                 AnimationFileReader(path, context).run()
+
+            elif ext == ".model":
+
+                debug("import model: %s", path)
+                ModelFileReader(path, context, self.emission_strength).run()
 
         return {"FINISHED"}

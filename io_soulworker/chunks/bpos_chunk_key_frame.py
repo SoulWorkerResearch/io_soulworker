@@ -14,9 +14,5 @@ class BposChunk_KeyFrame:
         self.time = reader.read_float()
 
         self.vector_list = [
-            reader.read_float_vector3() for _ in range(bone_count)
+            Vector([*(reader.read_float() for _ in range(3)), 1.0]) for _ in range(bone_count)
         ]
-
-        for i in range(bone_count):
-
-            self.vector_list[i].w = 1.0

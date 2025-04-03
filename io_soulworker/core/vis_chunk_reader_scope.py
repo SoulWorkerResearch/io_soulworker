@@ -28,7 +28,7 @@ class VisChunkReaderScope(object):
         debug("enter chunk id: %s", self.__get_chunk_name(self.chunk))
 
         self.length = self.reader.read_uint32()
-        self.pos = self.reader.tell()
+        self.offset = self.reader.tell()
 
         return self
 
@@ -43,7 +43,7 @@ class VisChunkReaderScope(object):
         if exc_type is not None:
             print_exception(exc_type, exc_value, traceback)
 
-        offset = self.pos + self.length
+        offset = self.offset + self.length
         self.reader.seek(offset, SEEK_SET)
 
         self.depth -= self.reader.read_int32()

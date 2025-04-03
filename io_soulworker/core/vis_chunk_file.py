@@ -17,11 +17,15 @@ class VisChunkFileReader(object):
 
         raise NotImplementedError("chunk: %d" % scope.chunk)
 
-    def run_sub(self, reader: BinaryReader, length: int) -> None:
+    def run_sub(self, reader: BinaryReader, parent: VisChunkReaderScope) -> None:
 
-        eof = reader.tell() + length
+        eof = parent.offset + parent.length
 
-        while reader.tell() <= eof:
+        debug("length: %d", parent.length)
+        debug("current: %d", reader.tell())
+        debug("eof: %d", eof)
+
+        while reader.tell() < eof:
 
             with VisChunkReaderScope(reader) as scope:
 
@@ -32,7 +36,7 @@ class VisChunkFileReader(object):
         with BinaryReader(self.path) as reader:
 
             header = VisBinHeader(reader)
-            debug("[VisChunkFile] version: %d", header.version)
+            debug("version: %d", header.version)
 
             while True:
 

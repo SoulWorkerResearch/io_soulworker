@@ -34,11 +34,11 @@ class NameHelper:
 
     @staticmethod
     def of_armature_object(name: str) -> str:
-        return name + "_a"
+        return name + "_Armature"
 
     @staticmethod
     def of_armature_modifier(name: str) -> str:
-        return name + "_m"
+        return name + "_Modifier"
 
 
 class ModelFileReader(ModelChunkReader):

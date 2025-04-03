@@ -1,3 +1,5 @@
+from itertools import islice
+from typing import cast
 import bpy
 
 from logging import debug
@@ -9,17 +11,52 @@ from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkR
 class AnimationFileReader(AnimationFileChunkReader):
 
     def on_animation(self, skeleton_index: int, name: str) -> None:
-        debug(
-            f"AnimationFileReader.on_animation: skeleton_index={skeleton_index}, name={name}")
 
-        # bpy.ops.object.mode_set(mode='POSE')
+        assert name, "Animation name cannot be empty"
 
-        # bpy.ops.poselib.create_pose_asset(
-        #     pose_name=name,
-        #     asset_library_reference="LOCAL"
-        # )
+        debug(f"Creating animation {name} for skeleton index {skeleton_index}")
 
-        # bpy.ops.object.mode_set(mode='OBJECT')
+        view_layer = self.context.view_layer
+        if view_layer is None:
+            debug("No view layer found")
+            return
+
+        active = view_layer.objects.active
+        if active is None:
+            debug("No active object found")
+            return
+
+        f = filter(
+            lambda obj: obj.type == 'ARMATURE',
+            active.modifiers
+        )
+
+        armature = next(islice(f, skeleton_index, skeleton_index + 1), None)
+
+        if armature is None:
+            debug(f"No armature found for skeleton index {skeleton_index}")
+            return
+
+        assert isinstance(armature, bpy.types.ArmatureModifier), "Bad type"
+
+        # Костыли ебаные
+        armature = cast(bpy.types.ArmatureModifier, armature)
+
+        assert armature.object, "Armature object is None"
+
+        view_layer.objects.active = armature.object
+        bpy.ops.object.mode_set(mode='POSE')
+
+        for bone in armature.object.data.bones:
+            bone.select = True
+
+        bpy.ops.poselib.create_pose_asset(
+            pose_name=name,
+            asset_library_reference="LOCAL"
+        )
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+        view_layer.objects.active = active
 
     def __init__(self, path: Path, context: bpy.types.Context) -> None:
 
