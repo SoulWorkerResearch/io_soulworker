@@ -7,7 +7,7 @@ from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
 
 
-class VMshChunk(object):
+class VMshChunk:
 
     MAGICK = 0x4455ABCD
 

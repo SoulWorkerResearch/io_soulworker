@@ -1,4 +1,4 @@
-from logging import debug, warn
+from logging import debug, warning
 
 from io_soulworker.core.binary_reader import BinaryReader
 
@@ -85,7 +85,7 @@ class VisVertexDescriptor(object):
         self.secondary_color_offset = reader.read_uint16()
 
         if self.version == 42:
-            warn('Need recalc hash')
+            warning('Need recalc hash')
 
         if self.version == 48:
             self.first_text_coord = reader.read_uint8()

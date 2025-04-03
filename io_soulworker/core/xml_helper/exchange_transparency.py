@@ -1,4 +1,4 @@
-from logging import warn
+from logging import warning
 
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 
@@ -44,5 +44,5 @@ def exchange_transparency(name: str) -> VisTransparencyType:
             return VisTransparencyType.PREMULTIPLIEDALPHA
 
         case _:
-            warn('Undefined transparency type')
+            warning('Undefined transparency type')
             return VisTransparencyType.NONE

@@ -15,6 +15,7 @@ from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.materials_xml.shader_tag import ShaderTag
 from io_soulworker.core.vis_chunk_file import VisChunkFileReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
+from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
 from io_soulworker.core.vis_material import VisMaterial
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.core.xml_helper.exchange_transparency import exchange_transparency
@@ -46,31 +47,30 @@ class ModelChunkReader(VisChunkFileReader):
     def on_cbpr(self, chunk: CBPRChunk):
         debug('Not impl callback')
 
-    def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
+    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
 
-        if chunk == VisChunkId.MTRS:
+        if scope.chunk == VisChunkId.MTRS:
             self.__parse_materials(reader)
 
-        elif chunk == VisChunkId.VMSH:
-            self.on_mesh(VMshChunk(chunk, reader))
+        elif scope.chunk == VisChunkId.VMSH:
+            self.on_mesh(VMshChunk(scope.chunk, reader))
 
-        elif chunk == VisChunkId.SKEL:
+        elif scope.chunk == VisChunkId.SKEL:
             self.on_skeleton(SkelChunk(reader))
 
-        elif chunk == VisChunkId.WGHT:
+        elif scope.chunk == VisChunkId.WGHT:
             self.on_skeleton_weights(WGHTChunkReader(reader))
 
-        elif chunk == VisChunkId.SUBM:
+        elif scope.chunk == VisChunkId.SUBM:
             self.on_vertices_material(SubmChunk(reader))
 
-        elif chunk == VisChunkId.BBBX:
+        elif scope.chunk == VisChunkId.BBBX:
             self.on_bounding_boxes(BBBXChunk(reader))
 
-        elif chunk == VisChunkId.BNDS:
-
+        elif scope.chunk == VisChunkId.BNDS:
             self.on_bnds(BNDSChunk(reader))
 
-        elif chunk == VisChunkId.CBPR:
+        elif scope.chunk == VisChunkId.CBPR:
             self.on_cbpr(CBPRChunk(reader))
 
     def __parse_materials(self, reader: BinaryReader):

@@ -1,10 +1,9 @@
+from mathutils import Vector
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.vis_vector_2_int import VisVector2Int
-from io_soulworker.core.vis_vector_3_int import VisVector3Int
 
 
 class VisMaterial:
-    
+
     name: str
     """ name of this surface """
 
@@ -26,7 +25,7 @@ class VisMaterial:
     parallaxbias: float
     """ parallax bias """
 
-    lightmapsize: VisVector2Int
+    lightmapsize: Vector  # x, y
     """ size of the lightmap """
 
     lightmap_id: int
@@ -59,7 +58,7 @@ class VisMaterial:
     depthwrite: bool
     """ """
 
-    zbias: VisVector3Int
+    zbias: Vector  # x, y, z
     """ z-offset value that is passed to the shader """
 
     lightmapgran: int

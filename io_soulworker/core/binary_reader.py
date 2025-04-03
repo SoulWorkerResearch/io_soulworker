@@ -13,8 +13,7 @@ from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.vis_vector_2_float import VisVector2Float
-from io_soulworker.core.vis_vector_2_int import VisVector2Int
+from io_soulworker.file_import.animation.file_reader import VisBoundingBox
 
 
 class BinaryReader(BufferedReader):
@@ -22,16 +21,13 @@ class BinaryReader(BufferedReader):
     FLOAT_MASK = 0x80000000
 
     def read_float_vector4(self) -> Vector:
-        return Vector([self.read_float(), self.read_float(), self.read_float(), self.read_float()])
+        return Vector([self.read_float() for _ in range(4)])
 
     def read_float_vector3(self) -> Vector:
-        return Vector([self.read_float(), self.read_float(), self.read_float()])
+        return Vector([self.read_float() for _ in range(3)])
 
     def read_float_vector2(self) -> Vector:
-        return VisVector2Float(self.read_float(), self.read_float())
-
-    def read_uint8_vector2(self) -> VisVector2Int:
-        return VisVector2Int(self.read_uint8(), self.read_uint8())
+        return Vector([self.read_float() for _ in range(2)])
 
     def read_quaternion(self) -> Quaternion:
         x = self.read_float()
@@ -40,6 +36,13 @@ class BinaryReader(BufferedReader):
         w = BinaryReader.__fxor__(self.read_float(), BinaryReader.FLOAT_MASK)
 
         return Quaternion((w, x, y, z))
+
+    def read_quaternion3(self, default: float = 1.0) -> Quaternion:
+        x = self.read_float()
+        y = self.read_float()
+        z = self.read_float()
+
+        return Quaternion((default, x, y, z))
 
     @staticmethod
     def __fxor__(a: float, b: int) -> float:
@@ -79,14 +82,24 @@ class BinaryReader(BufferedReader):
     def read_transparency(self) -> VisTransparencyType:
         return VisTransparencyType(self.read_uint8())
 
+    def read_bounding_box(self) -> VisBoundingBox:
+        object = VisBoundingBox()
+
+        object.min = self.read_float_vector3()
+        object.max = self.read_float_vector3()
+
+        return object
+
     def read_render_state_flags(self) -> VisRenderStateFlag:
         return VisRenderStateFlag(self.read_uint16())
 
     def read_cid(self) -> VisChunkId:
         """ Chunk ID """
         value = self.read_int32()
+
         try:
             return VisChunkId(value)
+
         except Exception:
             debug('Failed to parse chunk id from value: %d', value)
             return VisChunkId.NONE
@@ -121,9 +134,7 @@ class BinaryReader(BufferedReader):
         return int(unpack("<I", self.read(4))[0])
 
     def __init__(self, path: Path | str) -> None:
-        mode = "rb"
-
-        super().__init__(open(path, mode))
+        super().__init__(open(path, "rb"))
 
 
 #   https://youtu.be/K741PecDK3c

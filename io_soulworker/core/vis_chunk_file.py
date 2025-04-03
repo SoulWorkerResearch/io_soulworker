@@ -13,9 +13,19 @@ class VisChunkFileReader(object):
 
         self.path = path
 
-    def on_chunk_start(self, chunk: VisChunkId, reader: BinaryReader) -> None:
+    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
 
-        raise NotImplementedError("chunk: %d" % chunk)
+        raise NotImplementedError("chunk: %d" % scope.chunk)
+
+    def run_sub(self, reader: BinaryReader, length: int) -> None:
+
+        eof = reader.tell() + length
+
+        while reader.tell() >= eof:
+
+            with VisChunkReaderScope(reader) as scope:
+
+                self.on_chunk_start(scope, reader)
 
     def run(self) -> None:
 
@@ -28,7 +38,7 @@ class VisChunkFileReader(object):
 
                 with VisChunkReaderScope(reader) as scope:
 
-                    self.on_chunk_start(scope.chunk, reader)
+                    self.on_chunk_start(scope, reader)
 
                     if scope.depth < 0:
 

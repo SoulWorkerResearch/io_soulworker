@@ -25,5 +25,5 @@ class SkelChunk(object):
         self.version = reader.read_uint16()
         assert self.version == self.VERSION
 
-        count = reader.read_uint16()
-        self.bones = [SkelChunk.BoneEntity(reader) for _ in range(count)]
+        bone_count = reader.read_uint16()
+        self.bones = [SkelChunk.BoneEntity(reader) for _ in range(bone_count)]

@@ -5,6 +5,7 @@ from io_soulworker.core.binary_reader import BinaryReader
 class VisVerticesMaterial:
 
     def __init__(self, materials: int, version: int, reader: BinaryReader) -> None:
+
         self.indices_start = reader.read_int32()
         self.indices_count = reader.read_int32()
         self.u6 = reader.read_int32()

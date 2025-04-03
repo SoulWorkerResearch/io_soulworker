@@ -1,4 +1,4 @@
-from logging import debug, error, warning
+from logging import debug, error
 from pathlib import Path
 
 import bpy
@@ -11,11 +11,8 @@ from bpy.types import (
     ShaderNodeBsdfPrincipled,
     ShaderNodeTexImage,
     ArmatureModifier,
-    Armature,
     VertexGroup
 )
-
-from mathutils import Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader

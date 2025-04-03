@@ -32,6 +32,7 @@ class FileImportRunner(Operator, ImportHelper):
 
     # https://github.com/microsoft/pylance-release/issues/5457#issuecomment-2074153709
     if in_blender():
+
         is_create_collection: BoolProperty(
             name="Create collection",
             default=False,

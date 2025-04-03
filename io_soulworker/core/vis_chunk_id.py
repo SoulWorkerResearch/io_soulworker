@@ -9,8 +9,13 @@ class VisChunkId(enum.IntEnum):
     # Mesh
     VMSH = int.from_bytes(b"VMSH", byteorder="big")
 
+    # Naterials
     MTRS = int.from_bytes(b"MTRS", byteorder="big")
+
+    # Material
     MTRL = int.from_bytes(b"MTRL", byteorder="big")
+
+    # Submaterial
     SUBM = int.from_bytes(b"SUBM", byteorder="big")
     EXPR = int.from_bytes(b"EXPR", byteorder="big")
 
@@ -28,3 +33,26 @@ class VisChunkId(enum.IntEnum):
 
     BNDS = int.from_bytes(b"BNDS", byteorder="big")
     HEAD = int.from_bytes(b"HEAD", byteorder="big")
+
+    # Animation Delata Offsets
+    ATDO = int.from_bytes(b"ATDO", byteorder="big")
+
+    # Animation Delta Rotation
+    ATDR = int.from_bytes(b"ATDR", byteorder="big")
+
+    # Visability Bounding Box
+    XBSV = int.from_bytes(b"XBSV", byteorder="big")
+
+    # Animation Delata Motion
+    ATDM = int.from_bytes(b"ATDM", byteorder="big")
+
+    # Bone Animation
+    BANI = int.from_bytes(b"BANI", byteorder="big")
+
+    # Bone Position
+    BPOS = int.from_bytes(b"BPOS", byteorder="big")
+
+    # Bone Rotation
+    BROT = int.from_bytes(b"BROT", byteorder="big")
+
+# https://yummyanime.tv/58-ljubovnye-neprijatnosti.html
