@@ -2,65 +2,24 @@ import bpy
 
 from logging import debug
 from pathlib import Path
-from io_soulworker.chunks.bpos_chunk import BposChunk
-from io_soulworker.chunks.brot_chunk import BrotChunk
-from io_soulworker.chunks.xbsv_chunk import XbsvChunk
-from io_soulworker.chunks.head_chunk import HeadChunk
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.vis_chunk_file import VisChunkFileReader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
+
+from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
 
 
-class AnimationChunkReader(VisChunkFileReader):
-
-    sequence_count = 0
-    bone_count = 0
-
-    def on_visability_bounding_box(self, chunk: XbsvChunk) -> None:
-        debug('Not impl callback')
-
-    def on_bone_position(self, chunk: BposChunk) -> None:
-        debug('Not impl callback')
-
-    def on_bone_rotation(self, chunk: BrotChunk) -> None:
-        debug('Not impl callback')
+class AnimationFileReader(AnimationFileChunkReader):
 
     def on_animation(self, skeleton_index: int, name: str) -> None:
-        debug('Not impl callback')
+        debug(
+            f"AnimationFileReader.on_animation: skeleton_index={skeleton_index}, name={name}")
 
-    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
+        # bpy.ops.object.mode_set(mode='POSE')
 
-        if scope.chunk == VisChunkId.HEAD:
+        # bpy.ops.poselib.create_pose_asset(
+        #     pose_name=name,
+        #     asset_library_reference="LOCAL"
+        # )
 
-            head = HeadChunk(reader)
-
-            self.sequence_count = head.sequence_count
-
-        elif scope.chunk == VisChunkId.BANI:
-
-            version = reader.read_uint16()
-            skeleton_index = reader.read_uint16()
-            self.bone_count = reader.read_uint16()
-            name = reader.read_utf8_uint32_string()
-
-            self.on_animation(skeleton_index, name)
-            self.run_sub(reader, scope.length)
-
-        elif scope.chunk == VisChunkId.XBSV:
-
-            self.on_visability_bounding_box(XbsvChunk(reader))
-
-        elif scope.chunk == VisChunkId.BPOS:
-
-            self.on_bone_position(BposChunk(self.bone_count, reader))
-
-        elif scope.chunk == VisChunkId.BROT:
-
-            self.on_bone_rotation(BrotChunk(self.bone_count, reader))
-
-
-class AnimationFileReader(AnimationChunkReader):
+        # bpy.ops.object.mode_set(mode='OBJECT')
 
     def __init__(self, path: Path, context: bpy.types.Context) -> None:
 

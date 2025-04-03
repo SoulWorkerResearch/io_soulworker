@@ -21,7 +21,7 @@ class VisChunkFileReader(object):
 
         eof = reader.tell() + length
 
-        while reader.tell() >= eof:
+        while reader.tell() <= eof:
 
             with VisChunkReaderScope(reader) as scope:
 

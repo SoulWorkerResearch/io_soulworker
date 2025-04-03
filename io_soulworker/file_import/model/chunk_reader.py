@@ -118,6 +118,7 @@ class ModelChunkReader(VisChunkFileReader):
             material.name = node.attrib["name"]
 
             shader_node = node.find('Shader')
+
             if shader_node is not None:
                 shader = ShaderTag(node.find('Shader'))
 
@@ -125,7 +126,8 @@ class ModelChunkReader(VisChunkFileReader):
 
             material.diffuse = node.attrib["diffuse"]
             material.transparency = VisTransparencyType(
-                exchange_transparency(node.attrib["transparency"]))
+                exchange_transparency(node.attrib["transparency"])
+            )
 
             material.alphathreshold = __float("alphathreshold", node)
 

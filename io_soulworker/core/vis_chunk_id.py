@@ -34,6 +34,9 @@ class VisChunkId(enum.IntEnum):
     BNDS = int.from_bytes(b"BNDS", byteorder="big")
     HEAD = int.from_bytes(b"HEAD", byteorder="big")
 
+    # Animation
+    ANIM = int.from_bytes(b"ANIM", byteorder="big")
+
     # Animation Delata Offsets
     ATDO = int.from_bytes(b"ATDO", byteorder="big")
 

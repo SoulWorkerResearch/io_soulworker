@@ -41,7 +41,7 @@ class NameHelper:
         return name + "_m"
 
 
-class ModelLileReader(ModelChunkReader):
+class ModelFileReader(ModelChunkReader):
 
     mesh: Mesh
     object: Object

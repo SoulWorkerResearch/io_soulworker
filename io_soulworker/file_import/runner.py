@@ -1,5 +1,5 @@
 
-from logging import error
+from logging import debug, error
 from pathlib import Path
 
 import bpy
@@ -15,7 +15,8 @@ from bpy.types import (
 
 from bpy_extras.io_utils import ImportHelper
 
-from io_soulworker.file_import.model.file_reader import ModelLileReader
+from io_soulworker.file_import.animation.file_reader import AnimationFileReader
+from io_soulworker.file_import.model.file_reader import ModelFileReader
 
 
 # https://github.com/microsoft/pylance-release/issues/5457#issuecomment-2074153709
@@ -96,17 +97,26 @@ class FileImportRunner(Operator, ImportHelper):
         root = Path(self.properties.filepath)
 
         if self.is_create_collection:
+
             self.create_collection(context, root.parent.name)
 
         for file in self.files:
+
             path: Path = root.parent / file.name
             ext = path.suffix.lower()
 
             if not path.is_file() or ext not in self.AVAILABLE_EXTENSIONS:
+
                 error("bad path, skipped: %s", path)
                 continue
 
-            importer = ModelLileReader(path, context, self.emission_strength)
-            importer.run()
+            # ModelFileReader(path, context, self.emission_strength).run()
+
+            path = path.with_suffix(".anim")
+
+            if path.is_file():
+
+                debug("animation path: %s", path)
+                AnimationFileReader(path, context).run()
 
         return {"FINISHED"}
