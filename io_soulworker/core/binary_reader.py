@@ -13,7 +13,7 @@ from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.file_import.animation.file_reader import VisBoundingBox
+from io_soulworker.core.vis_bounding_box import VisBoundingBox
 
 
 class BinaryReader(BufferedReader):
