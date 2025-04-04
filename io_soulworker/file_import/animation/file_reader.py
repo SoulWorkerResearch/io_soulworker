@@ -39,13 +39,12 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         assert isinstance(armature, bpy.types.ArmatureModifier), "Bad type"
 
-        # Костыли ебаные
-        armature = cast(bpy.types.ArmatureModifier, armature)
-
         assert armature.object, "Armature object is None"
 
         view_layer.objects.active = armature.object
         bpy.ops.object.mode_set(mode='POSE')
+
+        assert isinstance(armature.object.data, bpy.types.Armature), "Bad type"
 
         for bone in armature.object.data.bones:
             bone.select = True
