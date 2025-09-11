@@ -1,5 +1,6 @@
 
 
+from logging import debug
 from io_soulworker.core.binary_reader import BinaryReader
 
 
@@ -18,6 +19,10 @@ class SkelChunk(object):
 
             self.local_space_position = reader.read_float_vector3()
             self.local_space_orientation = reader.read_quaternion()
+
+            debug(f'bone: {self.name}')
+            debug(f'parent_id: {self.parent_id}')
+            debug('')
 
     VERSION = 0
 
