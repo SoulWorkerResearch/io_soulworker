@@ -2,7 +2,7 @@ from bpy.types import Panel
 
 
 class FileImportObjectPanelDefaultValues(Panel):
-    bl_idname = "IO_SOULWORKER_PT_import"
+    bl_idname = "IO_SOULWORKER_PT_import_defaults"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
     bl_label = "Default"
