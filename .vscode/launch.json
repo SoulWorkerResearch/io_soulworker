@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: UnitTest",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "unittest",
             "justMyCode": true,
