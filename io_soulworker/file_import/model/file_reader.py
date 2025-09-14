@@ -227,6 +227,7 @@ class ModelFileReader(ModelChunkReader):
 
         vertex_groups = self.object.vertex_groups
 
+        # First pass: create all bones with their transformations
         for bone in chunk.bones:
 
             vertex_group = vertex_groups.new(name=bone.name)
@@ -260,6 +261,15 @@ class ModelFileReader(ModelChunkReader):
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
                 parent_bone = armature.edit_bones[bone.parent_id]
                 new.parent = parent_bone
+
+        # Second pass: connect parent tails to child heads
+        for bone in chunk.bones:
+            if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+                parent_bone = armature.edit_bones[bone.parent_id]
+                child_bone = armature.edit_bones[bone.id]
+
+                # Set parent tail to child head position
+                parent_bone.tail = child_bone.head
 
         bpy.ops.object.mode_set(mode="OBJECT")
 

@@ -16,6 +16,7 @@
 <table>
   <tr>
     <td align="center"><a href="https://github.com/fearek"><img src="https://avatars.githubusercontent.com/u/46384967?v=4?s=100" width="100px;" alt=""/><br /><sub><b>fearek</b></sub></td>
+    <td align="center"><sub><b>Xillith Arclight</b></sub></td>
   </tr>
 <table>
 
