@@ -48,12 +48,18 @@ class ShaderParamString(dict):
 
                 # OutlineColor=0,0,0,1
                 case 'OutlineColor':
-                    values = [int(v) for v in value.split(',')]
+                    values = [float(v) for v in value.split(',')]
                     self['outline_color'] = VisColor(*values)
 
                 # DiffuseHue=1.2
                 case 'DiffuseHue':
-                    self['diffuse_hue'] = float(value)
+                    values = [float(v) for v in value.split(',')]
+                    self['diffuse_hue'] = VisColor(*values)
+
+                # DiffuseHue=1.2
+                case 'BodyColor':
+                    values = [float(v) for v in value.split(',')]
+                    self['body_color'] = VisColor(*values)
 
                 # HairColor=0.9411765,0.7921569,0.5490196,1
                 case 'HairColor':
@@ -76,7 +82,7 @@ class ShaderParamString(dict):
 
                 # globalAlpha=1
                 case 'globalAlpha':
-                    self['global_alpha'] = value
+                    self['global_alpha'] = float(value)
 
                 # LightVec=-1,1,-1
                 case 'LightVec':

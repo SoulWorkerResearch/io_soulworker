@@ -107,6 +107,8 @@ class ModelChunkReader(VisChunkFileReader):
     @staticmethod
     def __material_from_file(path: Path) -> dict[str, VisMaterial]:
 
+        debug('load materials from: %s', path)
+
         def __float(name: str, node: Element):
             return float(node.attrib[name])
 
