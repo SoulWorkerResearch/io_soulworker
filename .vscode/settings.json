@@ -36,6 +36,6 @@
     "explorer.excludeGitIgnore": true,
     "files.insertFinalNewline": true,
     "python.analysis.autoImportCompletions": false,
-    "python.analysis.typeCheckingMode": "basic",
-    // "python.analysis.typeCheckingMode": "strict"
+    "python.analysis.typeCheckingMode": "off",
+    "cursorpyright.analysis.typeCheckingMode": "off"
 }
