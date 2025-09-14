@@ -56,7 +56,7 @@ class ShaderParamString(dict):
                     values = [float(v) for v in value.split(',')]
                     self['diffuse_hue'] = VisColor(*values)
 
-                # DiffuseHue=1.2
+                # BodyColor=1,0.8901961,0.7960784,1
                 case 'BodyColor':
                     values = [float(v) for v in value.split(',')]
                     self['body_color'] = VisColor(*values)
