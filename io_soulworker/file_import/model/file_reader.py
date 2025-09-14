@@ -1,5 +1,6 @@
 from logging import debug, error
 from pathlib import Path
+from typing import final
 
 import bpy
 
@@ -11,8 +12,10 @@ from bpy.types import (
     ShaderNodeBsdfPrincipled,
     ShaderNodeTexImage,
     ArmatureModifier,
-    VertexGroup
+    VertexGroup,
+    EditBone
 )
+from mathutils import Matrix, Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
@@ -41,6 +44,7 @@ class NameHelper:
         return name + "_Modifier"
 
 
+@final
 class ModelFileReader(ModelChunkReader):
 
     mesh: Mesh
@@ -66,6 +70,7 @@ class ModelFileReader(ModelChunkReader):
         # create object
         self.object = bpy.data.objects.new(self.mesh.name, self.mesh)
 
+    # @override
     def on_surface(self, chunk: MtrsChunk):
 
         def create_blender_nodes(material: Material):
@@ -84,6 +89,11 @@ class ModelFileReader(ModelChunkReader):
                 return None
 
             node_tree = material.node_tree
+
+            if node_tree is None:
+                error("Node tree is None")
+                return
+
             nodes = node_tree.nodes
 
             pbsdf_node: ShaderNodeBsdfPrincipled = nodes["Principled BSDF"]
@@ -162,6 +172,7 @@ class ModelFileReader(ModelChunkReader):
 
         self.mesh.materials.append(material)
 
+    # @override
     def on_mesh(self, chunk: VMshChunk):
 
         self.mesh_chunk = chunk
@@ -181,6 +192,7 @@ class ModelFileReader(ModelChunkReader):
 
         self.context.collection.objects.link(self.object)
 
+    # @override
     def on_skeleton(self, chunk: SkelChunk):
 
         armature = bpy.data.armatures.new(
@@ -206,43 +218,48 @@ class ModelFileReader(ModelChunkReader):
 
         bpy.ops.object.mode_set(mode="EDIT")
 
+        vertex_groups = self.object.vertex_groups
+
         boneParentList: list[str] = []
         boneParentMat = {}
 
-        vertex_groups = self.object.vertex_groups
+        self.bone_index_to_vertex_group = {}  # Map bone index to vertex group
 
-        self.test_bones = chunk.bones
+        vertex_groups = self.object.vertex_groups
 
         for bone in chunk.bones:
 
-            self.vertex_groups.append(vertex_groups.new(name=bone.name))
+            vertex_group = vertex_groups.new(name=bone.name)
+            self.vertex_groups.append(vertex_group)
+            self.bone_index_to_vertex_group[bone.id] = vertex_group
 
-            boneParentList.append(bone.name)
+            boneParentList.append(bone.id)
             new = armature.edit_bones.new(bone.name)
 
+            # Create local space matrix from bone data
             boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
             boneLocalMat.translation = bone.local_space_position
 
-            armature_mat = boneLocalMat
-
-            if (bone.parent_id != SkelChunk.BoneEntity.INVALID_ID):
-
-                id = boneParentList[bone.parent_id]
-                armature_mat = boneParentMat[id] @ boneLocalMat
-
-            boneParentMat[bone.name] = armature_mat
-
-            newMatBone = bone.local_space_orientation.to_matrix().to_4x4()
-            newMatBone.translation = armature_mat.to_translation()
-
-            new.transform(newMatBone)
-
+            # Calculate world space matrix
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+                parent_id = boneParentList[bone.parent_id]
+                armature_mat = boneParentMat[parent_id] @ boneLocalMat
+            else:
+                armature_mat = boneLocalMat
 
-                editbone = armature.edit_bones[bone.parent_id]
-                new.parent = editbone
+            boneParentMat[bone.id] = armature_mat
 
-                new.head = new.parent.tail
+            # Set bone position and orientation
+            new.head = (0, 0, 0)
+            new.tail = (0, 0, 0.1)  # Default tail length
+
+            # Apply the world space transformation
+            new.matrix = armature_mat
+
+            # Set parent relationship
+            if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+                parent_bone = armature.edit_bones[bone.parent_id]
+                new.parent = parent_bone
 
         bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -252,6 +269,7 @@ class ModelFileReader(ModelChunkReader):
 
         self.context.view_layer.update()
 
+    # @override
     def on_vertices_material(self, chunk: SubmChunk):
 
         # TODO: i have no idea how this can be done without touching the interface.
@@ -292,6 +310,7 @@ class ModelFileReader(ModelChunkReader):
             debug("indices_start: %d", start)
             debug("indices_count: %d", count)
 
+    # @override
     def on_skeleton_weights(self, reader: WGHTChunkReader):
 
         count = len(self.mesh.vertices)
@@ -301,13 +320,18 @@ class ModelFileReader(ModelChunkReader):
 
             for entity in chunk.values:
 
-                vertex_group = self.vertex_groups[entity.bone_index]
+                # Use the bone index mapping to get the correct vertex group
+                if entity.bone_index in self.bone_index_to_vertex_group:
+                    vertex_group = self.bone_index_to_vertex_group[entity.bone_index]
 
-                vertex_group.add(
-                    index=[vertex_index],
-                    weight=entity.weight,
-                    type="ADD"
-                )
+                    vertex_group.add(
+                        index=[vertex_index],
+                        weight=entity.weight,
+                        type="ADD"
+                    )
+                else:
+                    debug(
+                        f"Warning: bone_index {entity.bone_index} not found in vertex groups")
 
 # https://youtu.be/UXQGKfCWCBc
 # https://youtu.be/6S-0XgGTn-E?list=RD6S-0XgGTn-E

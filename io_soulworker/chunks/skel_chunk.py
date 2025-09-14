@@ -10,7 +10,9 @@ class SkelChunk(object):
 
         INVALID_ID = -1
 
-        def __init__(self, reader: BinaryReader) -> None:
+        def __init__(self, reader: BinaryReader, index: int) -> None:
+            self.id = index
+
             self.name = reader.read_utf8_uint32_string()
             self.parent_id = reader.read_int16()
 
@@ -31,4 +33,6 @@ class SkelChunk(object):
         assert self.version == self.VERSION
 
         bone_count = reader.read_uint16()
-        self.bones = [SkelChunk.BoneEntity(reader) for _ in range(bone_count)]
+        self.bones = [
+            SkelChunk.BoneEntity(reader, index) for index in range(bone_count)
+        ]
