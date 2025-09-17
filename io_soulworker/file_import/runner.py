@@ -1,10 +1,12 @@
+import bpy
 
 from logging import debug, error
 from pathlib import Path
-
-import bpy
-
+from bpy_extras.io_utils import ImportHelper
+from io_soulworker.file_import.animation.file_reader import AnimationFileReader
+from io_soulworker.file_import.model.file_reader import ModelFileReader
 from bpy.props import BoolProperty, CollectionProperty, FloatProperty
+
 from bpy.types import (
     Collection,
     Context,
@@ -13,14 +15,10 @@ from bpy.types import (
     OperatorFileListElement,
 )
 
-from bpy_extras.io_utils import ImportHelper
-
-from io_soulworker.file_import.animation.file_reader import AnimationFileReader
-from io_soulworker.file_import.model.file_reader import ModelFileReader
-
 
 # https://github.com/microsoft/pylance-release/issues/5457#issuecomment-2074153709
 def in_blender():
+
     return type(bpy.app.version) == tuple
 
 
@@ -57,6 +55,7 @@ class FileImportRunner(Operator, ImportHelper):
         files: list[OperatorFileListElement]
 
     def draw_menu(self, context):
+
         # disable draw standard controls
         pass
 
@@ -65,9 +64,11 @@ class FileImportRunner(Operator, ImportHelper):
         def get_layer_collection(layer_collection: LayerCollection, collection: Collection):
 
             if (layer_collection.name == collection.name):
+
                 return layer_collection
 
             for layer in layer_collection.children:
+
                 found = get_layer_collection(layer, collection)
 
                 if found:
@@ -93,6 +94,7 @@ class FileImportRunner(Operator, ImportHelper):
         )
 
     def execute(self, context: Context):
+
         context.scene.render.engine = "BLENDER_EEVEE_NEXT"
 
         root = Path(self.properties.filepath)

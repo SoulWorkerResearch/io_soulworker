@@ -1,6 +1,4 @@
 from io_soulworker.core.binary_reader import BinaryReader
-
-
 from mathutils import Vector
 
 

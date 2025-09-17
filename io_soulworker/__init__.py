@@ -1,7 +1,6 @@
-from logging import DEBUG, INFO, basicConfig, debug
-
 import bpy
 
+from logging import DEBUG, INFO, basicConfig, debug
 from io_soulworker.file_import.runner import FileImportRunner
 from io_soulworker.file_import.object_panel_default_values import FileImportObjectPanelDefaultValues
 from io_soulworker.file_import.object_panel_features import FileImportObjectPanelFeatures
@@ -31,6 +30,7 @@ classes = {
 
 
 def menu_func_import(self, context):
+
     self.layout.operator(
         FileImportRunner.bl_idname,
         text="SoulWorker (.model, .vmesh)"
@@ -38,6 +38,7 @@ def menu_func_import(self, context):
 
 
 def register():
+
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -45,6 +46,7 @@ def register():
 
 
 def unregister():
+
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
     for cls in classes:
@@ -55,6 +57,7 @@ def unregister():
 
 
 if __name__ == "__main__":
+
     register()
 
 # https://youtu.be/SdxsT40DaCg

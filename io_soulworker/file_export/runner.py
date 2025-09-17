@@ -1,8 +1,8 @@
+import bpy
+import struct
+
 from io import BufferedWriter
 from pathlib import Path
-import struct
-import bpy
-
 from io_soulworker.core.vis_chunk_id import VisChunkId
 
 

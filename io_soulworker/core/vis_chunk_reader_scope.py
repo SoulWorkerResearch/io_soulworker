@@ -3,7 +3,6 @@ from logging import debug
 from traceback import print_exception
 from types import TracebackType
 from typing import Optional, Type
-
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
 
@@ -14,13 +13,16 @@ class VisChunkReaderScope(object):
     depth = 0
 
     def __init__(self, reader: BinaryReader) -> None:
+
         self.reader = reader
 
     def __enter__(self):
+
         self.depth = self.reader.read_int32()
         debug("enter stack depth: %d", self.depth)
 
         if self.depth < 0:
+
             debug("end of file")
             return self
 
@@ -38,9 +40,11 @@ class VisChunkReaderScope(object):
                  traceback: Optional[TracebackType]) -> bool:
 
         if self.depth < 0:
+
             return True
 
         if exc_type is not None:
+
             print_exception(exc_type, exc_value, traceback)
 
         offset = self.offset + self.length
@@ -55,4 +59,5 @@ class VisChunkReaderScope(object):
         return False
 
     def __get_chunk_name(self, id: VisChunkId) -> str:
+
         return id.to_bytes(4, "big").decode("ascii")

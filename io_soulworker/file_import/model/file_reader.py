@@ -1,8 +1,15 @@
+import bpy
+
 from logging import debug, error
 from pathlib import Path
 from typing import final
-
-import bpy
+from io_soulworker.chunks.mtrs_chunk import MtrsChunk
+from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
+from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.subm_chunk import SubmChunk
+from io_soulworker.chunks.vmsh_chunk import VMshChunk
+from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 
 from bpy.types import (
     Context,
@@ -13,23 +20,14 @@ from bpy.types import (
     ShaderNodeTexImage,
     ArmatureModifier,
     VertexGroup,
-    EditBone
 )
-from mathutils import Matrix, Vector
-
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
-from io_soulworker.chunks.skel_chunk import SkelChunk
-from io_soulworker.chunks.subm_chunk import SubmChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 
 
 class NodesHelper:
 
     @staticmethod
     def create_hair_nodes():
+
         pass
 
 
@@ -37,10 +35,12 @@ class NameHelper:
 
     @staticmethod
     def of_armature_object(name: str) -> str:
+
         return name + "_Armature"
 
     @staticmethod
     def of_armature_modifier(name: str) -> str:
+
         return name + "_Modifier"
 
 
@@ -76,21 +76,28 @@ class ModelFileReader(ModelChunkReader):
         def create_blender_nodes(material: Material):
 
             def get_texture_path(path: Path):
+
                 if path.exists() and path.is_file():
+
                     return path
 
                 error("FILE NOT FOUND %s", path)
 
                 path = self.path.parent / 'Textures' / path.name
+                debug("path: %s", path)
+
                 if path.exists() and path.is_file():
+
                     return path
 
                 error("FILE NOT FOUND %s", path)
+
                 return None
 
             node_tree = material.node_tree
 
             if node_tree is None:
+
                 error("Node tree is None")
                 return
 
@@ -115,19 +122,21 @@ class ModelFileReader(ModelChunkReader):
             # else:
 
             path = get_texture_path(self.path.parent / chunk.diffuse_map)
+            debug("texture path: %s", path)
             if path is None:
+
                 error("No textures found for material: %s", material.name)
                 return
 
             texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
-            debug("texture path: %s", path)
+            debug("texture node: %s", texture_node)
 
             texture_node.image = bpy.data.images.load(
                 str(path),
                 check_existing=True
             )
 
-            debug("texture loaded: %s", path)
+            debug("texture loaded: %s", texture_node.image.name_full)
 
             node_tree.links.new(
                 pbsdf_node.inputs["Base Color"],
@@ -140,9 +149,11 @@ class ModelFileReader(ModelChunkReader):
             )
 
             if "MO_HAIR" in material.name:
+
                 NodesHelper.create_hair_nodes()
 
             if "GLOW" in material.name:
+
                 debug("has glow")
 
                 # pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
@@ -158,6 +169,7 @@ class ModelFileReader(ModelChunkReader):
                 )
 
             if chunk.transparency_type != VisTransparencyType.NONE:
+
                 debug("has alpha")
 
                 # material.blend_method = "HASHED"
@@ -231,6 +243,7 @@ class ModelFileReader(ModelChunkReader):
         for bone in chunk.bones:
 
             vertex_group = vertex_groups.new(name=bone.name)
+
             self.vertex_groups.append(vertex_group)
             self.bone_index_to_vertex_group[bone.id] = vertex_group
 
@@ -243,9 +256,12 @@ class ModelFileReader(ModelChunkReader):
 
             # Calculate world space matrix
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+
                 parent_id = boneParentList[bone.parent_id]
                 armature_mat = boneParentMat[parent_id] @ boneLocalMat
+
             else:
+
                 armature_mat = boneLocalMat
 
             boneParentMat[bone.id] = armature_mat
@@ -259,12 +275,15 @@ class ModelFileReader(ModelChunkReader):
 
             # Set parent relationship
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+
                 parent_bone = armature.edit_bones[bone.parent_id]
                 new.parent = parent_bone
 
         # Second pass: connect parent tails to child heads
         for bone in chunk.bones:
+
             if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+
                 parent_bone = armature.edit_bones[bone.parent_id]
                 child_bone = armature.edit_bones[bone.id]
 
@@ -332,6 +351,7 @@ class ModelFileReader(ModelChunkReader):
 
                 # Use the bone index mapping to get the correct vertex group
                 if entity.bone_index in self.bone_index_to_vertex_group:
+
                     vertex_group = self.bone_index_to_vertex_group[entity.bone_index]
 
                     vertex_group.add(
@@ -339,7 +359,9 @@ class ModelFileReader(ModelChunkReader):
                         weight=entity.weight,
                         type="ADD"
                     )
+
                 else:
+
                     debug(
                         f"Warning: bone_index {entity.bone_index} not found in vertex groups")
 

@@ -1,7 +1,6 @@
-from itertools import islice
-from typing import cast
 import bpy
 
+from itertools import islice
 from logging import debug
 from pathlib import Path
 
@@ -17,12 +16,16 @@ class AnimationFileReader(AnimationFileChunkReader):
         debug(f"Creating animation {name} for skeleton index {skeleton_index}")
 
         view_layer = self.context.view_layer
+
         if view_layer is None:
+
             debug("No view layer found")
             return
 
         active = view_layer.objects.active
+
         if active is None:
+
             debug("No active object found")
             return
 
@@ -34,6 +37,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         armature = next(islice(f, skeleton_index, skeleton_index + 1), None)
 
         if armature is None:
+
             debug(f"No armature found for skeleton index {skeleton_index}")
             return
 
@@ -42,11 +46,13 @@ class AnimationFileReader(AnimationFileChunkReader):
         assert armature.object, "Armature object is None"
 
         view_layer.objects.active = armature.object
+
         bpy.ops.object.mode_set(mode='POSE')
 
         assert isinstance(armature.object.data, bpy.types.Armature), "Bad type"
 
         for bone in armature.object.data.bones:
+
             bone.select = True
 
         bpy.ops.poselib.create_pose_asset(

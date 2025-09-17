@@ -37,9 +37,16 @@ class AnimationFileChunkReader(VisChunkFileReader):
         elif scope.chunk == VisChunkId.BANI:
 
             version = reader.read_uint16()
+            debug("version: %d", version)
+
             skeleton_index = reader.read_uint16()
+            debug("skeleton_index: %d", skeleton_index)
+
             self.bone_count = reader.read_uint16()
+            debug("bone_count: %d", self.bone_count)
+
             name = reader.read_utf8_uint32_string()
+            debug("name: %s", name)
 
             self.on_animation(skeleton_index, name)
             self.run_sub(reader, scope)

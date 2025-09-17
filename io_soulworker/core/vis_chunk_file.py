@@ -3,7 +3,6 @@ from pathlib import Path
 
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_bin_header import VisBinHeader
-from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
 
 
@@ -13,7 +12,7 @@ class VisChunkFileReader(object):
 
         self.path = path
 
-    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
+    def on_chunk_start(self, scope: VisChunkReaderScope, _: BinaryReader) -> None:
 
         raise NotImplementedError("chunk: %d" % scope.chunk)
 
