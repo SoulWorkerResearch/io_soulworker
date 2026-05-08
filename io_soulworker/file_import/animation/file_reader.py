@@ -1,19 +1,117 @@
 import bpy
 
-from itertools import islice
+from dataclasses import dataclass
+from json import loads
 from logging import debug
 from pathlib import Path
 
+from mathutils import Quaternion, Vector
+
+from io_soulworker.chunks.bpos_chunk import BposChunk
+from io_soulworker.chunks.brot_chunk import BrotChunk
+from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.file_import.animation.action_builder import group_keyframes_by_bone
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
+from io_soulworker.file_import.armature_builder import build_armature_from_skeleton
+
+
+@dataclass(frozen=True)
+class SkeletonBoneRef:
+    name: str
+    parent_name: str | None
+    local_position: Vector
+    local_orientation: Quaternion
 
 
 class AnimationFileReader(AnimationFileChunkReader):
+
+    skeletons: list[SkelChunk]
 
     def on_animation(self, skeleton_index: int, name: str) -> None:
 
         assert name, "Animation name cannot be empty"
 
-        debug(f"Creating animation {name} for skeleton index {skeleton_index}")
+        debug("Reading animation %s for skeleton index %d", name, skeleton_index)
+
+        self.animation_name = name
+        self.skeleton_index = skeleton_index
+        self.position_chunk = None
+        self.rotation_chunk = None
+
+    def on_animation_end(self) -> None:
+        if self.animation_name is None:
+            return
+
+        armature_object = self._resolve_armature_object(self.skeleton_index)
+
+        if armature_object is None:
+            debug("No armature found for skeleton index %d", self.skeleton_index)
+            return
+
+        if self.position_chunk is None and self.rotation_chunk is None:
+            debug("Animation %s has no supported tracks", self.animation_name)
+            return
+
+        bone_names = self._bone_names_for_animation(armature_object)
+        action = self._create_action(self.animation_name)
+
+        animation_data = armature_object.animation_data_create()
+        animation_data.action = action
+
+        if self.position_chunk is not None:
+            self._add_transform_curves(
+                action,
+                armature_object,
+                bone_names,
+                self.position_chunk,
+                self.rotation_chunk,
+            )
+
+        elif self.rotation_chunk is not None:
+            self._add_transform_curves(
+                action,
+                armature_object,
+                bone_names,
+                None,
+                self.rotation_chunk,
+            )
+
+    def on_skeleton(self, chunk: SkelChunk) -> None:
+        self.skeletons.append(chunk)
+
+    def on_bone_position(self, chunk: BposChunk) -> None:
+        self.position_chunk = chunk
+
+    def on_bone_rotation(self, chunk: BrotChunk) -> None:
+        self.rotation_chunk = chunk
+
+    def _resolve_armature_object(self, skeleton_index: int):
+        active_armature = self._resolve_active_armature(skeleton_index)
+
+        if active_armature is not None:
+            return active_armature
+
+        cached_armature = self.fallback_armatures.get(skeleton_index)
+
+        if cached_armature is not None:
+            return cached_armature
+
+        skeleton = self._skeleton_at_index(skeleton_index)
+
+        if skeleton is None:
+            return None
+
+        result = build_armature_from_skeleton(
+            self.context,
+            f"{self.path.stem}_{skeleton_index}",
+            skeleton,
+        )
+
+        self.fallback_armatures[skeleton_index] = result.object
+
+        return result.object
+
+    def _resolve_active_armature(self, skeleton_index: int):
 
         view_layer = self.context.view_layer
 
@@ -29,42 +127,415 @@ class AnimationFileReader(AnimationFileChunkReader):
             debug("No active object found")
             return
 
-        f = filter(
-            lambda obj: obj.type == 'ARMATURE',
-            active.modifiers
+        if active.type == 'ARMATURE' and skeleton_index == 0:
+            return active
+
+        armatures = [
+            modifier.object for modifier in active.modifiers
+            if getattr(modifier, "type", None) == 'ARMATURE' and modifier.object is not None
+        ]
+
+        if skeleton_index >= len(armatures):
+            return None
+
+        return armatures[skeleton_index]
+
+    def _skeleton_at_index(self, skeleton_index: int) -> SkelChunk | None:
+        if skeleton_index >= len(self.skeletons):
+            return None
+
+        return self.skeletons[skeleton_index]
+
+    def _bone_names_for_animation(self, armature_object) -> list[str]:
+        skeleton = self._skeleton_at_index(self.skeleton_index)
+
+        if skeleton is not None and len(skeleton.bones) >= self.bone_count:
+            return [bone.name for bone in skeleton.bones[:self.bone_count]]
+
+        imported_bone_names = armature_object.get("soulworker_bone_names_by_index")
+
+        if imported_bone_names is not None and len(imported_bone_names) >= self.bone_count:
+            return list(imported_bone_names[:self.bone_count])
+
+        return [bone.name for bone in armature_object.data.bones][:self.bone_count]
+
+    def _create_action(self, name: str):
+        existing = bpy.data.actions.get(name)
+
+        if existing is not None:
+            bpy.data.actions.remove(existing)
+
+        return bpy.data.actions.new(name)
+
+    def _add_transform_curves(
+        self,
+        action,
+        armature_object,
+        bone_names: list[str],
+        position_chunk: BposChunk | None,
+        rotation_chunk: BrotChunk | None,
+    ) -> None:
+        source_refs = self._source_skeleton_refs(bone_names)
+        target_refs = self._target_skeleton_refs(armature_object)
+        source_names = [bone.name for bone in source_refs[:self.bone_count]]
+
+        position_keys = (
+            group_keyframes_by_bone(
+                position_chunk.key_frame_list,
+                source_names,
+                "vector_list",
+            )
+            if position_chunk is not None
+            else {}
         )
 
-        armature = next(islice(f, skeleton_index, skeleton_index + 1), None)
+        rotation_keys = (
+            group_keyframes_by_bone(
+                rotation_chunk.key_frame_list,
+                source_names,
+                "quternin_list",
+            )
+            if rotation_chunk is not None
+            else {}
+        )
 
-        if armature is None:
+        positions_by_bone = {}
+        rotations_by_bone = {}
+        source_refs_by_name = {bone.name: bone for bone in source_refs}
+        basis_location_keys_by_bone = {}
+        basis_rotation_keys_by_bone = {}
 
-            debug(f"No armature found for skeleton index {skeleton_index}")
+        for target_ref in target_refs:
+            bone_name = target_ref.name
+            pose_bone = armature_object.pose.bones.get(bone_name)
+            rest_bone = armature_object.data.bones.get(bone_name)
+
+            if pose_bone is None or rest_bone is None:
+                continue
+
+            source_ref = source_refs_by_name.get(bone_name)
+
+            if source_ref is None:
+                continue
+
+            pose_bone.rotation_mode = 'QUATERNION'
+            positions_by_bone[bone_name] = {
+                frame: self._remap_translation(position, source_ref, target_ref)
+                for frame, position in position_keys.get(source_ref.name, [])
+            }
+            rotations_by_bone[bone_name] = {
+                frame: self._remap_rotation(rotation, source_ref, target_ref)
+                for frame, rotation in rotation_keys.get(source_ref.name, [])
+            }
+            basis_location_keys_by_bone[bone_name] = []
+            basis_rotation_keys_by_bone[bone_name] = []
+
+        key_frames = sorted({
+            frame
+            for keys in position_keys.values()
+            for frame, _ in keys
+        } | {
+            frame
+            for keys in rotation_keys.values()
+            for frame, _ in keys
+        })
+
+        if not key_frames:
             return
 
-        assert isinstance(armature, bpy.types.ArmatureModifier), "Bad type"
+        frames = range(key_frames[0], key_frames[-1] + 1)
 
-        assert armature.object, "Armature object is None"
+        for frame in frames:
+            for bone_name in basis_location_keys_by_bone:
+                rest_bone = armature_object.data.bones.get(bone_name)
 
-        view_layer.objects.active = armature.object
+                if rest_bone is None:
+                    continue
 
-        bpy.ops.object.mode_set(mode='POSE')
+                rest_local = self._rest_local_matrix(rest_bone)
+                local_matrix = self._local_animation_matrix(
+                    rest_local,
+                    self._sample_vector_track(positions_by_bone.get(bone_name, {}), frame),
+                    self._sample_quaternion_track(rotations_by_bone.get(bone_name, {}), frame),
+                )
+                basis = rest_local.inverted() @ local_matrix
 
-        assert isinstance(armature.object.data, bpy.types.Armature), "Bad type"
+                if positions_by_bone.get(bone_name):
+                    basis_location_keys_by_bone[bone_name].append(
+                        (frame, basis.to_translation())
+                    )
 
-        for bone in armature.object.data.bones:
+                if rotations_by_bone.get(bone_name):
+                    basis_rotation_keys_by_bone[bone_name].append(
+                        (frame, basis.to_quaternion())
+                    )
 
-            bone.select = True
+        for bone_name, keys in basis_location_keys_by_bone.items():
+            self._add_vector_curves(
+                action,
+                armature_object,
+                bone_name,
+                "location",
+                keys,
+                3,
+            )
 
-        bpy.ops.poselib.create_pose_asset(
-            pose_name=name,
-            asset_library_reference="LOCAL"
+        for bone_name, keys in basis_rotation_keys_by_bone.items():
+            self._add_vector_curves(
+                action,
+                armature_object,
+                bone_name,
+                "rotation_quaternion",
+                keys,
+                4,
+            )
+
+    def _source_skeleton_refs(self, fallback_bone_names: list[str]) -> list[SkeletonBoneRef]:
+        skeleton = self._skeleton_at_index(self.skeleton_index)
+
+        if skeleton is not None:
+            return self._bone_refs_from_chunk(skeleton)
+
+        return [
+            SkeletonBoneRef(
+                name=bone_name,
+                parent_name=None,
+                local_position=Vector((0.0, 0.0, 0.0)),
+                local_orientation=Quaternion(),
+            )
+            for bone_name in fallback_bone_names
+        ]
+
+    @staticmethod
+    def _bone_refs_from_chunk(chunk: SkelChunk) -> list[SkeletonBoneRef]:
+        bone_names_by_id = {bone.id: bone.name for bone in chunk.bones}
+
+        return [
+            SkeletonBoneRef(
+                name=bone.name,
+                parent_name=bone_names_by_id.get(bone.parent_id),
+                local_position=bone.local_space_position.copy(),
+                local_orientation=bone.local_space_orientation.copy(),
+            )
+            for bone in chunk.bones
+        ]
+
+    def _target_skeleton_refs(self, armature_object) -> list[SkeletonBoneRef]:
+        serialized = armature_object.get("soulworker_skeleton")
+
+        if serialized:
+            try:
+                return self._bone_refs_from_metadata(loads(serialized))
+            except Exception:
+                debug("Failed to read SoulWorker skeleton metadata from armature")
+
+        return self._bone_refs_from_armature(armature_object)
+
+    @staticmethod
+    def _bone_refs_from_metadata(bones: list[dict]) -> list[SkeletonBoneRef]:
+        names_by_id = {
+            index: bone["name"]
+            for index, bone in enumerate(bones)
+        }
+
+        return [
+            SkeletonBoneRef(
+                name=bone["name"],
+                parent_name=names_by_id.get(bone["parent_id"]),
+                local_position=Vector(bone["local_position"]),
+                local_orientation=Quaternion(bone["local_orientation"]),
+            )
+            for bone in bones
+        ]
+
+    def _bone_refs_from_armature(self, armature_object) -> list[SkeletonBoneRef]:
+        refs = []
+
+        for bone in armature_object.data.bones:
+            rest_local = self._rest_local_matrix(bone)
+            refs.append(
+                SkeletonBoneRef(
+                    name=bone.name,
+                    parent_name=bone.parent.name if bone.parent is not None else None,
+                    local_position=rest_local.to_translation(),
+                    local_orientation=rest_local.to_quaternion(),
+                )
+            )
+
+        return refs
+
+    @staticmethod
+    def _remap_translation(position, source_ref: SkeletonBoneRef, target_ref: SkeletonBoneRef):
+        source_position = position.to_3d()
+        source_length = source_ref.local_position.length
+
+        if source_length <= 0.000001:
+            return target_ref.local_position + (source_position - source_ref.local_position)
+
+        target_length = target_ref.local_position.length
+        scale = target_length / source_length
+
+        return (
+            (source_position - source_ref.local_position) * scale
+            + target_ref.local_position
         )
 
-        bpy.ops.object.mode_set(mode='OBJECT')
-        view_layer.objects.active = active
+    @staticmethod
+    def _remap_rotation(rotation, source_ref: SkeletonBoneRef, target_ref: SkeletonBoneRef):
+        correction = target_ref.local_orientation @ source_ref.local_orientation.inverted()
+        remapped = correction @ rotation
+        remapped.normalize()
+
+        return remapped
+
+    @staticmethod
+    def _rest_local_matrix(rest_bone):
+        if rest_bone.parent is None:
+            return rest_bone.matrix_local.copy()
+
+        return rest_bone.parent.matrix_local.inverted() @ rest_bone.matrix_local
+
+    @staticmethod
+    def _local_animation_matrix(rest_local, position, rotation):
+        desired = rest_local.copy()
+
+        if rotation is not None:
+            desired = rotation.to_matrix().to_4x4()
+            desired.translation = rest_local.to_translation()
+
+        if position is not None:
+            desired.translation = position.to_3d()
+
+        return desired
+
+    @staticmethod
+    def _sample_vector_track(keys_by_frame: dict[int, Vector], frame: int) -> Vector | None:
+        if not keys_by_frame:
+            return None
+
+        if frame in keys_by_frame:
+            return keys_by_frame[frame]
+
+        frames = sorted(keys_by_frame)
+        floor = None
+        ceiling = None
+
+        for key_frame in frames:
+            if key_frame < frame:
+                floor = key_frame
+                continue
+
+            ceiling = key_frame
+            break
+
+        if floor is None:
+            return keys_by_frame[ceiling]
+
+        if ceiling is None:
+            return keys_by_frame[floor]
+
+        factor = (frame - floor) / (ceiling - floor)
+
+        return keys_by_frame[floor].lerp(keys_by_frame[ceiling], factor)
+
+    @staticmethod
+    def _sample_quaternion_track(
+        keys_by_frame: dict[int, Quaternion],
+        frame: int,
+    ) -> Quaternion | None:
+        if not keys_by_frame:
+            return None
+
+        if frame in keys_by_frame:
+            return keys_by_frame[frame]
+
+        frames = sorted(keys_by_frame)
+        floor = None
+        ceiling = None
+
+        for key_frame in frames:
+            if key_frame < frame:
+                floor = key_frame
+                continue
+
+            ceiling = key_frame
+            break
+
+        if floor is None:
+            return keys_by_frame[ceiling]
+
+        if ceiling is None:
+            return keys_by_frame[floor]
+
+        factor = (frame - floor) / (ceiling - floor)
+        sampled = keys_by_frame[floor].slerp(keys_by_frame[ceiling], factor)
+        sampled.normalize()
+
+        return sampled
+
+    def _add_vector_curves(
+        self,
+        action,
+        armature_object,
+        bone_name: str,
+        property_name: str,
+        keys,
+        component_count: int,
+    ) -> None:
+        if not keys:
+            return
+
+        data_path = f'pose.bones["{self._escape_bone_name(bone_name)}"].{property_name}'
+
+        for component in range(component_count):
+            fcurve = self._ensure_fcurve(
+                action,
+                armature_object,
+                data_path,
+                component,
+                bone_name,
+            )
+
+            for frame, value in keys:
+                keyframe = fcurve.keyframe_points.insert(
+                    frame,
+                    float(value[component]),
+                    options={'FAST'},
+                )
+                keyframe.interpolation = 'LINEAR'
+
+            fcurve.update()
+
+    @staticmethod
+    def _ensure_fcurve(
+        action,
+        armature_object,
+        data_path: str,
+        component: int,
+        group_name: str,
+    ):
+        if hasattr(action, "fcurve_ensure_for_datablock"):
+            return action.fcurve_ensure_for_datablock(
+                armature_object,
+                data_path,
+                index=component,
+                group_name=group_name,
+            )
+
+        return action.fcurves.new(data_path=data_path, index=component)
+
+    @staticmethod
+    def _escape_bone_name(name: str) -> str:
+        return name.replace("\\", "\\\\").replace('"', '\\"')
 
     def __init__(self, path: Path, context: bpy.types.Context) -> None:
 
         super().__init__(path)
 
         self.context = context
+        self.skeletons = []
+        self.animation_name = None
+        self.skeleton_index = 0
+        self.position_chunk = None
+        self.rotation_chunk = None
+        self.fallback_armatures = {}

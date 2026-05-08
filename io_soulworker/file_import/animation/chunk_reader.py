@@ -3,6 +3,7 @@ from io_soulworker.chunks.bpos_chunk import BposChunk
 from io_soulworker.chunks.brot_chunk import BrotChunk
 from io_soulworker.chunks.xbsv_chunk import XbsvChunk
 from io_soulworker.chunks.head_chunk import HeadChunk
+from io_soulworker.chunks.skel_chunk import SkelChunk
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_file import VisChunkFileReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
@@ -24,6 +25,12 @@ class AnimationFileChunkReader(VisChunkFileReader):
         debug('Not impl callback')
 
     def on_animation(self, skeleton_index: int, name: str) -> None:
+        debug('Not impl callback')
+
+    def on_animation_end(self) -> None:
+        debug('Not impl callback')
+
+    def on_skeleton(self, chunk: SkelChunk) -> None:
         debug('Not impl callback')
 
     def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
@@ -50,6 +57,11 @@ class AnimationFileChunkReader(VisChunkFileReader):
 
             self.on_animation(skeleton_index, name)
             self.run_sub(reader, scope)
+            self.on_animation_end()
+
+        elif scope.chunk == VisChunkId.SKEL:
+
+            self.on_skeleton(SkelChunk(reader))
 
         elif scope.chunk == VisChunkId.VSBX:
 

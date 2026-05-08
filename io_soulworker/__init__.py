@@ -1,9 +1,14 @@
-import bpy
-
 from logging import DEBUG, INFO, basicConfig, debug
-from io_soulworker.file_import.runner import FileImportRunner
-from io_soulworker.file_import.object_panel_default_values import FileImportObjectPanelDefaultValues
-from io_soulworker.file_import.object_panel_features import FileImportObjectPanelFeatures
+
+try:
+    import bpy
+except ModuleNotFoundError:
+    bpy = None
+
+if bpy is not None:
+    from io_soulworker.file_import.runner import FileImportRunner
+    from io_soulworker.file_import.object_panel_default_values import FileImportObjectPanelDefaultValues
+    from io_soulworker.file_import.object_panel_features import FileImportObjectPanelFeatures
 
 basicConfig(
     level=DEBUG if __debug__ else INFO,
@@ -14,7 +19,7 @@ bl_info = {
     "name": "SoulWorker",
     "author": "sawich",
     "version": (1, 0, 0),
-    "blender": (4, 4, 0),
+    "blender": (5, 1, 1),
     "location": "File > Import/Export",
     "description": "Import-Export SoulWorker content",
     "support": "COMMUNITY",
@@ -22,22 +27,29 @@ bl_info = {
 }
 
 
-classes = {
-    FileImportObjectPanelDefaultValues,
-    FileImportObjectPanelFeatures,
-    FileImportRunner,
-}
+classes = set()
+
+if bpy is not None:
+    classes = {
+        FileImportObjectPanelDefaultValues,
+        FileImportObjectPanelFeatures,
+        FileImportRunner,
+    }
 
 
 def menu_func_import(self, context):
+    if bpy is None:
+        return
 
     self.layout.operator(
         FileImportRunner.bl_idname,
-        text="SoulWorker (.model, .vmesh)"
+        text="SoulWorker (.model, .vmesh, .anim)"
     )
 
 
 def register():
+    if bpy is None:
+        return
 
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -46,6 +58,8 @@ def register():
 
 
 def unregister():
+    if bpy is None:
+        return
 
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
