@@ -1,6 +1,7 @@
 import bpy
 
 from logging import debug, error
+from mathutils import Vector
 from pathlib import Path
 from typing import final
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
@@ -10,6 +11,7 @@ from io_soulworker.chunks.subm_chunk import SubmChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
+from io_soulworker.file_import.model.skeleton_builder import build_bone_transforms
 
 from bpy.types import (
     Context,
@@ -44,6 +46,29 @@ class NameHelper:
         return name + "_Modifier"
 
 
+class BoneHelper:
+
+    DEFAULT_LENGTH = 0.1
+
+    @staticmethod
+    def apply_rest_transform(edit_bone, matrix):
+        rotation = matrix.to_quaternion()
+        head = matrix.to_translation()
+        tail_offset = rotation @ Vector((0.0, BoneHelper.DEFAULT_LENGTH, 0.0))
+        roll_axis = rotation @ Vector((0.0, 0.0, 1.0))
+
+        edit_bone.head = head
+        edit_bone.tail = head + tail_offset
+        edit_bone.align_roll(roll_axis)
+
+    @staticmethod
+    def ensure_tail(edit_bone):
+        if (edit_bone.tail - edit_bone.head).length > 0.000001:
+            return
+
+        edit_bone.tail = edit_bone.head + Vector((0.0, BoneHelper.DEFAULT_LENGTH, 0.0))
+
+
 @final
 class ModelFileReader(ModelChunkReader):
 
@@ -69,6 +94,7 @@ class ModelFileReader(ModelChunkReader):
 
         # create object
         self.object = bpy.data.objects.new(self.mesh.name, self.mesh)
+        self.vertex_groups = []
 
     # @override
     def on_surface(self, chunk: MtrsChunk):
@@ -230,71 +256,67 @@ class ModelFileReader(ModelChunkReader):
 
         bpy.ops.object.mode_set(mode="EDIT")
 
-        vertex_groups = self.object.vertex_groups
-
-        boneParentList: list[str] = []
-        boneParentMat = {}
-
         self.bone_index_to_vertex_group = {}  # Map bone index to vertex group
 
         vertex_groups = self.object.vertex_groups
 
-        # First pass: create all bones with their transformations
-        for bone in chunk.bones:
+        def bone_local_matrix(bone):
+            matrix = bone.local_space_orientation.to_matrix().to_4x4()
+            matrix.translation = bone.local_space_position
+
+            return matrix
+
+        bone_transforms = build_bone_transforms(chunk.bones, bone_local_matrix)
+        edit_bones_by_id = {}
+
+        # First pass: create all bones with their transformations.
+        for bone, transform in zip(chunk.bones, bone_transforms):
 
             vertex_group = vertex_groups.new(name=bone.name)
 
             self.vertex_groups.append(vertex_group)
             self.bone_index_to_vertex_group[bone.id] = vertex_group
 
-            boneParentList.append(bone.id)
             new = armature.edit_bones.new(bone.name)
 
-            # Create local space matrix from bone data
-            boneLocalMat = bone.local_space_orientation.to_matrix().to_4x4()
-            boneLocalMat.translation = bone.local_space_position
+            BoneHelper.apply_rest_transform(new, transform.matrix)
+            edit_bones_by_id[bone.id] = new
 
-            # Calculate world space matrix
-            if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+        child_count_by_parent = {}
+        for transform in bone_transforms:
+            if transform.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+                child_count_by_parent[transform.parent_id] = (
+                    child_count_by_parent.get(transform.parent_id, 0) + 1
+                )
 
-                parent_id = boneParentList[bone.parent_id]
-                armature_mat = boneParentMat[parent_id] @ boneLocalMat
+        # Second pass: set parent relationships after all edit bones exist.
+        for transform in bone_transforms:
 
-            else:
+            if transform.parent_id != SkelChunk.BoneEntity.INVALID_ID:
 
-                armature_mat = boneLocalMat
+                child_bone = edit_bones_by_id[transform.id]
+                parent_bone = edit_bones_by_id[transform.parent_id]
+                child_bone.parent = parent_bone
+                child_bone.use_connect = False
 
-            boneParentMat[bone.id] = armature_mat
+        # Third pass: connect parent tails to single child heads.
+        for transform in bone_transforms:
 
-            # Set bone position and orientation
-            new.head = (0, 0, 0)
-            new.tail = (0, 0, 0.1)  # Default tail length
+            if transform.parent_id != SkelChunk.BoneEntity.INVALID_ID:
 
-            # Apply the world space transformation
-            new.matrix = armature_mat
+                if child_count_by_parent[transform.parent_id] != 1:
+                    continue
 
-            # Set parent relationship
-            if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
-
-                parent_bone = armature.edit_bones[bone.parent_id]
-                new.parent = parent_bone
-
-        # Second pass: connect parent tails to child heads
-        for bone in chunk.bones:
-
-            if bone.parent_id != SkelChunk.BoneEntity.INVALID_ID:
-
-                parent_bone = armature.edit_bones[bone.parent_id]
-                child_bone = armature.edit_bones[bone.id]
+                parent_bone = edit_bones_by_id[transform.parent_id]
+                child_bone = edit_bones_by_id[transform.id]
 
                 # Set parent tail to child head position
                 parent_bone.tail = child_bone.head
+                BoneHelper.ensure_tail(parent_bone)
 
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bpy.context.view_layer.objects.active = armature_object
-
-        bpy.ops.object.parent_set(type='BONE', keep_transform=True)
 
         self.context.view_layer.update()
 

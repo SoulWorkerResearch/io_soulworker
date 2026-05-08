@@ -95,7 +95,7 @@ class FileImportRunner(Operator, ImportHelper):
 
     def execute(self, context: Context):
 
-        context.scene.render.engine = "BLENDER_EEVEE_NEXT"
+        context.scene.render.engine = "BLENDER_EEVEE"
 
         root = Path(self.properties.filepath)
 
