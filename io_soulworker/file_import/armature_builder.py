@@ -4,7 +4,8 @@ from json import dumps
 import bpy
 from mathutils import Vector
 
-from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.skel_chunk import VisSkeletalBone_cl
+from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.file_import.model.skeleton_builder import build_bone_transforms
 
 
@@ -27,6 +28,7 @@ class BoneHelper:
 
     @staticmethod
     def apply_rest_transform(edit_bone, matrix):
+
         rotation = matrix.to_quaternion()
         head = matrix.to_translation()
         tail_offset = rotation @ Vector((0.0, BoneHelper.DEFAULT_LENGTH, 0.0))
@@ -38,10 +40,14 @@ class BoneHelper:
 
     @staticmethod
     def ensure_tail(edit_bone):
+
         if (edit_bone.tail - edit_bone.head).length > 0.000001:
+
             return
 
-        edit_bone.tail = edit_bone.head + Vector((0.0, BoneHelper.DEFAULT_LENGTH, 0.0))
+        vec = Vector((0.0, BoneHelper.DEFAULT_LENGTH, 0.0))
+
+        edit_bone.tail = edit_bone.head + vec
 
 
 @dataclass(frozen=True)
@@ -67,7 +73,7 @@ def _quaternion_to_list(quaternion) -> list[float]:
 def build_armature_from_skeleton(
     context: bpy.types.Context,
     name: str,
-    chunk: SkelChunk,
+    chunk: VisSkeletonChunk_cl,
 ) -> ArmatureBuildResult:
     active_object = context.view_layer.objects.active
 
@@ -108,7 +114,7 @@ def build_armature_from_skeleton(
 
     for transform in bone_transforms:
 
-        if transform.parent_id != SkelChunk.BoneEntity.INVALID_ID:
+        if transform.parent_id != VisSkeletalBone_cl.PARENT_BONE_INVALID_ID:
 
             child_bone = edit_bones_by_id[transform.id]
             parent_bone = edit_bones_by_id[transform.parent_id]

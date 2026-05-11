@@ -8,7 +8,7 @@ from io_soulworker.chunks.bnds_chunk import BNDSChunk
 from io_soulworker.chunks.cbpr_chunk import CBPRChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
-from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.binary_reader import BinaryReader
@@ -29,7 +29,7 @@ class ModelChunkReader(VisChunkFileReader):
     def on_mesh(self, chunk: VMshChunk):
         debug('Not impl callback')
 
-    def on_skeleton(self, chunk: SkelChunk):
+    def on_skeleton(self, chunk: VisSkeletonChunk_cl):
         debug('Not impl callback')
 
     def on_bounding_boxes(self, chunk: BBBXChunk):
@@ -57,7 +57,7 @@ class ModelChunkReader(VisChunkFileReader):
                 self.on_mesh(VMshChunk.from_reader(scope.chunk, reader))
 
             case VisChunkId.SKEL:
-                self.on_skeleton(SkelChunk.from_reader(reader))
+                self.on_skeleton(VisSkeletonChunk_cl.from_reader(reader))
 
             case VisChunkId.WGHT:
                 self.on_skeleton_weights(WGHTChunkReader.from_reader(reader))

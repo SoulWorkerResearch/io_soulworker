@@ -3,7 +3,7 @@ from io_soulworker.chunks.bpos_chunk import BposChunk
 from io_soulworker.chunks.brot_chunk import BrotChunk
 from io_soulworker.chunks.xbsv_chunk import XbsvChunk
 from io_soulworker.chunks.head_chunk import HeadChunk
-from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_file import VisChunkFileReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
@@ -30,7 +30,7 @@ class AnimationFileChunkReader(VisChunkFileReader):
     def on_animation_end(self) -> None:
         debug('Not impl callback')
 
-    def on_skeleton(self, chunk: SkelChunk) -> None:
+    def on_skeleton(self, chunk: VisSkeletonChunk_cl) -> None:
         debug('Not impl callback')
 
     def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
@@ -61,7 +61,7 @@ class AnimationFileChunkReader(VisChunkFileReader):
 
         elif scope.chunk == VisChunkId.SKEL:
 
-            self.on_skeleton(SkelChunk.from_reader(reader))
+            self.on_skeleton(VisSkeletonChunk_cl.from_reader(reader))
 
         elif scope.chunk == VisChunkId.VSBX:
 
@@ -69,11 +69,15 @@ class AnimationFileChunkReader(VisChunkFileReader):
 
         elif scope.chunk == VisChunkId.BPOS:
 
-            self.on_bone_position(BposChunk.from_reader(reader, self.bone_count))
+            self.on_bone_position(
+                BposChunk.from_reader(reader, self.bone_count)
+            )
 
         elif scope.chunk == VisChunkId.BROT:
 
-            self.on_bone_rotation(BrotChunk.from_reader(reader, self.bone_count))
+            self.on_bone_rotation(
+                BrotChunk.from_reader(reader, self.bone_count)
+            )
 
         elif scope.chunk == VisChunkId.ANIM:
 

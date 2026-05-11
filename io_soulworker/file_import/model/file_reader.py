@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import final
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
-from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
@@ -197,7 +197,7 @@ class ModelFileReader(ModelChunkReader):
         self.context.collection.objects.link(self.object)
 
     # @override
-    def on_skeleton(self, chunk: SkelChunk):
+    def on_skeleton(self, chunk: VisSkeletonChunk_cl):
 
         result = build_armature_from_skeleton(
             self.context,
