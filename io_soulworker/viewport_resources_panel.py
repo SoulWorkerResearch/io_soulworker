@@ -1,12 +1,13 @@
 import bpy
 
-from logging import error
+from logging import debug, error
 from pathlib import Path
 
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
 from bpy.types import Collection, Context, LayerCollection, Operator, Panel, Scene
 
+from io_soulworker.file_import.animation.file_reader import AnimationFileReader
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
 
@@ -145,10 +146,23 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
 
             self.report(
                 {"WARNING"},
-                "The file is not inside the specified resources folder; the collection hierarchy was not created",
+                "The file is not inside the specified resources folder; no collection hierarchy was created",
             )
 
         ModelFileReader(path, context, 7.0).run()
+
+        # If an animation with the same stem exists next to the model - import it too.
+        anim_path = path.with_suffix(".anim")
+        if anim_path.is_file():
+            debug("import animation: %s", anim_path)
+            try:
+                AnimationFileReader(anim_path, context).run()
+            except Exception as exc:
+                error("Failed to import animation %s: %s", anim_path, exc)
+                self.report(
+                    {"WARNING"},
+                    f"Failed to import animation: {anim_path.name}",
+                )
 
         return {"FINISHED"}
 
@@ -171,7 +185,7 @@ class IO_SOULWORKER_PT_unpack_resources(Panel):
 
         layout.operator(
             IO_SOULWORKER_OT_open_resource.bl_idname,
-            text="Open Resource"
+            text="Open Resource",
         )
 
 
