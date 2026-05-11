@@ -1,5 +1,6 @@
 import bpy
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from json import loads
 from logging import debug
@@ -9,10 +10,9 @@ from mathutils import Quaternion, Vector
 
 from io_soulworker.chunks.bpos_chunk import BposChunk
 from io_soulworker.chunks.brot_chunk import BrotChunk
-from io_soulworker.chunks.skel_chunk import SkelChunk
+from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.file_import.animation.action_builder import group_keyframes_by_bone
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
-from io_soulworker.file_import.armature_builder import build_armature_from_skeleton
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class SkeletonBoneRef:
 
 class AnimationFileReader(AnimationFileChunkReader):
 
-    skeletons: list[SkelChunk]
+    skeletons: list[VisSkeletonChunk_cl]
 
     def on_animation(self, skeleton_index: int, name: str) -> None:
 
@@ -39,6 +39,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         self.rotation_chunk = None
 
     def on_animation_end(self) -> None:
+
         if self.animation_name is None:
             return
 
@@ -76,7 +77,10 @@ class AnimationFileReader(AnimationFileChunkReader):
                 self.rotation_chunk,
             )
 
-    def on_skeleton(self, chunk: SkelChunk) -> None:
+    def on_skeleton(self, chunk: VisSkeletonChunk_cl) -> None:
+
+        assert len(self.skeletons) < 16
+
         self.skeletons.append(chunk)
 
     def on_bone_position(self, chunk: BposChunk) -> None:
@@ -85,62 +89,71 @@ class AnimationFileReader(AnimationFileChunkReader):
     def on_bone_rotation(self, chunk: BrotChunk) -> None:
         self.rotation_chunk = chunk
 
-    def _resolve_armature_object(self, skeleton_index: int):
-        active_armature = self._resolve_active_armature(skeleton_index)
+    def _report_user_error(self, key: str, message: str) -> None:
 
-        if active_armature is not None:
-            return active_armature
+        if self.report_error is None or key in self._reported_error_keys:
 
-        cached_armature = self.fallback_armatures.get(skeleton_index)
+            return
 
-        if cached_armature is not None:
-            return cached_armature
+        self._reported_error_keys.add(key)
+        self.report_error(message)
 
-        skeleton = self._skeleton_at_index(skeleton_index)
+    def _scene_object_matching_file(self):
 
-        if skeleton is None:
+        stem = self.path.stem
+        scene = self.context.scene
+
+        if scene is None:
+
             return None
 
-        result = build_armature_from_skeleton(
-            self.context,
-            f"{self.path.stem}_{skeleton_index}",
-            skeleton,
-        )
+        return scene.objects.get(stem)
 
-        self.fallback_armatures[skeleton_index] = result.object
-
-        return result.object
-
-    def _resolve_active_armature(self, skeleton_index: int):
-
-        view_layer = self.context.view_layer
-
-        if view_layer is None:
-
-            debug("No view layer found")
-            return
-
-        active = view_layer.objects.active
-
-        if active is None:
-
-            debug("No active object found")
-            return
-
-        if active.type == 'ARMATURE' and skeleton_index == 0:
-            return active
-
+    def _armature_from_modifiers(self, obj, skeleton_index: int):
         armatures = [
-            modifier.object for modifier in active.modifiers
+            modifier.object
+            for modifier in obj.modifiers
             if getattr(modifier, "type", None) == 'ARMATURE' and modifier.object is not None
         ]
 
         if skeleton_index >= len(armatures):
             return None
 
-        return armatures[skeleton_index]
+        chosen = armatures[skeleton_index]
 
-    def _skeleton_at_index(self, skeleton_index: int) -> SkelChunk | None:
+        if chosen.type != 'ARMATURE':
+            return None
+
+        return chosen
+
+    def _resolve_armature_object(self, skeleton_index: int):
+        target = self._scene_object_matching_file()
+
+        if target is None:
+            self._report_user_error(
+                "missing_scene_object",
+                (
+                    f'There is no object named "{self.path.stem}" in the current scene '
+                    f"(the object name must match the animation filename without extension)."
+                ),
+            )
+            return None
+
+        armature = self._armature_from_modifiers(target, skeleton_index)
+
+        if armature is None:
+            self._report_user_error(
+                f"missing_armature:{skeleton_index}",
+                (
+                    f'Object "{target.name}" has no Armature modifier at index {skeleton_index} '
+                    f"(it must be the {skeleton_index + 1}th Armature modifier on the object)."
+                ),
+            )
+            return None
+
+        return armature
+
+    def _skeleton_at_index(self, skeleton_index: int) -> VisSkeletonChunk_cl | None:
         if skeleton_index >= len(self.skeletons):
             return None
 
@@ -319,7 +332,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         ]
 
     @staticmethod
-    def _bone_refs_from_chunk(chunk: SkelChunk) -> list[SkeletonBoneRef]:
+    def _bone_refs_from_chunk(chunk: VisSkeletonChunk_cl) -> list[SkeletonBoneRef]:
         bone_names_by_id = {bone.id: bone.name for bone in chunk.bones}
 
         return [
@@ -540,14 +553,20 @@ class AnimationFileReader(AnimationFileChunkReader):
     def _escape_bone_name(name: str) -> str:
         return name.replace("\\", "\\\\").replace('"', '\\"')
 
-    def __init__(self, path: Path, context: bpy.types.Context) -> None:
+    def __init__(
+        self,
+        path: Path,
+        context: bpy.types.Context,
+        report_error: Callable[[str], None] | None = None,
+    ) -> None:
 
         super().__init__(path)
 
         self.context = context
+        self.report_error = report_error
+        self._reported_error_keys: set[str] = set()
         self.skeletons = []
         self.animation_name = None
         self.skeleton_index = 0
         self.position_chunk = None
         self.rotation_chunk = None
-        self.fallback_armatures = {}

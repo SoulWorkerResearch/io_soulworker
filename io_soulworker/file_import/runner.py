@@ -116,7 +116,11 @@ class FileImportRunner(Operator, ImportHelper):
             if ext == ".anim":
 
                 debug("import animation: %s", path)
-                AnimationFileReader(path, context).run()
+                AnimationFileReader(
+                    path,
+                    context,
+                    report_error=lambda msg: self.report({'ERROR'}, msg),
+                ).run()
 
             elif ext == ".model" or ext == ".vmesh":
 
