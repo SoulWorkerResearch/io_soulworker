@@ -114,7 +114,7 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
     if in_blender():
 
         filter_glob: StringProperty(
-            default="*.model", options={"HIDDEN"})  # type: ignore
+            default="*.model;*.vmesh", options={"HIDDEN"})  # type: ignore
 
     else:
 
@@ -126,10 +126,11 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
 
         path = Path(self.filepath)
 
-        if not path.is_file() or path.suffix.lower() != ".model":
+        ext = path.suffix.lower()
+        if not path.is_file() or ext not in {".model", ".vmesh"}:
 
-            error("not a .model file: %s", path)
-            self.report({"ERROR"}, "A .model file is required")
+            error("not a .model/.vmesh file: %s", path)
+            self.report({"ERROR"}, "A .model or .vmesh file is required")
             return {"CANCELLED"}
 
         segments = _collection_segments_for_model(
