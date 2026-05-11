@@ -58,5 +58,10 @@ Press N *(keyboard button)* -> SoulWorker *(tab)*:
 
 # ⚠️ IMPORTANT
 
-Some models use materials that are not in the root folder.
-Please unpack the game resources **keeping the original structure**.
+- Some models use materials that are not in the root folder.
+  Please unpack the game resources **keeping the original structure**.
+- The scale of the models in the game is **very large**. If you can't see anything but the object appears in the **Outliner**, increase the draw distance.
+
+  Press N *(keyboard)* -> View *(tab)* -> End *(input)*.
+
+  I set it to **30_000 m**.
