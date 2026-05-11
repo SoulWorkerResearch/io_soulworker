@@ -118,7 +118,7 @@ class FileImportRunner(Operator, ImportHelper):
                 debug("import animation: %s", path)
                 AnimationFileReader(path, context).run()
 
-            elif ext == ".model":
+            elif ext == ".model" or ext == ".vmesh":
 
                 debug("import model: %s", path)
                 ModelFileReader(path, context, self.emission_strength).run()

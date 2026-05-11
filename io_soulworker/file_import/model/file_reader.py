@@ -6,7 +6,7 @@ from typing import final
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
 from io_soulworker.chunks.skel_chunk import SkelChunk
-from io_soulworker.chunks.subm_chunk import SubmChunk
+from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.file_import.armature_builder import (
@@ -224,7 +224,7 @@ class ModelFileReader(ModelChunkReader):
             self.bone_index_to_vertex_group[bone.id] = vertex_group
 
     # @override
-    def on_vertices_material(self, chunk: SubmChunk):
+    def on_sub_mesh(self, chunk: VisSubMeshChunk):
 
         # TODO: i have no idea how this can be done without touching the interface.
         #       hope someone can help me with this.
@@ -247,20 +247,20 @@ class ModelFileReader(ModelChunkReader):
 
         bpy.context.view_layer.objects.active = self.object
 
-        for material in chunk.materials:
+        for mesh in chunk.meshes:
 
-            name = materials[material.id].name_full
+            name = materials[mesh.id].name_full
             vertex_group = vertex_groups.new(name=name)
 
-            start = material.indices_start
-            count = start + material.indices_count
+            start = mesh.indices_start
+            count = start + mesh.indices_count
 
             indices = self.mesh_chunk.indices[start: count]
             vertex_group.add(indices, 1, "REPLACE")
 
-            set_material(vertex_group.name, material.id)
+            set_material(vertex_group.name, mesh.id)
 
-            debug("material_id: %d", material.id)
+            debug("material_id: %d", mesh.id)
             debug("indices_start: %d", start)
             debug("indices_count: %d", count)
 

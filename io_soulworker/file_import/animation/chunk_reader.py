@@ -37,7 +37,7 @@ class AnimationFileChunkReader(VisChunkFileReader):
 
         if scope.chunk == VisChunkId.HEAD:
 
-            head = HeadChunk(reader)
+            head = HeadChunk.from_reader(reader)
 
             self.sequence_count = head.sequence_count
 
@@ -61,19 +61,19 @@ class AnimationFileChunkReader(VisChunkFileReader):
 
         elif scope.chunk == VisChunkId.SKEL:
 
-            self.on_skeleton(SkelChunk(reader))
+            self.on_skeleton(SkelChunk.from_reader(reader))
 
         elif scope.chunk == VisChunkId.VSBX:
 
-            self.on_visability_bounding_box(XbsvChunk(reader))
+            self.on_visability_bounding_box(XbsvChunk.from_reader(reader))
 
         elif scope.chunk == VisChunkId.BPOS:
 
-            self.on_bone_position(BposChunk(self.bone_count, reader))
+            self.on_bone_position(BposChunk.from_reader(reader, self.bone_count))
 
         elif scope.chunk == VisChunkId.BROT:
 
-            self.on_bone_rotation(BrotChunk(self.bone_count, reader))
+            self.on_bone_rotation(BrotChunk.from_reader(reader, self.bone_count))
 
         elif scope.chunk == VisChunkId.ANIM:
 

@@ -152,7 +152,9 @@ class AnimationFileReader(AnimationFileChunkReader):
         if skeleton is not None and len(skeleton.bones) >= self.bone_count:
             return [bone.name for bone in skeleton.bones[:self.bone_count]]
 
-        imported_bone_names = armature_object.get("soulworker_bone_names_by_index")
+        imported_bone_names = armature_object.get(
+            "soulworker_bone_names_by_index"
+        )
 
         if imported_bone_names is not None and len(imported_bone_names) >= self.bone_count:
             return list(imported_bone_names[:self.bone_count])
@@ -193,7 +195,7 @@ class AnimationFileReader(AnimationFileChunkReader):
             group_keyframes_by_bone(
                 rotation_chunk.key_frame_list,
                 source_names,
-                "quternin_list",
+                "quaternion_list",
             )
             if rotation_chunk is not None
             else {}
@@ -220,7 +222,11 @@ class AnimationFileReader(AnimationFileChunkReader):
 
             pose_bone.rotation_mode = 'QUATERNION'
             positions_by_bone[bone_name] = {
-                frame: self._remap_translation(position, source_ref, target_ref)
+                frame: self._remap_translation(
+                    position,
+                    source_ref,
+                    target_ref
+                )
                 for frame, position in position_keys.get(source_ref.name, [])
             }
             rotations_by_bone[bone_name] = {
@@ -255,8 +261,14 @@ class AnimationFileReader(AnimationFileChunkReader):
                 rest_local = self._rest_local_matrix(rest_bone)
                 local_matrix = self._local_animation_matrix(
                     rest_local,
-                    self._sample_vector_track(positions_by_bone.get(bone_name, {}), frame),
-                    self._sample_quaternion_track(rotations_by_bone.get(bone_name, {}), frame),
+                    self._sample_vector_track(
+                        positions_by_bone.get(bone_name, {}),
+                        frame
+                    ),
+                    self._sample_quaternion_track(
+                        rotations_by_bone.get(bone_name, {}),
+                        frame
+                    ),
                 )
                 basis = rest_local.inverted() @ local_matrix
 

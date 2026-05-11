@@ -1,101 +1,103 @@
 from logging import debug, warning
 
 from io_soulworker.core.binary_reader import BinaryReader
+from io_soulworker.core.binary_writer import BinaryWriter
+from io_soulworker.core.data_exchange import DataExchange_cl
 
 
-class VisVertexDescriptor(object):
+class VisVertexDescriptor(DataExchange_cl):
 
     MAGICK = 0x1020A0B
     MAX_TEXTURES = 16
-    VERTEXDESC_OFFSET_MASK = 0x0fff
+    VERTEXDESC_OFFSET_MASK = 0x0FFF
 
-    stride: int
-    """
-        Stride of the vertex structure; 
-        must be set to the size of the vertex structure.
-    """
+    magic = MAGICK
+    header_size = 48
+    stride = 0
+    pos_offset = 0
+    color_offset = 0
+    normal_offset = 0
+    tex_offset: list[int] = []
+    secondary_color_offset = -1
+    first_text_coord = 0
+    last_text_coord = 0
+    hash = 0
 
-    pos_offset: int
-    """
-        Offset of the position vector in the structure.
-        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
-        to force a specific format.
-    """
+    def __init__(self) -> None:
 
-    color_offset: int
-    """
-        Offset of the color vector in the structure.
-        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
-        to force a specific format.
-    """
+        self.tex_offset = [0] * self.MAX_TEXTURES
 
-    normal_offset: int
-    """
-        Offset of the normal vector in the structure.
-        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
-        to force a specific format.
-    """
+    def has_component(self, value: int) -> bool:
 
-    tex_offset: list[int]
-    """
-        Offset of the sets of texture coordinates in the structure.
-        Use bitwise OR with format bitflag constants of type VERTEXDESC_FORMAT_xyz
-        to force a specific format.
-    """
+        return value != -1
 
-    secondary_color_offset: int
-    """
-        Offset of the secondary color. Not supported on all platforms.
-    """
+    def offset_of(self, value: int) -> int:
 
-    first_text_coord: int
-    """
-        Index of the first used texture coordinate set.
-        Set automatically by ComputeHash() or at serialization time.
-    """
+        return value & self.VERTEXDESC_OFFSET_MASK
 
-    last_text_coord: int
-    """
-        Index of the last used texture coordinate set.
-        Set automatically by ComputeHash() or at serialization time.
-    """
+    def read(self, reader: BinaryReader) -> None:
 
-    hash: int
-    """
-        Hash value. 
-        Set automatically when computing the hash or at serialization time. 
-    """
+        self.magick = reader.read_uint32()
+        assert self.MAGICK == self.magick
 
-    def has_component(self, value: int): return value != -1
-    def offset_of(self, value: int): return value & self.VERTEXDESC_OFFSET_MASK
-
-    def __init__(self, reader: BinaryReader) -> None:
-
-        magick = reader.read_uint32()
-        assert self.MAGICK == magick
-
-        self.version = reader.read_uint32()
-        debug('version: %d', self.version)
+        self.header_size = reader.read_uint32()
+        debug('version: %d', self.header_size)
 
         self.stride = reader.read_uint16()
         self.pos_offset = reader.read_uint16()
         self.color_offset = reader.read_uint16()
         self.normal_offset = reader.read_uint16()
-        self.tex_offset = self.__read_uv(reader)
+
+        self.tex_offset = [
+            reader.read_uint16()
+            for _ in range(self.MAX_TEXTURES)
+        ]
+
         self.secondary_color_offset = reader.read_uint16()
 
-        if self.version == 42:
+        if self.header_size == 42:
+
             warning('Need recalc hash')
 
-        if self.version == 48:
+        if self.header_size == 48:
+
             self.first_text_coord = reader.read_uint8()
             self.last_text_coord = reader.read_uint8()
             self.hash = reader.read_uint32()
 
-        if self.MAGICK == reader.read_uint32():
+        self.magick = reader.read_uint32()
+
+        if self.magick == self.MAGICK:
+
             self.secondary_color_offset = -1
 
-    def __read_uv(self, reader: BinaryReader):
-        return [reader.read_uint16() for _ in range(self.MAX_TEXTURES)]
+    def write(self, writer: BinaryWriter) -> None:
 
-# https://youtu.be/UnIhRpIT7nc
+        writer.write_uint32(self.magic)
+        writer.write_uint32(self.header_size)
+        writer.write_uint16(self.stride)
+        writer.write_uint16(self.pos_offset)
+        writer.write_uint16(self.color_offset)
+        writer.write_uint16(self.normal_offset)
+
+        for i in range(self.MAX_TEXTURES):
+
+            writer.write_uint16(self.tex_offset[i])
+
+        writer.write_uint16(self.secondary_color_offset)
+
+        if self.header_size == 48:
+
+            writer.write_uint8(self.first_text_coord)
+            writer.write_uint8(self.last_text_coord)
+            writer.write_uint32(self.hash)
+
+        writer.write_uint32(self.magick)
+
+    @staticmethod
+    def from_reader(reader: BinaryReader) -> 'VisVertexDescriptor':
+
+        value = VisVertexDescriptor()
+        value.read(reader)
+
+        return value

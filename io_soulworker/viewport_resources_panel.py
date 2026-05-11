@@ -1,0 +1,190 @@
+import bpy
+
+from logging import error
+from pathlib import Path
+
+from bpy_extras.io_utils import ImportHelper
+from bpy.props import StringProperty
+from bpy.types import Collection, Context, LayerCollection, Operator, Panel, Scene
+
+from io_soulworker.file_import.model.file_reader import ModelFileReader
+from io_soulworker.file_import.runner import in_blender
+
+
+def _get_layer_collection(
+    layer_collection: LayerCollection,
+    collection: Collection,
+) -> LayerCollection | None:
+
+    if layer_collection.collection == collection:
+
+        return layer_collection
+
+    for layer in layer_collection.children:
+
+        found = _get_layer_collection(layer, collection)
+
+        if found is not None:
+
+            return found
+
+    return None
+
+
+def _set_active_collection(context: Context, collection: Collection) -> None:
+
+    view_layer = context.view_layer
+    layer_collection = _get_layer_collection(
+        view_layer.layer_collection,
+        collection,
+    )
+
+    if layer_collection is not None:
+
+        view_layer.active_layer_collection = layer_collection
+
+
+def _find_or_create_child_collection(
+    parent: Collection,
+    name: str,
+) -> Collection:
+
+    for child in parent.children:
+
+        if child.name == name:
+
+            return child
+
+    new_collection = bpy.data.collections.new(name)
+    parent.children.link(new_collection)
+
+    return new_collection
+
+
+def _ensure_collection_hierarchy(
+    context: Context,
+    segment_names: list[str],
+) -> Collection:
+
+    current = context.scene.collection
+
+    for name in segment_names:
+
+        current = _find_or_create_child_collection(current, name)
+
+    return current
+
+
+def _collection_segments_for_model(
+    resources_root_raw: str,
+    model_path: Path,
+) -> list[str] | None:
+
+    root_raw = (resources_root_raw or "").strip()
+
+    if not root_raw:
+
+        return None
+
+    root = Path(bpy.path.abspath(root_raw)).resolve()
+    model_parent = Path(bpy.path.abspath(str(model_path))).resolve().parent
+
+    try:
+
+        relative = model_parent.relative_to(root)
+
+    except ValueError:
+
+        return None
+
+    if relative == Path("."):
+
+        return ["project"]
+
+    return ["project", *relative.parts]
+
+
+class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
+
+    bl_idname = "io_soulworker.open_resource"
+    bl_label = "Open Resource"
+    bl_options = {"REGISTER", "UNDO"}
+
+    if in_blender():
+
+        filter_glob: StringProperty(
+            default="*.model", options={"HIDDEN"})  # type: ignore
+
+    else:
+
+        filter_glob: str
+
+    def execute(self, context: Context):
+
+        context.scene.render.engine = "BLENDER_EEVEE"
+
+        path = Path(self.filepath)
+
+        if not path.is_file() or path.suffix.lower() != ".model":
+
+            error("not a .model file: %s", path)
+            self.report({"ERROR"}, "A .model file is required")
+            return {"CANCELLED"}
+
+        segments = _collection_segments_for_model(
+            context.scene.soulworker_unpack_resources,
+            path,
+        )
+
+        if segments is not None:
+
+            leaf = _ensure_collection_hierarchy(context, segments)
+            _set_active_collection(context, leaf)
+
+        elif (context.scene.soulworker_unpack_resources or "").strip():
+
+            self.report(
+                {"WARNING"},
+                "The file is not inside the specified resources folder; the collection hierarchy was not created",
+            )
+
+        ModelFileReader(path, context, 7.0).run()
+
+        return {"FINISHED"}
+
+
+class IO_SOULWORKER_PT_unpack_resources(Panel):
+    """Sidebar panel for unpacked game assets root path."""
+
+    bl_idname = "IO_SOULWORKER_PT_unpack_resources"
+    bl_label = "Resources"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "SoulWorker"
+
+    def draw(self, context):
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        layout.prop(context.scene, "soulworker_unpack_resources")
+
+        layout.operator(
+            IO_SOULWORKER_OT_open_resource.bl_idname,
+            text="Open Resource"
+        )
+
+
+def register_unpack_resources_props():
+
+    Scene.soulworker_unpack_resources = StringProperty(
+        name="Unpacked Resources",
+        description="Root folder of unpacked SoulWorker resources",
+        default="",
+        subtype="DIR_PATH",
+    )
+
+
+def unregister_unpack_resources_props():
+
+    del Scene.soulworker_unpack_resources

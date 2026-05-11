@@ -5,12 +5,19 @@ from io_soulworker.core.binary_reader import BinaryReader
 
 class WGHTChunkReader:
 
-    def all_of(self, vertices_count: int) -> list[WGHTChunk]:
+    version = 0
 
-        return [WGHTChunk(self.__reader__) for _ in range(vertices_count)]
-
-    def __init__(self, reader: BinaryReader):
+    def __init__(self, reader: BinaryReader) -> None:
 
         self.__reader__ = reader
 
         self.version = reader.read_uint32()
+
+    def all_of(self, vertices_count: int) -> list[WGHTChunk]:
+
+        return [WGHTChunk.from_reader(self.__reader__) for _ in range(vertices_count)]
+
+    @staticmethod
+    def from_reader(reader: BinaryReader) -> 'WGHTChunkReader':
+
+        return WGHTChunkReader(reader)

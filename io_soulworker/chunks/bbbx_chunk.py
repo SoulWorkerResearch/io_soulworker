@@ -1,16 +1,53 @@
 from io_soulworker.core.binary_reader import BinaryReader
+from io_soulworker.core.binary_writer import BinaryWriter
+from io_soulworker.core.data_exchange import DataExchange_cl
+from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 
 
-class BBBXChunk:
+class BBBXChunk(DataExchange_cl):
 
-    class Entity:
+    class Entity(DataExchange_cl):
 
-        def __init__(self, reader: BinaryReader):
+        bounds = HavokBoundingBox()
 
-            self.min = reader.read_float_vector3()
-            self.max = reader.read_float_vector3()
+        def read(self, reader: BinaryReader) -> None:
 
-    def __init__(self, reader: BinaryReader):
+            self.bounds.read(reader)
+
+        def write(self, writer: BinaryWriter) -> None:
+
+            self.bounds.write(writer)
+
+        @staticmethod
+        def from_reader(reader: BinaryReader) -> 'BBBXChunk.Entity':
+
+            value = BBBXChunk.Entity()
+            value.read(reader)
+
+            return value
+
+    values: list['BBBXChunk.Entity']
+
+    def __init__(self) -> None:
+
+        self.values = []
+
+    def read(self, reader: BinaryReader) -> None:
 
         count = reader.read_uint16()
-        self.values = [BBBXChunk.Entity(reader) for _ in range(count)]
+        self.values = [BBBXChunk.Entity.from_reader(reader) for _ in range(count)]
+
+    def write(self, writer: BinaryWriter) -> None:
+
+        writer.write_uint16(len(self.values))
+
+        for entity in self.values:
+            entity.write(writer)
+
+    @staticmethod
+    def from_reader(reader: BinaryReader) -> 'BBBXChunk':
+
+        value = BBBXChunk()
+        value.read(reader)
+
+        return value

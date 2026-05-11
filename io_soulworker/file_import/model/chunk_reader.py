@@ -9,7 +9,7 @@ from io_soulworker.chunks.cbpr_chunk import CBPRChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
 from io_soulworker.chunks.skel_chunk import SkelChunk
-from io_soulworker.chunks.subm_chunk import SubmChunk
+from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
 from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.materials_xml.shader_tag import ShaderTag
@@ -38,7 +38,7 @@ class ModelChunkReader(VisChunkFileReader):
     def on_skeleton_weights(self, reader: WGHTChunkReader):
         debug('Not impl callback')
 
-    def on_vertices_material(self, chunk: SubmChunk):
+    def on_sub_mesh(self, chunk: VisSubMeshChunk):
         debug('Not impl callback')
 
     def on_bnds(self, chunk: BNDSChunk):
@@ -49,29 +49,33 @@ class ModelChunkReader(VisChunkFileReader):
 
     def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
 
-        if scope.chunk == VisChunkId.MTRS:
-            self.__parse_materials(reader)
+        match scope.chunk:
+            case VisChunkId.MTRS:
+                self.__parse_materials(reader)
 
-        elif scope.chunk == VisChunkId.VMSH:
-            self.on_mesh(VMshChunk(scope.chunk, reader))
+            case VisChunkId.VMSH:
+                self.on_mesh(VMshChunk.from_reader(scope.chunk, reader))
 
-        elif scope.chunk == VisChunkId.SKEL:
-            self.on_skeleton(SkelChunk(reader))
+            case VisChunkId.SKEL:
+                self.on_skeleton(SkelChunk.from_reader(reader))
 
-        elif scope.chunk == VisChunkId.WGHT:
-            self.on_skeleton_weights(WGHTChunkReader(reader))
+            case VisChunkId.WGHT:
+                self.on_skeleton_weights(WGHTChunkReader.from_reader(reader))
 
-        elif scope.chunk == VisChunkId.SUBM:
-            self.on_vertices_material(SubmChunk(reader))
+            case VisChunkId.SUBM:
+                self.on_sub_mesh(VisSubMeshChunk.from_reader(reader))
 
-        elif scope.chunk == VisChunkId.BBBX:
-            self.on_bounding_boxes(BBBXChunk(reader))
+            case VisChunkId.BBBX:
+                self.on_bounding_boxes(BBBXChunk.from_reader(reader))
 
-        elif scope.chunk == VisChunkId.BNDS:
-            self.on_bnds(BNDSChunk(reader))
+            case VisChunkId.BNDS:
+                self.on_bnds(BNDSChunk.from_reader(reader))
 
-        elif scope.chunk == VisChunkId.CBPR:
-            self.on_cbpr(CBPRChunk(reader))
+            case VisChunkId.CBPR:
+                self.on_cbpr(CBPRChunk.from_reader(reader))
+
+            case _:
+                debug('Not impl callback: %s', scope.chunk)
 
     def __parse_materials(self, reader: BinaryReader):
 
@@ -80,7 +84,7 @@ class ModelChunkReader(VisChunkFileReader):
         count = reader.read_uint32()
 
         for _ in range(count):
-            chunk = MtrsChunk(reader)
+            chunk = MtrsChunk.from_reader(reader)
 
             override = overrides.get(chunk.name)
             if override:

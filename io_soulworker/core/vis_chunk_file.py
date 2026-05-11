@@ -34,7 +34,7 @@ class VisChunkFileReader(object):
 
         with BinaryReader(self.path) as reader:
 
-            header = VisBinHeader(reader)
+            header = VisBinHeader.from_reader(reader)
             debug("version: %d", header.version)
 
             while True:

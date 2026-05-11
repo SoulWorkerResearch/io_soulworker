@@ -12,6 +12,9 @@ class VisChunkReaderScope(object):
     chunk = VisChunkId.NONE
     depth = 0
 
+    footer_stack_adj = 0
+    exit_chunk_id = VisChunkId.NONE
+
     def __init__(self, reader: BinaryReader) -> None:
 
         self.reader = reader
@@ -24,6 +27,8 @@ class VisChunkReaderScope(object):
         if self.depth < 0:
 
             debug("end of file")
+            self.footer_stack_adj = 0
+            self.exit_chunk_id = VisChunkId.NONE
             return self
 
         self.chunk = self.reader.read_cid()
@@ -50,11 +55,12 @@ class VisChunkReaderScope(object):
         offset = self.offset + self.length
         self.reader.seek(offset, SEEK_SET)
 
-        self.depth -= self.reader.read_int32()
+        self.footer_stack_adj = self.reader.read_int32()
+        self.depth -= self.footer_stack_adj
         debug("exit stack depth: %d", self.depth)
 
-        exit_cid = self.reader.read_cid()
-        debug("exit chunk id: %s", self.__get_chunk_name(exit_cid))
+        self.exit_chunk_id = self.reader.read_cid()
+        debug("exit chunk id: %s", self.__get_chunk_name(self.exit_chunk_id))
 
         return False
 

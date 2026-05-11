@@ -2,7 +2,6 @@ from io import SEEK_CUR, BufferedReader
 from logging import debug
 from pathlib import Path
 from struct import pack, unpack
-
 from mathutils import Quaternion, Vector
 
 from io_soulworker.core.vis_chunk_id import VisChunkId
@@ -13,21 +12,20 @@ from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
 from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.vis_bounding_box import VisBoundingBox
 
 
 class BinaryReader(BufferedReader):
 
     FLOAT_MASK = 0x80000000
 
-    def read_float_vector4(self) -> Vector:
-        return Vector([self.read_float() for _ in range(4)])
+    def read_vector2(self) -> Vector:
+        return Vector([self.read_float() for _ in range(2)])
 
-    def read_float_vector3(self) -> Vector:
+    def read_vector3(self) -> Vector:
         return Vector([self.read_float() for _ in range(3)])
 
-    def read_float_vector2(self) -> Vector:
-        return Vector([self.read_float() for _ in range(2)])
+    def read_vector4(self) -> Vector:
+        return Vector([self.read_float() for _ in range(4)])
 
     def read_quaternion(self) -> Quaternion:
         x = self.read_float()
@@ -82,14 +80,6 @@ class BinaryReader(BufferedReader):
     def read_transparency(self) -> VisTransparencyType:
         return VisTransparencyType(self.read_uint8())
 
-    def read_bounding_box(self) -> VisBoundingBox:
-        object = VisBoundingBox()
-
-        object.min = self.read_float_vector3()
-        object.max = self.read_float_vector3()
-
-        return object
-
     def read_render_state_flags(self) -> VisRenderStateFlag:
         return VisRenderStateFlag(self.read_uint16())
 
@@ -132,6 +122,9 @@ class BinaryReader(BufferedReader):
 
     def read_uint32(self) -> int:
         return int(unpack("<I", self.read(4))[0])
+
+    def read_bool(self) -> bool:
+        return bool(self.read_int8())
 
     def __init__(self, path: Path | str) -> None:
         super().__init__(open(path, "rb"))
