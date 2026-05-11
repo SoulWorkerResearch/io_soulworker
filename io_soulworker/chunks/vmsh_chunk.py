@@ -8,7 +8,7 @@ from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_index_format import VisIndexFormat
 from io_soulworker.core.vis_mesh_effect_config import VisEffectConfig_cl
 from io_soulworker.core.vis_render_state import VisRenderState
-from io_soulworker.core.vis_vertex_descriptor import VisVertexDescriptor
+from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
 
 
 class VMshChunk(DataExchange_cl):
@@ -43,7 +43,7 @@ class VMshChunk(DataExchange_cl):
     use_projection = 0
     texture_channels_count = 0
     texture_channel_paths: list[str] = []
-    descriptor = VisVertexDescriptor()
+    descriptor = VisMBVertexDescriptor_cl()
     render_state = VisRenderState()
     effect_config = VisEffectConfig_cl()
     vertices: list = []
@@ -341,6 +341,7 @@ class VMshChunk(DataExchange_cl):
     def from_reader(chunk_id: VisChunkId, reader: BinaryReader) -> 'VMshChunk':
 
         value = VMshChunk()
+
         value.chunk_id = chunk_id
         value.read(reader)
 

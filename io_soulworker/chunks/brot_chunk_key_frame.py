@@ -34,6 +34,7 @@ class BrotChunk_KeyFrame(DataExchange_cl):
     def from_reader(reader: BinaryReader, bone_count: int) -> 'BrotChunk_KeyFrame':
 
         value = BrotChunk_KeyFrame()
+
         value.bone_count = bone_count
         value.read(reader)
 

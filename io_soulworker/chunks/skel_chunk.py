@@ -50,6 +50,7 @@ class SkelChunk(DataExchange_cl):
         def from_reader(reader: BinaryReader, index: int) -> 'SkelChunk.BoneEntity':
 
             value = SkelChunk.BoneEntity()
+
             value.id = index
             value.read(reader)
 
@@ -70,6 +71,7 @@ class SkelChunk(DataExchange_cl):
         assert self.version == self.VERSION
 
         bone_count = reader.read_uint16()
+
         self.bones = [
             SkelChunk.BoneEntity.from_reader(reader, index) for index in range(bone_count)
         ]
@@ -80,6 +82,7 @@ class SkelChunk(DataExchange_cl):
         writer.write_uint16(len(self.bones))
 
         for bone in self.bones:
+
             bone.write(writer)
 
     @staticmethod

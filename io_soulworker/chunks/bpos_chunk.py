@@ -33,6 +33,7 @@ class BposChunk(DataExchange_cl):
     def from_reader(reader: BinaryReader, bone_count: int) -> 'BposChunk':
 
         value = BposChunk()
+
         value.bone_count = bone_count
         value.read(reader)
 

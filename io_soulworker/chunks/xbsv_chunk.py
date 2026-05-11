@@ -17,13 +17,17 @@ class XbsvChunk(DataExchange_cl):
         frame_count = reader.read_uint32()
         assert frame_count > 0
 
-        self.frame_list = [XbsvFrame.from_reader(reader) for _ in range(frame_count)]
+        self.frame_list = [
+            XbsvFrame.from_reader(reader)
+            for _ in range(frame_count)
+        ]
 
     def write(self, writer: BinaryWriter) -> None:
 
         writer.write_uint32(len(self.frame_list))
 
         for frame in self.frame_list:
+
             frame.write(writer)
 
     @staticmethod

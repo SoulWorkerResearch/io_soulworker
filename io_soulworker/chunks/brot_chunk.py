@@ -33,6 +33,7 @@ class BrotChunk(DataExchange_cl):
     def from_reader(reader: BinaryReader, bone_count: int) -> 'BrotChunk':
 
         value = BrotChunk()
+
         value.bone_count = bone_count
         value.read(reader)
 

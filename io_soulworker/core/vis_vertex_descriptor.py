@@ -5,7 +5,7 @@ from io_soulworker.core.binary_writer import BinaryWriter
 from io_soulworker.core.data_exchange import DataExchange_cl
 
 
-class VisVertexDescriptor(DataExchange_cl):
+class VisMBVertexDescriptor_cl(DataExchange_cl):
 
     MAGICK = 0x1020A0B
     MAX_TEXTURES = 16
@@ -95,9 +95,9 @@ class VisVertexDescriptor(DataExchange_cl):
         writer.write_uint32(self.magick)
 
     @staticmethod
-    def from_reader(reader: BinaryReader) -> 'VisVertexDescriptor':
+    def from_reader(reader: BinaryReader) -> 'VisMBVertexDescriptor_cl':
 
-        value = VisVertexDescriptor()
+        value = VisMBVertexDescriptor_cl()
         value.read(reader)
 
         return value

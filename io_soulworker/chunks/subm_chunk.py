@@ -6,11 +6,7 @@ from io_soulworker.core.data_exchange import DataExchange_cl
 from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 
 
-class VisMeshBuffer(DataExchange_cl):
-    """
-    One material / submesh range inside ``SUBM``. ``geometry_total`` and ``format_version``
-    must be set by the parent chunk before ``read`` / ``write`` (mirrors Vision versioned layout).
-    """
+class VisMeshBuffer_cl(DataExchange_cl):
 
     geometry_total: int = 0
     format_version: int = 0
@@ -102,9 +98,10 @@ class VisMeshBuffer(DataExchange_cl):
             writer.write_int32(self.geometry_index)
 
     @staticmethod
-    def from_reader(reader: BinaryReader, *, geometry_total: int, format_version: int) -> 'VisMeshBuffer':
+    def from_reader(reader: BinaryReader, *, geometry_total: int, format_version: int) -> 'VisMeshBuffer_cl':
 
-        value = VisMeshBuffer()
+        value = VisMeshBuffer_cl()
+
         value.geometry_total = geometry_total
         value.format_version = format_version
         value.read(reader)
@@ -175,7 +172,7 @@ class VisSubMeshChunk(DataExchange_cl):
 
     unknown = 0
     version = 0
-    meshes: list[VisMeshBuffer] = []
+    meshes: list[VisMeshBuffer_cl] = []
     geometry_info: list[VisBaseGeometryInfo] = []
 
     def read(self, reader: BinaryReader) -> None:
@@ -200,7 +197,7 @@ class VisSubMeshChunk(DataExchange_cl):
         mesh_count = reader.read_uint32()
 
         self.meshes = [
-            VisMeshBuffer.from_reader(
+            VisMeshBuffer_cl.from_reader(
                 reader,
                 geometry_total=mesh_count,
                 format_version=self.version
@@ -244,5 +241,5 @@ class VisSubMeshChunk(DataExchange_cl):
         return value
 
 
-VisMeshBuffer_cl = VisMeshBuffer
+VisMeshBuffer_cl = VisMeshBuffer_cl
 VisSubMeshChunk_cl = VisSubMeshChunk
