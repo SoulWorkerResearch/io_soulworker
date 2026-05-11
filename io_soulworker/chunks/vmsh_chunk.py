@@ -3,6 +3,7 @@ from struct import pack_into
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.binary_writer import BinaryWriter
 from io_soulworker.core.data_exchange import DataExchange_cl
+from io_soulworker.unit_scale import BLENDER_TO_GAME, GAME_TO_BLENDER
 from io_soulworker.core.utility import indices_to_face
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_index_format import VisIndexFormat
@@ -126,7 +127,13 @@ class VMshChunk(DataExchange_cl):
                 reader.seek(t + off)
 
                 pos = reader.read_vector3()
-                self.vertices.append([pos.x, pos.y, pos.z])
+                self.vertices.append(
+                    [
+                        pos.x * GAME_TO_BLENDER,
+                        pos.y * GAME_TO_BLENDER,
+                        pos.z * GAME_TO_BLENDER,
+                    ]
+                )
 
             if self.descriptor.has_component(self.descriptor.normal_offset):
 
@@ -279,7 +286,14 @@ class VMshChunk(DataExchange_cl):
 
                 off = self.descriptor.offset_of(self.descriptor.pos_offset)
                 x, y, z = self.__vector3_at(self.vertices, index)
-                pack_into("<fff", raw, off, x, y, z)
+                pack_into(
+                    "<fff",
+                    raw,
+                    off,
+                    x * BLENDER_TO_GAME,
+                    y * BLENDER_TO_GAME,
+                    z * BLENDER_TO_GAME,
+                )
 
             if self.descriptor.has_component(self.descriptor.normal_offset):
 
