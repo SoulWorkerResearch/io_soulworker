@@ -22,14 +22,23 @@
 
 ## ✨ Installing
 
-- Download io_soulworker.zip from releases;
-- Install this add-on;
-  <details>
-    <summary>If you don't know how to install add-ons check spoiler content</summary>
-    
+- Download io_soulworker.zip from **releases** page;
+- ???;
+- Profit!
+- <details>
+    <summary>How do I install add-ons? <i>(click on me)</i></summary>
     https://www.youtube.com/watch?v=vYh1qh9y1MI
-    </details>
-- File -> Import -> SoulWorker (.model).
+  </details>
+
+## 🚀 How to use
+
+File *(top menu)* -> Import *(menu item)* -> SoulWorker *(menu button)*.
+
+**OR**
+
+Press N *(keyboard button)* -> SoulWorker *(tab)*:
+  - Unpacked Resources *(input box)* - select the root folder containing the extracted game resources.
+  - Open Resource *(button)* - select the resource you want to import.
 
 ## 😏 Features
 
@@ -37,15 +46,14 @@
 
 - [x] Mesh
 - [x] Skelet
-- [x] Skelet bones weights
-- [x] Material
-- [ ] Animation
+- [x] Materials
+- [x] Animation
 
 #### 🚛 Export
 
 - [ ] Mesh
 - [ ] Skelet
-- [ ] Material
+- [ ] Materials
 - [ ] Animation
 
 # ⚠️ IMPORTANT
