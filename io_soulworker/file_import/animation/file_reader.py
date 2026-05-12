@@ -56,7 +56,7 @@ class AnimationFileReader(AnimationFileChunkReader):
             return
 
         bone_names = self._bone_names_for_animation(armature_object)
-        action = self._create_action(self.animation_name)
+        action = self._create_action(self._import_action_name(self.animation_name))
 
         animation_data = armature_object.animation_data_create()
         animation_data.action = action
@@ -173,6 +173,9 @@ class AnimationFileReader(AnimationFileChunkReader):
             return list(imported_bone_names[:self.bone_count])
 
         return [bone.name for bone in armature_object.data.bones][:self.bone_count]
+
+    def _import_action_name(self, animation_name: str) -> str:
+        return f"{self.path.stem}:{animation_name}"
 
     def _create_action(self, name: str) -> Action:
         existing = bpy.data.actions.get(name)
