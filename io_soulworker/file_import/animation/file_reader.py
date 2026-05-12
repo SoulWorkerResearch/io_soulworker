@@ -6,7 +6,8 @@ from json import loads
 from logging import debug
 from pathlib import Path
 
-from mathutils import Quaternion, Vector
+from bpy.types import Action, ArmatureModifier, Bone, Object
+from mathutils import Matrix, Quaternion, Vector
 
 from io_soulworker.chunks.bpos_chunk import BposChunk
 from io_soulworker.chunks.brot_chunk import BrotChunk
@@ -99,7 +100,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         self._reported_error_keys.add(key)
         self.report_error(message)
 
-    def _scene_object_matching_file(self):
+    def _scene_object_matching_file(self) -> Object | None:
 
         stem = self.path.stem
         scene = self.context.scene
@@ -110,11 +111,12 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         return scene.objects.get(stem)
 
-    def _armature_from_modifiers(self, obj, skeleton_index: int):
+    def _armature_from_modifiers(self, obj: Object, skeleton_index: int) -> Object | None:
         armatures = [
             modifier.object
             for modifier in obj.modifiers
-            if getattr(modifier, "type", None) == 'ARMATURE' and modifier.object is not None
+            if isinstance(modifier, ArmatureModifier)
+            and modifier.object is not None
         ]
 
         if skeleton_index >= len(armatures):
@@ -122,12 +124,9 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         chosen = armatures[skeleton_index]
 
-        if chosen.type != 'ARMATURE':
-            return None
-
         return chosen
 
-    def _resolve_armature_object(self, skeleton_index: int):
+    def _resolve_armature_object(self, skeleton_index: int) -> Object | None:
         target = self._scene_object_matching_file()
 
         if target is None:
@@ -160,7 +159,7 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         return self.skeletons[skeleton_index]
 
-    def _bone_names_for_animation(self, armature_object) -> list[str]:
+    def _bone_names_for_animation(self, armature_object: Object) -> list[str]:
         skeleton = self._skeleton_at_index(self.skeleton_index)
 
         if skeleton is not None and len(skeleton.bones) >= self.bone_count:
@@ -175,7 +174,7 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         return [bone.name for bone in armature_object.data.bones][:self.bone_count]
 
-    def _create_action(self, name: str):
+    def _create_action(self, name: str) -> Action:
         existing = bpy.data.actions.get(name)
 
         if existing is not None:
@@ -185,8 +184,8 @@ class AnimationFileReader(AnimationFileChunkReader):
 
     def _add_transform_curves(
         self,
-        action,
-        armature_object,
+        action: Action,
+        armature_object: Object,
         bone_names: list[str],
         position_chunk: BposChunk | None,
         rotation_chunk: BrotChunk | None,
@@ -349,7 +348,7 @@ class AnimationFileReader(AnimationFileChunkReader):
             for bone in chunk.bones
         ]
 
-    def _target_skeleton_refs(self, armature_object) -> list[SkeletonBoneRef]:
+    def _target_skeleton_refs(self, armature_object: Object) -> list[SkeletonBoneRef]:
         serialized = armature_object.get("soulworker_skeleton")
 
         if serialized:
@@ -377,7 +376,7 @@ class AnimationFileReader(AnimationFileChunkReader):
             for bone in bones
         ]
 
-    def _bone_refs_from_armature(self, armature_object) -> list[SkeletonBoneRef]:
+    def _bone_refs_from_armature(self, armature_object: Object) -> list[SkeletonBoneRef]:
         refs = []
 
         for bone in armature_object.data.bones:
@@ -394,7 +393,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         return refs
 
     @staticmethod
-    def _remap_translation(position, source_ref: SkeletonBoneRef, target_ref: SkeletonBoneRef):
+    def _remap_translation(position: Vector, source_ref: SkeletonBoneRef, target_ref: SkeletonBoneRef) -> Vector:
         source_position = position.to_3d()
         source_length = source_ref.local_position.length
 
@@ -410,7 +409,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         )
 
     @staticmethod
-    def _remap_rotation(rotation, source_ref: SkeletonBoneRef, target_ref: SkeletonBoneRef):
+    def _remap_rotation(rotation: Quaternion, source_ref: SkeletonBoneRef, target_ref: SkeletonBoneRef) -> Quaternion:
         correction = target_ref.local_orientation @ source_ref.local_orientation.inverted()
         remapped = correction @ rotation
         remapped.normalize()
@@ -418,14 +417,14 @@ class AnimationFileReader(AnimationFileChunkReader):
         return remapped
 
     @staticmethod
-    def _rest_local_matrix(rest_bone):
+    def _rest_local_matrix(rest_bone: Bone) -> Matrix:
         if rest_bone.parent is None:
             return rest_bone.matrix_local.copy()
 
         return rest_bone.parent.matrix_local.inverted() @ rest_bone.matrix_local
 
     @staticmethod
-    def _local_animation_matrix(rest_local, position, rotation):
+    def _local_animation_matrix(rest_local: Matrix, position: Vector | None, rotation: Quaternion | None) -> Matrix:
         desired = rest_local.copy()
 
         if rotation is not None:
@@ -504,12 +503,12 @@ class AnimationFileReader(AnimationFileChunkReader):
 
     def _add_vector_curves(
         self,
-        action,
-        armature_object,
+        action: Action,
+        armature_object: Object,
         bone_name: str,
         property_name: str,
-        keys,
-        component_count: int,
+        keys: list[tuple[int, Vector]],
+        component_count: int = 3,
     ) -> None:
         if not keys:
             return
@@ -537,8 +536,8 @@ class AnimationFileReader(AnimationFileChunkReader):
 
     @staticmethod
     def _ensure_fcurve(
-        action,
-        armature_object,
+        action: Action,
+        armature_object: Object,
         data_path: str,
         component: int,
         group_name: str,
