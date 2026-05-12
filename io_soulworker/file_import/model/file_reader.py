@@ -190,7 +190,7 @@ class ModelFileReader(ModelChunkReader):
 
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
 
-                uv_layer.data[loop_idx].uv = chunk.uvs[vert_idx]
+                uv_layer.uv[loop_idx].vector = chunk.uvs[vert_idx]
 
         self.mesh.update()
 

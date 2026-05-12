@@ -189,7 +189,7 @@ class IO_SOULWORKER_PT_unpack_resources(Panel):
     """Sidebar panel for unpacked game assets root path."""
 
     bl_idname = "IO_SOULWORKER_PT_unpack_resources"
-    bl_label = "Resources"
+    bl_label = "Import"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "SoulWorker"
@@ -203,14 +203,14 @@ class IO_SOULWORKER_PT_unpack_resources(Panel):
 
         layout.operator(
             IO_SOULWORKER_OT_open_resource.bl_idname,
-            text="Open Resource",
+            text="Open",
         )
 
 
 def register_unpack_resources_props():
 
     Scene.soulworker_unpack_resources = StringProperty(
-        name="Unpacked Resources",
+        name="Resources",
         description="Root folder of unpacked SoulWorker resources",
         default="",
         subtype="DIR_PATH",

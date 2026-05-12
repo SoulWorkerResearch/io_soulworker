@@ -2,12 +2,11 @@ from dataclasses import dataclass
 from json import dumps
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from io_soulworker.chunks.skel_chunk import VisSkeletalBone_cl
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.file_import.model.skeleton_builder import build_bone_transforms
-from io_soulworker.unit_scale import GAME_TO_BLENDER
 
 
 class NameHelper:
@@ -98,9 +97,9 @@ def build_armature_from_skeleton(
 
     bpy.ops.object.mode_set(mode="EDIT")
 
-    def bone_local_matrix(bone):
+    def bone_local_matrix(bone: VisSkeletalBone_cl) -> Matrix:
         matrix = bone.local_space_orientation.to_matrix().to_4x4()
-        matrix.translation = bone.local_space_position * GAME_TO_BLENDER
+        matrix.translation = bone.local_space_position
 
         return matrix
 
@@ -133,7 +132,7 @@ def build_armature_from_skeleton(
         {
             "name": bone.name,
             "parent_id": bone.parent_id,
-            "local_position": _vector_to_list(bone.local_space_position * GAME_TO_BLENDER),
+            "local_position": _vector_to_list(bone.local_space_position),
             "local_orientation": _quaternion_to_list(bone.local_space_orientation),
         }
         for bone in chunk.bones

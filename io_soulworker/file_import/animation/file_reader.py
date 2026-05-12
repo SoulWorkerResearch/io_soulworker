@@ -14,7 +14,6 @@ from io_soulworker.chunks.brot_chunk import BrotChunk
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.file_import.animation.action_builder import group_keyframes_by_bone
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
-from io_soulworker.unit_scale import GAME_TO_BLENDER
 
 
 @dataclass(frozen=True)
@@ -56,7 +55,8 @@ class AnimationFileReader(AnimationFileChunkReader):
             return
 
         bone_names = self._bone_names_for_animation(armature_object)
-        action = self._create_action(self._import_action_name(self.animation_name))
+        action = self._create_action(
+            self._import_action_name(self.animation_name))
 
         animation_data = armature_object.animation_data_create()
         animation_data.action = action
@@ -239,7 +239,7 @@ class AnimationFileReader(AnimationFileChunkReader):
             pose_bone.rotation_mode = 'QUATERNION'
             positions_by_bone[bone_name] = {
                 frame: self._remap_translation(
-                    position * GAME_TO_BLENDER,
+                    position,
                     source_ref,
                     target_ref
                 )
@@ -345,8 +345,8 @@ class AnimationFileReader(AnimationFileChunkReader):
             SkeletonBoneRef(
                 name=bone.name,
                 parent_name=bone_names_by_id.get(bone.parent_id),
-                local_position=bone.local_space_position * GAME_TO_BLENDER,
-                local_orientation=bone.local_space_orientation.copy(),
+                local_position=bone.local_space_position,
+                local_orientation=bone.local_space_orientation,
             )
             for bone in chunk.bones
         ]
