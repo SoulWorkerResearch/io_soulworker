@@ -7,7 +7,6 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
 from bpy.types import Collection, Context, LayerCollection, Operator, Panel, Scene
 
-from io_soulworker.collection_export_handlers import ensure_default_collection_exporter
 from io_soulworker.file_import.animation.file_reader import AnimationFileReader
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
@@ -158,7 +157,7 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
 
             leaf = _ensure_collection_hierarchy(context, segments)
             leaf.color_tag = _leaf_collection_color_tag(path)
-            ensure_default_collection_exporter(leaf, ext)
+
             _set_active_collection(context, leaf)
 
         elif (context.scene.soulworker_unpack_resources or "").strip():
