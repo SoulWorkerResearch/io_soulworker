@@ -15,7 +15,7 @@ class VisChunkId(enum.IntEnum):
     # Material
     MTRL = int.from_bytes(b"MTRL", byteorder="big")
 
-    # Submaterial
+    # SubMeshes
     SUBM = int.from_bytes(b"SUBM", byteorder="big")
     EXPR = int.from_bytes(b"EXPR", byteorder="big")
 
@@ -33,6 +33,9 @@ class VisChunkId(enum.IntEnum):
 
     BNDS = int.from_bytes(b"BNDS", byteorder="big")
     HEAD = int.from_bytes(b"HEAD", byteorder="big")
+
+    # Unknown Scene chunk
+    ST5G = int.from_bytes(b"ST5G", byteorder="big")
 
     # Animation
     ANIM = int.from_bytes(b"ANIM", byteorder="big")
