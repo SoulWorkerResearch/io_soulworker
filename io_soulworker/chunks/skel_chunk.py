@@ -1,6 +1,8 @@
 
 from logging import debug
 
+from mathutils import Quaternion, Vector
+
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.binary_writer import BinaryWriter
 from io_soulworker.core.data_exchange import DataExchange_cl
@@ -13,10 +15,10 @@ class VisSkeletalBone_cl(DataExchange_cl):
     id = 0
     name = ""
     parent_id = 0
-    inverse_object_space_position = None
-    inverse_object_space_orientation = None
-    local_space_position = None
-    local_space_orientation = None
+    inverse_object_space_position = Vector()
+    inverse_object_space_orientation = Quaternion()
+    local_space_position = Vector()
+    local_space_orientation = Quaternion()
 
     def read(self, reader: BinaryReader) -> None:
 
