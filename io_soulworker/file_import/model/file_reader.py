@@ -1,6 +1,6 @@
 import bpy
 
-from logging import debug, error
+from logging import debug, error, warning
 from pathlib import Path
 from typing import final
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
@@ -193,6 +193,9 @@ class ModelFileReader(ModelChunkReader):
                 uv_layer.uv[loop_idx].vector = chunk.uvs[vert_idx]
 
         self.mesh.update()
+
+        if not self.mesh.validate(verbose=True):
+            warning("Mesh validation failed for %s", self.mesh.name)
 
         self.context.collection.objects.link(self.object)
 
