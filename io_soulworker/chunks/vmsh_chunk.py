@@ -71,7 +71,7 @@ class VMshChunk(DataExchange_cl):
         assert magick == self.MAGICK
 
         self.version = reader.read_uint32()
-        assert self.version < self.LOCAL_VERSION
+        assert self.version <= self.LOCAL_VERSION
 
         self.descriptor.read(reader)
         self.vertex_count = reader.read_uint32()

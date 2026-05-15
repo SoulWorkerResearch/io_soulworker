@@ -193,27 +193,25 @@ class VisSubMeshChunk(DataExchange_cl):
 
         self.unknown = reader.read_int32()
 
-        if self.unknown >= 0:
-
-            return
-
-        self.version = reader.read_int32()
-
         mesh_count = 0
 
-        if self.version >= 2:
+        if self.unknown < 0:
 
-            geometry_count = reader.read_int32()
+            self.version = reader.read_int32()
 
-            self.geometry_info = [
-                VisBaseGeometryInfo.from_reader(reader, version=self.version)
-                for _ in range(geometry_count)
-            ]
+            if self.version >= 2:
 
-            mesh_count = reader.read_int32()
+                geometry_count = reader.read_int32()
 
-            if mesh_count < 0:
-                raise ValueError(f"Invalid sub mesh count: {mesh_count}")
+                self.geometry_info = [
+                    VisBaseGeometryInfo.from_reader(
+                        reader,
+                        version=self.version
+                    )
+                    for _ in range(geometry_count)
+                ]
+
+                mesh_count = reader.read_uint32()
 
         self.meshes = [
             VisMeshBuffer_cl.from_reader(
