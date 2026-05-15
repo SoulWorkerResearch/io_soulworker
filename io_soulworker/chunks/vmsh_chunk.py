@@ -6,6 +6,7 @@ from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.binary_writer import BinaryWriter
 from io_soulworker.core.data_exchange import DataExchange_cl
 from io_soulworker.core.utility import indices_to_face
+from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_index_format import VisIndexFormat
 from io_soulworker.core.vis_mesh_effect_config import VisEffectConfig_cl
@@ -17,7 +18,7 @@ class VMshChunk(DataExchange_cl):
 
     MAGICK = 0x4455ABCD
     LOADER_VERSION = 1
-    LOCAL_VERSION = 4
+    LOCAL_VERSION = 5
 
     VERTEXT_USAGE_FLAGS = -1
     INDEX_USAGE_FLAGS = -1
@@ -48,6 +49,8 @@ class VMshChunk(DataExchange_cl):
     descriptor = VisMBVertexDescriptor_cl()
     render_state = VisRenderState()
     effect_config = VisEffectConfig_cl()
+    bounding_box = HavokBoundingBox()
+    unused = 0
     vertices: list[Vector] = []
     normals: list[Vector] = []
     uvs: list[Vector] = []
@@ -158,6 +161,9 @@ class VMshChunk(DataExchange_cl):
         vertices_per_face = self.index_count // self.current_prim_count
         self.faces = list(indices_to_face(self.indices, vertices_per_face))
 
+        self.bounding_box = HavokBoundingBox.from_reader(reader)
+        self.unused = reader.read_int32()
+
     def write(self, writer: BinaryWriter) -> None:
         writer.write_cid(self.chunk_id)
         writer.write_uint32(self.loader_version)
@@ -214,6 +220,9 @@ class VMshChunk(DataExchange_cl):
 
         self.__write_vertices(writer, vertex_count)
         self.__write_indices(writer, indices)
+
+        self.bounding_box.write(writer)
+        writer.write_int32(self.unused)
 
         # Keep in-memory metadata consistent after save.
         self.vertex_count = vertex_count

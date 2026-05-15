@@ -8,7 +8,7 @@ from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 
 class VisMeshBuffer_cl(DataExchange_cl):
 
-    geometry_total: int = 0
+    geometry_info_count: int = 0
     format_version: int = 0
 
     indices_start = 0
@@ -22,7 +22,7 @@ class VisMeshBuffer_cl(DataExchange_cl):
 
     local_bounds = HavokBoundingBox()
 
-    id = 0
+    surface_index = 0
 
     geometry_index = 0
 
@@ -36,18 +36,18 @@ class VisMeshBuffer_cl(DataExchange_cl):
 
     def read(self, reader: BinaryReader) -> None:
 
-        self.indices_start = reader.read_int32()
-        self.indices_count = reader.read_int32()
-        self.unused_1_1 = reader.read_int32()
-        self.unused_1_2 = reader.read_int32()
-        self.first_vertex = reader.read_int32()
-        self.num_vertices = reader.read_int32()
-        self.unused_1_3 = reader.read_int32()
-        self.unused_1_4 = reader.read_int32()
+        self.indices_start = reader.read_uint32()
+        self.indices_count = reader.read_uint32()
+        self.unused_1_1 = reader.read_uint32()
+        self.unused_1_2 = reader.read_uint32()
+        self.first_vertex = reader.read_uint32()
+        self.num_vertices = reader.read_uint32()
+        self.unused_1_3 = reader.read_uint32()
+        self.unused_1_4 = reader.read_uint32()
 
         self.local_bounds.read(reader)
 
-        self.id = reader.read_int32()
+        self.surface_index = reader.read_int32()
 
         if self.format_version < 2:
 
@@ -56,38 +56,39 @@ class VisMeshBuffer_cl(DataExchange_cl):
                 self.unused_2_1 = reader.read_int32()
                 self.unused_2_2 = reader.read_int16()
                 self.unused_2_3 = reader.read_int16()
-                self.unused_2_4 = reader.read_uint8()
-                self.unused_2_5 = reader.read_uint8()
+                self.unused_2_4 = reader.read_int8()
+                self.unused_2_5 = reader.read_int8()
                 self.unused_2_6 = reader.read_float()
                 self.unused_2_7 = reader.read_float()
 
         else:
 
             self.geometry_index = reader.read_int32()
-            assert self.geometry_total >= self.geometry_index
+            if self.geometry_info_count > 0:
+                assert 0 <= self.geometry_index < self.geometry_info_count
 
     def write(self, writer: BinaryWriter) -> None:
 
-        writer.write_int32(self.indices_start)
-        writer.write_int32(self.indices_count)
-        writer.write_int32(self.unused_1_1)
-        writer.write_int32(self.unused_1_2)
-        writer.write_int32(self.first_vertex)
-        writer.write_int32(self.num_vertices)
-        writer.write_int32(self.unused_1_3)
-        writer.write_int32(self.unused_1_4)
+        writer.write_uint32(self.indices_start)
+        writer.write_uint32(self.indices_count)
+        writer.write_uint32(self.unused_1_1)
+        writer.write_uint32(self.unused_1_2)
+        writer.write_uint32(self.first_vertex)
+        writer.write_uint32(self.num_vertices)
+        writer.write_uint32(self.unused_1_3)
+        writer.write_uint32(self.unused_1_4)
 
         self.local_bounds.write(writer)
 
-        writer.write_int32(self.id)
+        writer.write_int32(self.surface_index)
 
         if self.format_version < 2:
 
             if self.format_version == 1:
 
-                writer.write_int32(self.unused_2_1)
-                writer.write_int16(self.unused_2_2)
-                writer.write_int16(self.unused_2_3)
+                writer.write_uint32(self.unused_2_1)
+                writer.write_uint16(self.unused_2_2)
+                writer.write_uint16(self.unused_2_3)
                 writer.write_uint8(self.unused_2_4)
                 writer.write_uint8(self.unused_2_5)
                 writer.write_float(self.unused_2_6)
@@ -98,12 +99,17 @@ class VisMeshBuffer_cl(DataExchange_cl):
             writer.write_int32(self.geometry_index)
 
     @staticmethod
-    def from_reader(reader: BinaryReader, *, geometry_total: int, format_version: int) -> 'VisMeshBuffer_cl':
+    def from_reader(
+        reader: BinaryReader,
+        *,
+        format_version: int,
+        geometry_info_count: int = 0,
+    ) -> 'VisMeshBuffer_cl':
 
         value = VisMeshBuffer_cl()
 
-        value.geometry_total = geometry_total
         value.format_version = format_version
+        value.geometry_info_count = geometry_info_count
         value.read(reader)
 
         return value
@@ -125,6 +131,7 @@ class VisBaseGeometryInfo(DataExchange_cl):
     far_clip_distance = 0.0
     clip_reference = Vector()
     name = ""
+    lod_index = 0
 
     def read(self, reader: BinaryReader) -> None:
 
@@ -138,9 +145,13 @@ class VisBaseGeometryInfo(DataExchange_cl):
         self.far_clip_distance = reader.read_float()
         self.clip_reference = reader.read_vector3()
 
-        if (self.version >= 3):
+        if self.version >= 3:
 
             self.name = reader.read_utf8_uint32_string()
+
+        if self.version >= 4:
+
+            self.lod_index = reader.read_int16()
 
     def write(self, writer: BinaryWriter) -> None:
 
@@ -154,8 +165,11 @@ class VisBaseGeometryInfo(DataExchange_cl):
         writer.write_float(self.far_clip_distance)
         writer.write_vector3(self.clip_reference)
 
-        if (self.version >= 3):
+        if self.version >= 3:
             writer.write_utf8_uint32_string(self.name)
+
+        if self.version >= 4:
+            writer.write_int16(self.lod_index)
 
     @staticmethod
     def from_reader(reader: BinaryReader, version: int) -> 'VisBaseGeometryInfo':
@@ -185,6 +199,8 @@ class VisSubMeshChunk(DataExchange_cl):
 
         self.version = reader.read_int32()
 
+        mesh_count = 0
+
         if self.version >= 2:
 
             geometry_count = reader.read_int32()
@@ -194,13 +210,16 @@ class VisSubMeshChunk(DataExchange_cl):
                 for _ in range(geometry_count)
             ]
 
-        mesh_count = reader.read_uint32()
+            mesh_count = reader.read_int32()
+
+            if mesh_count < 0:
+                raise ValueError(f"Invalid sub mesh count: {mesh_count}")
 
         self.meshes = [
             VisMeshBuffer_cl.from_reader(
                 reader,
-                geometry_total=mesh_count,
-                format_version=self.version
+                format_version=self.version,
+                geometry_info_count=len(self.geometry_info),
             )
             for _ in range(mesh_count)
         ]
@@ -225,7 +244,7 @@ class VisSubMeshChunk(DataExchange_cl):
 
         mesh_count = len(self.meshes)
 
-        writer.write_uint32(mesh_count)
+        writer.write_int32(mesh_count)
 
         for mesh in self.meshes:
 
@@ -239,7 +258,3 @@ class VisSubMeshChunk(DataExchange_cl):
         value.read(reader)
 
         return value
-
-
-VisMeshBuffer_cl = VisMeshBuffer_cl
-VisSubMeshChunk_cl = VisSubMeshChunk

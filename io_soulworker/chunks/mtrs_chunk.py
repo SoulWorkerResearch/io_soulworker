@@ -18,7 +18,6 @@ class MtrsChunk(DataExchange_cl):
 
     _envelope_enter_depth = 0
     _envelope_footer_stack_adj = 0
-    _envelope_exit_chunk_id = VisChunkId.NONE
 
     version = LOCAL_VERSION
     name = ""
@@ -76,12 +75,12 @@ class MtrsChunk(DataExchange_cl):
 
             self.ui_sorting_key = reader.read_uint32()
 
-            assert self.ui_sorting_key < 15
+            assert self.ui_sorting_key < 16
 
             self.spec_mul = reader.read_float()
             self.spec_exp = reader.read_float()
 
-            self.transparency_type = reader.read_transparency()
+            self.transparency_type = VisTransparencyType(reader.read_int8())
 
             self.ui_deferred_id = reader.read_uint8()
 
@@ -105,9 +104,12 @@ class MtrsChunk(DataExchange_cl):
             debug("normal path: %s", self.normal_map)
 
             if self.version >= 2:
-                count = reader.read_uint32()
+                aux_count = reader.read_uint32()
+
                 self.aux_texture_paths = MtrsChunk.__read_aux_names(
-                    count, reader)
+                    aux_count,
+                    reader
+                )
 
                 for filename in self.aux_texture_paths:
                     debug("aux filename: %s", filename)
@@ -118,7 +120,7 @@ class MtrsChunk(DataExchange_cl):
             self.ambient_color = reader.read_color()
 
             self.brightness = reader.read_uint32()
-            self.light_color = reader.read_uint32()
+            self.light_color = reader.read_color()
 
             self.parallax_scale = reader.read_float()
             self.parallax_bias = reader.read_float()
@@ -129,11 +131,8 @@ class MtrsChunk(DataExchange_cl):
                 self.override_library = reader.read_utf8_uint32_string()
                 self.override_material = reader.read_utf8_uint32_string()
 
-            if self.version >= 6:
-                self.ui_mobile_shader_flags = reader.read_uint32()
-
-        self._envelope_footer_stack_adj = scope.footer_stack_adj
-        self._envelope_exit_chunk_id = scope.exit_chunk_id
+            if 6 <= self.version < 8:
+                self.ui_mobile_shader_flags = reader.read_int32()
 
     def write(self, writer: BinaryWriter) -> None:
 
@@ -147,8 +146,8 @@ class MtrsChunk(DataExchange_cl):
         writer.write_cid(VisChunkId.MTRL)
         writer.write_uint32(len(raw))
         writer.write(raw)
-        writer.write_int32(self._envelope_footer_stack_adj)
-        writer.write_cid(self._envelope_exit_chunk_id)
+        writer.write_int32(1)
+        writer.write_cid(VisChunkId.MTRL)
 
     def __write_payload(self, writer: BinaryWriter) -> None:
 
@@ -204,7 +203,7 @@ class MtrsChunk(DataExchange_cl):
             writer.write_utf8_uint32_string(self.override_library)
             writer.write_utf8_uint32_string(self.override_material)
 
-        if self.version >= 6:
+        if 6 <= self.version < 8:
             writer.write_uint32(self.ui_mobile_shader_flags)
 
     @staticmethod

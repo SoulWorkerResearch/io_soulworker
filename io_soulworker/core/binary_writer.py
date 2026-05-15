@@ -42,6 +42,9 @@ class BinaryWriter(BufferedWriter):
     def write_uint8(self, value: int) -> None:
         self.write(pack("<B", value))
 
+    def write_int8(self, value: int) -> None:
+        self.write(pack("<b", value))
+
     def write_vector2(self, value: Vector) -> None:
         self.write(pack("<ff", value.x, value.y))
 

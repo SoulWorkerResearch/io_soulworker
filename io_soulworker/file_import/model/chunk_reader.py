@@ -1,5 +1,5 @@
 
-from logging import debug
+from logging import debug, info
 from pathlib import Path
 from xml.etree.ElementTree import Element, parse
 
@@ -47,7 +47,13 @@ class ModelChunkReader(VisChunkFileReader):
     def on_cbpr(self, chunk: CBPRChunk):
         debug('Not impl callback')
 
+    def __get_chunk_name(self, id: VisChunkId) -> str:
+
+        return id.to_bytes(4, "big").decode("ascii")
+
     def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
+
+        info('read chunk: %s', self.__get_chunk_name(scope.chunk))
 
         match scope.chunk:
             case VisChunkId.MTRS:
@@ -77,7 +83,7 @@ class ModelChunkReader(VisChunkFileReader):
             case _:
                 debug('Not impl callback: %s', scope.chunk)
 
-    def __parse_materials(self, reader: BinaryReader):
+    def __parse_materials(self, reader: BinaryReader) -> None:
 
         overrides = ModelChunkReader.__xml_material(reader)
 

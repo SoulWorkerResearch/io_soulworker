@@ -63,6 +63,7 @@ class VisSkeletonChunk_cl(DataExchange_cl):
 
     version = 0
     bones: list['VisSkeletalBone_cl']
+    bone_mask_count = 0
 
     def __init__(self) -> None:
 
@@ -80,6 +81,8 @@ class VisSkeletonChunk_cl(DataExchange_cl):
             for index in range(bone_count)
         ]
 
+        self.bone_mask_count = reader.read_int16()
+
     def write(self, writer: BinaryWriter) -> None:
 
         writer.write_uint16(self.version)
@@ -88,6 +91,8 @@ class VisSkeletonChunk_cl(DataExchange_cl):
         for bone in self.bones:
 
             bone.write(writer)
+
+        writer.write_int16(self.bone_mask_count)
 
     @staticmethod
     def from_reader(reader: BinaryReader) -> 'VisSkeletonChunk_cl':

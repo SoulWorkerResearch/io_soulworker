@@ -249,7 +249,7 @@ class ModelFileReader(ModelChunkReader):
 
         for mesh in chunk.meshes:
 
-            name = materials[mesh.id].name_full
+            name = materials[mesh.surface_index].name_full
             vertex_group = vertex_groups.new(name=name)
 
             start = mesh.indices_start
@@ -258,9 +258,9 @@ class ModelFileReader(ModelChunkReader):
             indices = self.mesh_chunk.indices[start: count]
             vertex_group.add(indices, 1, "REPLACE")
 
-            set_material(vertex_group.name, mesh.id)
+            set_material(vertex_group.name, mesh.surface_index)
 
-            debug("material_id: %d", mesh.id)
+            debug("material_id: %d", mesh.surface_index)
             debug("indices_start: %d", start)
             debug("indices_count: %d", count)
 
