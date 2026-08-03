@@ -1,6 +1,10 @@
 from logging import debug
+from io_soulworker.chunks.atdm_chunk import AtdmChunk
+from io_soulworker.chunks.atdo_chunk import AtdoChunk
+from io_soulworker.chunks.atdr_chunk import AtdrChunk
 from io_soulworker.chunks.bpos_chunk import BposChunk
 from io_soulworker.chunks.brot_chunk import BrotChunk
+from io_soulworker.chunks.bscl_chunk import BsclChunk
 from io_soulworker.chunks.xbsv_chunk import XbsvChunk
 from io_soulworker.chunks.head_chunk import HeadChunk
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
@@ -22,6 +26,18 @@ class AnimationFileChunkReader(VisChunkFileReader):
         debug('Not impl callback')
 
     def on_bone_rotation(self, chunk: BrotChunk) -> None:
+        debug('Not impl callback')
+
+    def on_bone_scale(self, chunk: BsclChunk) -> None:
+        debug('Not impl callback')
+
+    def on_offset_delta(self, chunk: AtdoChunk) -> None:
+        debug('Not impl callback')
+
+    def on_rotation_delta(self, chunk: AtdrChunk) -> None:
+        debug('Not impl callback')
+
+    def on_motion_delta(self, chunk: AtdmChunk) -> None:
         debug('Not impl callback')
 
     def on_animation(self, skeleton_index: int, name: str) -> None:
@@ -78,6 +94,24 @@ class AnimationFileChunkReader(VisChunkFileReader):
             self.on_bone_rotation(
                 BrotChunk.from_reader(reader, self.bone_count)
             )
+
+        elif scope.chunk == VisChunkId.BSCL:
+
+            self.on_bone_scale(
+                BsclChunk.from_reader(reader, self.bone_count)
+            )
+
+        elif scope.chunk == VisChunkId.ATDO:
+
+            self.on_offset_delta(AtdoChunk.from_reader(reader))
+
+        elif scope.chunk == VisChunkId.ATDR:
+
+            self.on_rotation_delta(AtdrChunk.from_reader(reader))
+
+        elif scope.chunk == VisChunkId.ATDM:
+
+            self.on_motion_delta(AtdmChunk.from_reader(reader))
 
         elif scope.chunk == VisChunkId.ANIM:
 

@@ -30,7 +30,7 @@ class VisChunkReaderScope(object):
             return self
 
         self.chunk = self.reader.read_cid()
-        debug("enter chunk id: %s", self.__get_chunk_name(self.chunk))
+        debug("enter chunk id: %s", VisChunkId.get_name(self.chunk))
 
         self.length = self.reader.read_uint32()
         self.offset = self.reader.tell()
@@ -57,10 +57,10 @@ class VisChunkReaderScope(object):
         debug("exit stack depth: %d", self.depth)
 
         self.exit_chunk_id = self.reader.read_cid()
-        debug("exit chunk id: %s", self.__get_chunk_name(self.exit_chunk_id))
+
+        debug(
+            "exit chunk id: %s",
+            VisChunkId.get_name(self.exit_chunk_id)
+        )
 
         return False
-
-    def __get_chunk_name(self, id: VisChunkId) -> str:
-
-        return id.to_bytes(4, "big").decode("ascii")

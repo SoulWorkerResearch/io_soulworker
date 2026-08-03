@@ -6,6 +6,7 @@ from xml.etree.ElementTree import Element, parse
 from io_soulworker.chunks.bbbx_chunk import BBBXChunk
 from io_soulworker.chunks.bnds_chunk import BNDSChunk
 from io_soulworker.chunks.cbpr_chunk import CBPRChunk
+from io_soulworker.chunks.expr_chunk import ExprChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
@@ -47,13 +48,12 @@ class ModelChunkReader(VisChunkFileReader):
     def on_cbpr(self, chunk: CBPRChunk):
         debug('Not impl callback')
 
-    def __get_chunk_name(self, id: VisChunkId) -> str:
-
-        return id.to_bytes(4, "big").decode("ascii")
+    def on_export_transform(self, chunk: ExprChunk):
+        debug('Not impl callback')
 
     def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
 
-        info('read chunk: %s', self.__get_chunk_name(scope.chunk))
+        info('read chunk: %s', VisChunkId.get_name(scope.chunk))
 
         match scope.chunk:
             case VisChunkId.MTRS:
@@ -79,6 +79,9 @@ class ModelChunkReader(VisChunkFileReader):
 
             case VisChunkId.CBPR:
                 self.on_cbpr(CBPRChunk.from_reader(reader))
+
+            case VisChunkId.EXPR:
+                self.on_export_transform(ExprChunk.from_reader(reader))
 
             case _:
                 debug('Not impl callback: %s', scope.chunk)

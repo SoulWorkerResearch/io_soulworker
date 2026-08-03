@@ -1,4 +1,3 @@
-
 from logging import debug
 
 from mathutils import Quaternion, Vector

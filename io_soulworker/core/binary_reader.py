@@ -91,7 +91,13 @@ class BinaryReader(BufferedReader):
             return VisChunkId(value)
 
         except Exception:
-            debug('Failed to parse chunk id from value: %d', value)
+
+            debug(
+                'Failed to parse chunk id from value: %s(%d)',
+                VisChunkId.get_name(value),
+                value
+            )
+
             return VisChunkId.NONE
 
     def read_float(self) -> float:

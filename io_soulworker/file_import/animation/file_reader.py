@@ -9,10 +9,17 @@ from pathlib import Path
 from bpy.types import Action, ArmatureModifier, Bone, Object
 from mathutils import Matrix, Quaternion, Vector
 
+from io_soulworker.chunks.atdm_chunk import AtdmChunk
+from io_soulworker.chunks.atdo_chunk import AtdoChunk
+from io_soulworker.chunks.atdr_chunk import AtdrChunk
 from io_soulworker.chunks.bpos_chunk import BposChunk
 from io_soulworker.chunks.brot_chunk import BrotChunk
+from io_soulworker.chunks.bscl_chunk import BsclChunk
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
-from io_soulworker.file_import.animation.action_builder import group_keyframes_by_bone
+from io_soulworker.file_import.animation.action_builder import (
+    group_keyframes_by_bone,
+    vision_time_to_frame,
+)
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
 
 
@@ -38,6 +45,9 @@ class AnimationFileReader(AnimationFileChunkReader):
         self.skeleton_index = skeleton_index
         self.position_chunk = None
         self.rotation_chunk = None
+        self.scale_chunk = None
+        self.offset_delta_chunk = None
+        self.rotation_delta_chunk = None
 
     def on_animation_end(self) -> None:
 
@@ -50,7 +60,17 @@ class AnimationFileReader(AnimationFileChunkReader):
             debug("No armature found for skeleton index %d", self.skeleton_index)
             return
 
-        if self.position_chunk is None and self.rotation_chunk is None:
+        has_bone_tracks = (
+            self.position_chunk is not None
+            or self.rotation_chunk is not None
+            or self.scale_chunk is not None
+        )
+        has_root_motion = (
+            self.offset_delta_chunk is not None
+            or self.rotation_delta_chunk is not None
+        )
+
+        if not has_bone_tracks and not has_root_motion:
             debug("Animation %s has no supported tracks", self.animation_name)
             return
 
@@ -61,22 +81,22 @@ class AnimationFileReader(AnimationFileChunkReader):
         animation_data = armature_object.animation_data_create()
         animation_data.action = action
 
-        if self.position_chunk is not None:
+        if has_bone_tracks:
             self._add_transform_curves(
                 action,
                 armature_object,
                 bone_names,
                 self.position_chunk,
                 self.rotation_chunk,
+                self.scale_chunk,
             )
 
-        elif self.rotation_chunk is not None:
-            self._add_transform_curves(
+        if has_root_motion:
+            self._add_root_motion_curves(
                 action,
                 armature_object,
-                bone_names,
-                None,
-                self.rotation_chunk,
+                self.offset_delta_chunk,
+                self.rotation_delta_chunk,
             )
 
     def on_skeleton(self, chunk: VisSkeletonChunk_cl) -> None:
@@ -90,6 +110,19 @@ class AnimationFileReader(AnimationFileChunkReader):
 
     def on_bone_rotation(self, chunk: BrotChunk) -> None:
         self.rotation_chunk = chunk
+
+    def on_bone_scale(self, chunk: BsclChunk) -> None:
+        self.scale_chunk = chunk
+
+    def on_offset_delta(self, chunk: AtdoChunk) -> None:
+        self.offset_delta_chunk = chunk
+
+    def on_rotation_delta(self, chunk: AtdrChunk) -> None:
+        self.rotation_delta_chunk = chunk
+
+    def on_motion_delta(self, chunk: AtdmChunk) -> None:
+        self.offset_delta_chunk = chunk.offset
+        self.rotation_delta_chunk = chunk.rotation
 
     def _report_user_error(self, key: str, message: str) -> None:
 
@@ -192,6 +225,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         bone_names: list[str],
         position_chunk: BposChunk | None,
         rotation_chunk: BrotChunk | None,
+        scale_chunk: BsclChunk | None,
     ) -> None:
         source_refs = self._source_skeleton_refs(bone_names)
         target_refs = self._target_skeleton_refs(armature_object)
@@ -217,11 +251,23 @@ class AnimationFileReader(AnimationFileChunkReader):
             else {}
         )
 
+        scale_keys = (
+            group_keyframes_by_bone(
+                scale_chunk.key_frame_list,
+                source_names,
+                "vector_list",
+            )
+            if scale_chunk is not None
+            else {}
+        )
+
         positions_by_bone = {}
         rotations_by_bone = {}
+        scales_by_bone = {}
         source_refs_by_name = {bone.name: bone for bone in source_refs}
         basis_location_keys_by_bone = {}
         basis_rotation_keys_by_bone = {}
+        scale_keys_by_bone = {}
 
         for target_ref in target_refs:
             bone_name = target_ref.name
@@ -249,8 +295,13 @@ class AnimationFileReader(AnimationFileChunkReader):
                 frame: self._remap_rotation(rotation, source_ref, target_ref)
                 for frame, rotation in rotation_keys.get(source_ref.name, [])
             }
+            scales_by_bone[bone_name] = {
+                frame: scale.to_3d()
+                for frame, scale in scale_keys.get(source_ref.name, [])
+            }
             basis_location_keys_by_bone[bone_name] = []
             basis_rotation_keys_by_bone[bone_name] = []
+            scale_keys_by_bone[bone_name] = []
 
         key_frames = sorted({
             frame
@@ -259,6 +310,10 @@ class AnimationFileReader(AnimationFileChunkReader):
         } | {
             frame
             for keys in rotation_keys.values()
+            for frame, _ in keys
+        } | {
+            frame
+            for keys in scale_keys.values()
             for frame, _ in keys
         })
 
@@ -298,6 +353,16 @@ class AnimationFileReader(AnimationFileChunkReader):
                         (frame, basis.to_quaternion())
                     )
 
+                if scales_by_bone.get(bone_name):
+                    sampled_scale = self._sample_vector_track(
+                        scales_by_bone[bone_name],
+                        frame,
+                    )
+                    if sampled_scale is not None:
+                        scale_keys_by_bone[bone_name].append(
+                            (frame, sampled_scale)
+                        )
+
         for bone_name, keys in basis_location_keys_by_bone.items():
             self._add_vector_curves(
                 action,
@@ -318,8 +383,118 @@ class AnimationFileReader(AnimationFileChunkReader):
                 4,
             )
 
+        for bone_name, keys in scale_keys_by_bone.items():
+            self._add_vector_curves(
+                action,
+                armature_object,
+                bone_name,
+                "scale",
+                keys,
+                3,
+            )
+
         action.frame_start = int(key_frames[0])
         action.frame_end = int(key_frames[-1])
+
+    def _add_root_motion_curves(
+        self,
+        action: Action,
+        armature_object: Object,
+        offset_chunk: AtdoChunk | None,
+        rotation_chunk: AtdrChunk | None,
+    ) -> None:
+        location_keys: list[tuple[int, Vector]] = []
+        rotation_keys: list[tuple[int, Quaternion]] = []
+
+        if offset_chunk is not None:
+            cumulative = Vector((0.0, 0.0, 0.0))
+            for key_frame in offset_chunk.key_frame_list:
+                frame = vision_time_to_frame(key_frame.time)
+                if offset_chunk.version == 0:
+                    cumulative = cumulative + key_frame.offset
+                    location_keys.append((frame, cumulative.copy()))
+                else:
+                    location_keys.append((frame, key_frame.offset.copy()))
+
+        if rotation_chunk is not None:
+            cumulative_angle = 0.0
+            for key_frame in rotation_chunk.key_frame_list:
+                frame = vision_time_to_frame(key_frame.time)
+                if rotation_chunk.version == 0:
+                    cumulative_angle += key_frame.angle
+                    angle = cumulative_angle
+                else:
+                    angle = key_frame.angle
+
+                if rotation_chunk.axis == AtdrChunk.AXIS_X:
+                    rotation = Quaternion(Vector((1.0, 0.0, 0.0)), angle)
+                elif rotation_chunk.axis == AtdrChunk.AXIS_Z:
+                    rotation = Quaternion(Vector((0.0, 0.0, 1.0)), angle)
+                else:
+                    rotation = Quaternion(Vector((0.0, 1.0, 0.0)), angle)
+
+                rotation_keys.append((frame, rotation))
+
+        if location_keys:
+            self._add_object_vector_curves(
+                action,
+                armature_object,
+                "location",
+                location_keys,
+                3,
+            )
+
+        if rotation_keys:
+            armature_object.rotation_mode = 'QUATERNION'
+            self._add_object_vector_curves(
+                action,
+                armature_object,
+                "rotation_quaternion",
+                [
+                    (frame, Vector((rotation.w, rotation.x, rotation.y, rotation.z)))
+                    for frame, rotation in rotation_keys
+                ],
+                4,
+            )
+
+        if location_keys or rotation_keys:
+            root_frames = [frame for frame, _ in location_keys] + [
+                frame for frame, _ in rotation_keys
+            ]
+            start = min(root_frames)
+            end = max(root_frames)
+            action.frame_start = min(int(action.frame_start), start) if action.frame_end else start
+            action.frame_end = max(int(action.frame_end), end)
+
+    def _add_object_vector_curves(
+        self,
+        action: Action,
+        obj: Object,
+        property_name: str,
+        keys: list[tuple[int, Vector]],
+        component_count: int,
+    ) -> None:
+        if not keys:
+            return
+
+        for component in range(component_count):
+            fcurve = self._ensure_fcurve(
+                action,
+                obj,
+                property_name,
+                component,
+                obj.name,
+            )
+
+            for frame, value in keys:
+                keyframe = fcurve.keyframe_points.insert(
+                    frame,
+                    float(value[component]),
+                    options={'FAST'},
+                )
+                keyframe.interpolation = 'LINEAR'
+
+            fcurve.update()
 
     def _source_skeleton_refs(self, fallback_bone_names: list[str]) -> list[SkeletonBoneRef]:
         skeleton = self._skeleton_at_index(self.skeleton_index)
@@ -576,3 +751,6 @@ class AnimationFileReader(AnimationFileChunkReader):
         self.skeleton_index = 0
         self.position_chunk = None
         self.rotation_chunk = None
+        self.scale_chunk = None
+        self.offset_delta_chunk = None
+        self.rotation_delta_chunk = None

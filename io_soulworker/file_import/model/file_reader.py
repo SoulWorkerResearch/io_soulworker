@@ -67,22 +67,24 @@ class ModelFileReader(ModelChunkReader):
 
         def create_blender_nodes(material: Material):
 
-            def get_texture_path(path: Path):
+            def get_texture_list(base: Path, relative: str):
 
-                if path.exists() and path.is_file():
+                clear_path = Path(relative.replace('\\', '/'))
 
-                    return path
+                yield base / clear_path
 
-                error("FILE NOT FOUND %s", path)
+                yield base.parent / 'Textures' / clear_path.name
 
-                path = self.path.parent / 'Textures' / path.name
-                debug("path: %s", path)
+            def get_texture_path(base: Path, relative: str):
 
-                if path.exists() and path.is_file():
+                for path in get_texture_list(base, relative):
 
-                    return path
+                    if path.exists() and path.is_file():
 
-                error("FILE NOT FOUND %s", path)
+                        debug("path: %s", path)
+                        return path
+
+                    error("FILE NOT FOUND %s", path)
 
                 return None
 
@@ -113,8 +115,10 @@ class ModelFileReader(ModelChunkReader):
             #     )
             # else:
 
-            path = get_texture_path(self.path.parent / chunk.diffuse_map)
+            path = get_texture_path(self.path.parent, chunk.diffuse_map)
+
             debug("texture path: %s", path)
+
             if path is None:
 
                 error("No textures found for material: %s", material.name)
