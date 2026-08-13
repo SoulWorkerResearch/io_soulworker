@@ -8,20 +8,24 @@ from io_soulworker.core.data_exchange import DataExchange_cl
 class ExprChunk(DataExchange_cl):
     """Mesh export transform (3x4 matrix) from Vision VBaseMesh loader."""
 
-    version = 1
+    LOCAL_VERSION = 1
+    version = 0
     matrix = Matrix.Identity(4)
     flag = 0
 
     def read(self, reader: BinaryReader) -> None:
 
         self.version = reader.read_uint32()
+        assert self.version == self.LOCAL_VERSION
 
         # Row-major 3x4 affine matrix (rotation/scale + translation).
         rows = [
             [reader.read_float() for _ in range(4)]
             for _ in range(3)
         ]
+
         rows.append([0.0, 0.0, 0.0, 1.0])
+
         self.matrix = Matrix(rows)
 
         self.flag = reader.read_uint8()
