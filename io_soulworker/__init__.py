@@ -9,8 +9,13 @@ from io_soulworker.file_import.object_panel_default_values import (
 from io_soulworker.file_import.object_panel_features import (
     FileImportObjectPanelFeatures,
 )
+from io_soulworker.file_export.operators import (
+    IO_SOULWORKER_OT_export_model,
+    IO_SOULWORKER_OT_export_vmesh,
+)
 from io_soulworker.viewport_resources_panel import (
     IO_SOULWORKER_OT_open_resource,
+    IO_SOULWORKER_PT_export,
     IO_SOULWORKER_PT_unpack_resources,
     register_unpack_resources_props,
     unregister_unpack_resources_props
@@ -39,7 +44,10 @@ classes = {
     FileImportObjectPanelFeatures,
     FileImportRunner,
     IO_SOULWORKER_OT_open_resource,
+    IO_SOULWORKER_OT_export_vmesh,
+    IO_SOULWORKER_OT_export_model,
     IO_SOULWORKER_PT_unpack_resources,
+    IO_SOULWORKER_PT_export,
 }
 
 
