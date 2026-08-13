@@ -40,7 +40,7 @@ class MtrsChunk(DataExchange_cl):
     user_flags = 0
     ambient_color = VisColor()
     brightness = 0
-    light_color = 0
+    light_color = VisColor()
     parallax_scale = 0.0
     parallax_bias = 0.0
     config_effects: list[VisMaterialEffect]
@@ -140,6 +140,7 @@ class MtrsChunk(DataExchange_cl):
         payload_writer = BinaryWriter(payload)
 
         self.__write_payload(payload_writer)
+        payload_writer.flush()
         raw = payload.getvalue()
 
         writer.write_int32(self._envelope_enter_depth)
@@ -187,7 +188,7 @@ class MtrsChunk(DataExchange_cl):
         writer.write_uint32(self.user_flags)
         writer.write_color(self.ambient_color)
         writer.write_uint32(self.brightness)
-        writer.write_uint32(self.light_color)
+        writer.write_color(self.light_color)
         writer.write_float(self.parallax_scale)
         writer.write_float(self.parallax_bias)
 

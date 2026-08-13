@@ -7,6 +7,10 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
 from bpy.types import Collection, Context, LayerCollection, Operator, Panel, Scene
 
+from io_soulworker.file_export.operators import (
+    IO_SOULWORKER_OT_export_model,
+    IO_SOULWORKER_OT_export_vmesh,
+)
 from io_soulworker.file_import.animation.file_reader import AnimationFileReader
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
@@ -204,6 +208,28 @@ class IO_SOULWORKER_PT_unpack_resources(Panel):
         layout.operator(
             IO_SOULWORKER_OT_open_resource.bl_idname,
             text="Open",
+        )
+
+
+class IO_SOULWORKER_PT_export(Panel):
+    """Sidebar panel for SoulWorker model export."""
+
+    bl_idname = "IO_SOULWORKER_PT_export"
+    bl_label = "Export"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "SoulWorker"
+
+    def draw(self, context):
+
+        layout = self.layout
+        layout.operator(
+            IO_SOULWORKER_OT_export_vmesh.bl_idname,
+            text="Static Mesh (.vmesh)",
+        )
+        layout.operator(
+            IO_SOULWORKER_OT_export_model.bl_idname,
+            text="Dynamic Mesh (.model)",
         )
 
 

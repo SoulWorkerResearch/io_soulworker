@@ -10,15 +10,16 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
     MAGICK = 0x1020A0B
     MAX_TEXTURES = 16
     VERTEXDESC_OFFSET_MASK = 0x0FFF
+    UNSET_OFFSET = 0xFFFF
 
-    magic = MAGICK
+    magick = 0
     header_size = 48
-    stride = 0
-    pos_offset = 0
-    color_offset = 0
-    normal_offset = 0
-    tex_offset: list[int] = []
-    secondary_color_offset = -1
+    stride = 32
+    pos_offset = UNSET_OFFSET
+    color_offset = UNSET_OFFSET
+    normal_offset = UNSET_OFFSET
+    tex_offset: list[int] = [UNSET_OFFSET] * MAX_TEXTURES
+    secondary_color_offset = UNSET_OFFSET
     first_text_coord = 0
     last_text_coord = 0
     hash = 0
@@ -29,7 +30,7 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
 
     def has_component(self, value: int) -> bool:
 
-        return value != -1
+        return value != self.UNSET_OFFSET
 
     def offset_of(self, value: int) -> int:
 
@@ -69,11 +70,11 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
 
         if self.magick == self.MAGICK:
 
-            self.secondary_color_offset = -1
+            self.secondary_color_offset = self.UNSET_OFFSET
 
     def write(self, writer: BinaryWriter) -> None:
 
-        writer.write_uint32(self.magic)
+        writer.write_uint32(self.MAGICK)
         writer.write_uint32(self.header_size)
         writer.write_uint16(self.stride)
         writer.write_uint16(self.pos_offset)

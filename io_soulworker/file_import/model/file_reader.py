@@ -295,7 +295,8 @@ class ModelFileReader(ModelChunkReader):
                 else:
 
                     debug(
-                        f"Warning: bone_index {entity.bone_index} not found in vertex groups")
+                        f"Warning: bone_index {entity.bone_index} not found in vertex groups"
+                    )
 
 # https://youtu.be/UXQGKfCWCBc
 # https://youtu.be/6S-0XgGTn-E?list=RD6S-0XgGTn-E
