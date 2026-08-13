@@ -32,7 +32,7 @@ class ExprChunk(DataExchange_cl):
 
     def write(self, writer: BinaryWriter) -> None:
 
-        writer.write_uint32(self.version)
+        writer.write_uint32(self.LOCAL_VERSION)
 
         for row_index in range(3):
             row = self.matrix[row_index]
