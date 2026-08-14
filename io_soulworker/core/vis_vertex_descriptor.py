@@ -24,10 +24,6 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
     last_text_coord = 0
     hash = 0
 
-    def __init__(self) -> None:
-
-        self.tex_offset = [0] * self.MAX_TEXTURES
-
     def has_component(self, value: int) -> bool:
 
         return value != self.UNSET_OFFSET
@@ -93,7 +89,7 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
             writer.write_uint8(self.last_text_coord)
             writer.write_uint32(self.hash)
 
-        writer.write_uint32(self.magick)
+        writer.write_uint32(self.MAGICK)
 
     @staticmethod
     def from_reader(reader: BinaryReader) -> 'VisMBVertexDescriptor_cl':

@@ -15,6 +15,7 @@ from io_soulworker.core.vis_render_state import VisRenderState
 from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
+from io_soulworker.unit_scale import blender_to_vision
 
 
 # Descriptor flags observed in shipped static meshes (pos/normal float3, uv float2).
@@ -142,15 +143,32 @@ def _diffuse_from_blender_material(material) -> str:
             continue
 
         # Keep a game-style relative path when possible; otherwise basename.
-        path = image.filepath.replace("/", "\\")
+        path = image.filepath
 
         if path.startswith("//"):
 
             path = path[2:]
 
+        path = path.replace("/", "\\")
+
         return path if path else _DEFAULT_DIFFUSE
 
     return _DEFAULT_DIFFUSE
+
+
+def _vertex_and_normal_transforms(obj):
+
+    vertex_transform = obj.matrix_world.to_3x3()
+
+    try:
+
+        normal_transform = vertex_transform.inverted().transposed()
+
+    except ValueError:
+
+        normal_transform = vertex_transform.copy()
+
+    return vertex_transform, normal_transform
 
 
 def build_vmesh_from_blender_object(obj) -> VmeshExportData:
@@ -168,6 +186,7 @@ def build_vmesh_from_blender_object(obj) -> VmeshExportData:
         mesh.calc_normals_split()
 
     uv_layer = mesh.uv_layers.active.data if mesh.uv_layers.active else None
+    vertex_transform, normal_transform = _vertex_and_normal_transforms(obj)
 
     vertices: list[Vector] = []
     normals: list[Vector] = []
@@ -187,8 +206,12 @@ def build_vmesh_from_blender_object(obj) -> VmeshExportData:
             loop = mesh.loops[loop_index]
             vert = mesh.vertices[loop.vertex_index]
 
-            position = Vector(vert.co)
-            normal = Vector(loop.normal)
+            position = blender_to_vision(vertex_transform @ Vector(vert.co))
+            normal = Vector(normal_transform @ loop.normal)
+
+            if normal.length_squared > 0.0:
+
+                normal.normalize()
 
             if uv_layer is not None:
 

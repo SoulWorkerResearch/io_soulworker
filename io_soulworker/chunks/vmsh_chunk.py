@@ -57,8 +57,6 @@ class VMshChunk(DataExchange_cl):
     indices: list[int] = []
     faces: list[list[int]] = []
 
-    DEFAULT_TEXTURE_CHANNEL_COUNT = 16
-
     def read(self, reader: BinaryReader) -> None:
 
         cid = reader.read_cid()
@@ -332,7 +330,7 @@ class VMshChunk(DataExchange_cl):
         if self.texture_channels_count > 0:
             return [""] * self.texture_channels_count
 
-        return [""] * self.DEFAULT_TEXTURE_CHANNEL_COUNT
+        return []
 
     def __vector3_at(self, data: list, index: int) -> tuple[float, float, float]:
 

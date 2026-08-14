@@ -7,6 +7,7 @@ from mathutils import Matrix, Vector
 from io_soulworker.chunks.skel_chunk import VisSkeletalBone_cl
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.file_import.model.skeleton_builder import build_bone_transforms
+from io_soulworker.unit_scale import vision_to_blender
 
 
 class NameHelper:
@@ -99,7 +100,7 @@ def build_armature_from_skeleton(
 
     def bone_local_matrix(bone: VisSkeletalBone_cl) -> Matrix:
         matrix = bone.local_space_orientation.to_matrix().to_4x4()
-        matrix.translation = bone.local_space_position
+        matrix.translation = vision_to_blender(bone.local_space_position)
 
         return matrix
 

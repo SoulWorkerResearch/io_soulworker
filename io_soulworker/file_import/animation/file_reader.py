@@ -21,6 +21,7 @@ from io_soulworker.file_import.animation.action_builder import (
     vision_time_to_frame,
 )
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
+from io_soulworker.unit_scale import vision_to_blender
 
 
 @dataclass(frozen=True)
@@ -412,9 +413,9 @@ class AnimationFileReader(AnimationFileChunkReader):
                 frame = vision_time_to_frame(key_frame.time)
                 if offset_chunk.version == 0:
                     cumulative = cumulative + key_frame.offset
-                    location_keys.append((frame, cumulative.copy()))
+                    location_keys.append((frame, vision_to_blender(cumulative.copy())))
                 else:
-                    location_keys.append((frame, key_frame.offset.copy()))
+                    location_keys.append((frame, vision_to_blender(key_frame.offset.copy())))
 
         if rotation_chunk is not None:
             cumulative_angle = 0.0

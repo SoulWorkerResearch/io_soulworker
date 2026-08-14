@@ -13,6 +13,7 @@ from io_soulworker.file_import.armature_builder import (
     NameHelper,
     build_armature_from_skeleton,
 )
+from io_soulworker.unit_scale import vision_to_blender
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 
 from bpy.types import (
@@ -186,7 +187,8 @@ class ModelFileReader(ModelChunkReader):
         self.mesh_chunk = chunk
 
         # fill vertices, edges and faces from file
-        self.mesh.from_pydata(chunk.vertices, [], chunk.faces)
+        vertices = [vision_to_blender(vertex) for vertex in chunk.vertices]
+        self.mesh.from_pydata(vertices, [], chunk.faces)
 
         uv_layer = self.mesh.uv_layers.new()
 
