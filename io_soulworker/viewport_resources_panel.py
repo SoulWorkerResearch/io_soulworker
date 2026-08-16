@@ -3,6 +3,7 @@ import bpy
 from logging import debug, error
 from pathlib import Path
 
+from bpy.app.handlers import persistent
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
 from bpy.types import Collection, Context, LayerCollection, Operator, Panel, Scene
@@ -14,6 +15,28 @@ from io_soulworker.file_export.operators import (
 from io_soulworker.file_import.animation.file_reader import AnimationFileReader
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
+from io_soulworker.file_import.shaders.node_groups import sync_shader_node_groups
+
+
+def _on_unpack_resources_update(scene: Scene, _context: Context) -> None:
+
+    count = sync_shader_node_groups(scene.soulworker_unpack_resources)
+
+    debug("ShaderLib sync finished: %d effects", count)
+
+
+@persistent
+def _sync_shader_libs_on_load(_dummy) -> None:
+
+    import bpy
+
+    for scene in bpy.data.scenes:
+
+        root = getattr(scene, "soulworker_unpack_resources", "") or ""
+
+        if root.strip():
+
+            sync_shader_node_groups(root)
 
 
 def _get_layer_collection(
@@ -235,14 +258,27 @@ class IO_SOULWORKER_PT_export(Panel):
 
 def register_unpack_resources_props():
 
+    import bpy
+
     Scene.soulworker_unpack_resources = StringProperty(
         name="Resources",
         description="Root folder of unpacked SoulWorker resources",
         default="",
         subtype="DIR_PATH",
+        update=_on_unpack_resources_update,
     )
+
+    if _sync_shader_libs_on_load not in bpy.app.handlers.load_post:
+
+        bpy.app.handlers.load_post.append(_sync_shader_libs_on_load)
 
 
 def unregister_unpack_resources_props():
+
+    import bpy
+
+    if _sync_shader_libs_on_load in bpy.app.handlers.load_post:
+
+        bpy.app.handlers.load_post.remove(_sync_shader_libs_on_load)
 
     del Scene.soulworker_unpack_resources

@@ -15,6 +15,10 @@ from io_soulworker.file_import.armature_builder import (
 )
 from io_soulworker.unit_scale import vision_to_blender
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
+from io_soulworker.file_import.shaders.node_groups import (
+    apply_shader_to_material,
+    arrange_material_nodes,
+)
 
 from bpy.types import (
     Context,
@@ -120,59 +124,63 @@ class ModelFileReader(ModelChunkReader):
 
             debug("texture path: %s", path)
 
-            if path is None:
+            if path is not None:
 
-                error("No textures found for material: %s", material.name)
-                return
+                texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
+                texture_node.name = "Diffuse"
+                texture_node.label = "Diffuse"
+                debug("texture node: %s", texture_node)
 
-            texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
-            debug("texture node: %s", texture_node)
+                texture_node.image = bpy.data.images.load(
+                    str(path),
+                    check_existing=True
+                )
 
-            texture_node.image = bpy.data.images.load(
-                str(path),
-                check_existing=True
-            )
-
-            debug("texture loaded: %s", texture_node.image.name_full)
-
-            node_tree.links.new(
-                pbsdf_node.inputs["Base Color"],
-                texture_node.outputs["Color"]
-            )
-
-            node_tree.links.new(
-                pbsdf_node.inputs["Alpha"],
-                texture_node.outputs["Alpha"]
-            )
-
-            if "MO_HAIR" in material.name:
-
-                NodesHelper.create_hair_nodes()
-
-            if "GLOW" in material.name:
-
-                debug("has glow")
-
-                # pbsdf_node.inputs["Emission Strength"].default_value = self.emission_strength
+                debug("texture loaded: %s", texture_node.image.name_full)
 
                 node_tree.links.new(
-                    pbsdf_node.inputs["Emission Strength"],
+                    pbsdf_node.inputs["Base Color"],
+                    texture_node.outputs["Color"]
+                )
+
+                node_tree.links.new(
+                    pbsdf_node.inputs["Alpha"],
                     texture_node.outputs["Alpha"]
                 )
 
-                node_tree.links.new(
-                    pbsdf_node.inputs["Emission Color"],
-                    texture_node.outputs["Color"]
-                )
+                if "MO_HAIR" in material.name:
+
+                    NodesHelper.create_hair_nodes()
+
+                if "GLOW" in material.name:
+
+                    debug("has glow")
+
+                    node_tree.links.new(
+                        pbsdf_node.inputs["Emission Strength"],
+                        texture_node.outputs["Alpha"]
+                    )
+
+                    node_tree.links.new(
+                        pbsdf_node.inputs["Emission Color"],
+                        texture_node.outputs["Color"]
+                    )
+
+            else:
+
+                error("No textures found for material: %s", material.name)
 
             if chunk.transparency_type != VisTransparencyType.NONE:
 
                 debug("has alpha")
 
-                # material.blend_method = "HASHED"
-                # material.shadow_method = "HASHED"
+            xml_material = self.xml_materials.get(chunk.name)
 
-            # material.alpha_threshold = v_material.alphathreshold
+            if xml_material is not None and xml_material.shader is not None:
+
+                apply_shader_to_material(material, xml_material.shader)
+
+            arrange_material_nodes(node_tree)
 
         material = bpy.data.materials.new(chunk.name)
         material.use_nodes = True

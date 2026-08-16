@@ -413,9 +413,11 @@ class AnimationFileReader(AnimationFileChunkReader):
                 frame = vision_time_to_frame(key_frame.time)
                 if offset_chunk.version == 0:
                     cumulative = cumulative + key_frame.offset
-                    location_keys.append((frame, vision_to_blender(cumulative.copy())))
+                    location_keys.append(
+                        (frame, vision_to_blender(cumulative.copy())))
                 else:
-                    location_keys.append((frame, vision_to_blender(key_frame.offset.copy())))
+                    location_keys.append(
+                        (frame, vision_to_blender(key_frame.offset.copy())))
 
         if rotation_chunk is not None:
             cumulative_angle = 0.0
@@ -464,7 +466,8 @@ class AnimationFileReader(AnimationFileChunkReader):
             ]
             start = min(root_frames)
             end = max(root_frames)
-            action.frame_start = min(int(action.frame_start), start) if action.frame_end else start
+            action.frame_start = min(
+                int(action.frame_start), start) if action.frame_end else start
             action.frame_end = max(int(action.frame_end), end)
 
     def _add_object_vector_curves(

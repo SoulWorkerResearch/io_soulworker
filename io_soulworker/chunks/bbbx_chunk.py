@@ -35,7 +35,8 @@ class BBBXChunk(DataExchange_cl):
     def read(self, reader: BinaryReader) -> None:
 
         count = reader.read_uint16()
-        self.values = [BBBXChunk.Entity.from_reader(reader) for _ in range(count)]
+        self.values = [BBBXChunk.Entity.from_reader(
+            reader) for _ in range(count)]
 
     def write(self, writer: BinaryWriter) -> None:
 

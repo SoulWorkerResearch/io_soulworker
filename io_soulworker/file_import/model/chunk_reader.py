@@ -24,6 +24,14 @@ from io_soulworker.core.xml_helper.exchange_transparency import exchange_transpa
 
 class ModelChunkReader(VisChunkFileReader):
 
+    xml_materials: dict[str, VisMaterial]
+
+    def __init__(self, path: Path) -> None:
+
+        super().__init__(path)
+
+        self.xml_materials = {}
+
     def on_surface(self, chunk: MtrsChunk):
         debug('Not impl callback')
 
@@ -88,14 +96,14 @@ class ModelChunkReader(VisChunkFileReader):
 
     def __parse_materials(self, reader: BinaryReader) -> None:
 
-        overrides = ModelChunkReader.__xml_material(reader)
+        self.xml_materials = ModelChunkReader.__xml_material(reader)
 
         count = reader.read_uint32()
 
         for _ in range(count):
             chunk = MtrsChunk.from_reader(reader)
 
-            override = overrides.get(chunk.name)
+            override = self.xml_materials.get(chunk.name)
             if override:
                 chunk.diffuse_map = override.diffuse
 
@@ -135,7 +143,7 @@ class ModelChunkReader(VisChunkFileReader):
             shader_node = node.find('Shader')
 
             if shader_node is not None:
-                shader = ShaderTag(node.find('Shader'))
+                material.shader = ShaderTag(shader_node)
 
             material.ambient = __color("ambient", node)
 
