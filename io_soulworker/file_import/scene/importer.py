@@ -76,7 +76,7 @@ class SceneImportResult:
 
 
 class SceneImporter:
-    """Parse a ``.vscene`` (and its ``.vzone`` sidecars) into Layers collections."""
+    """Parse a ``.vscene`` (and its ``.vzone`` sidecars) into Zones collections."""
 
     def __init__(
         self,
@@ -104,9 +104,9 @@ class SceneImporter:
         reader = SceneFileReader(self.path)
         reader.run()
 
-        layers = self._prepare_layers_collection()
-        result.collection = layers
-        root = find_or_create_child_collection(layers, "Root")
+        zones = self._prepare_zones_collection()
+        result.collection = zones
+        root = find_or_create_child_collection(zones, "Root")
         set_active_collection(self.context, root)
 
         if reader.shapes is None:
@@ -118,14 +118,14 @@ class SceneImporter:
                 result,
             )
             info(
-                "Imported %d static mesh instance(s) into Layers/Root from %s",
+                "Imported %d static mesh instance(s) into Zones/Root from %s",
                 result.static_mesh_count,
                 self.path.name,
             )
 
         for zone_path in zone_files_for_scene(self.path):
             zone_collection = find_or_create_child_collection(
-                layers,
+                zones,
                 zone_path.stem,
             )
             zone_collection.color_tag = "COLOR_05"
@@ -143,7 +143,7 @@ class SceneImporter:
             )
             result.zone_mesh_count += placed
             info(
-                "Imported %d static mesh instance(s) into Layers/%s",
+                "Imported %d static mesh instance(s) into Zones/%s",
                 placed,
                 zone_path.stem,
             )
@@ -209,7 +209,7 @@ class SceneImporter:
 
         return placed
 
-    def _prepare_layers_collection(self) -> Collection:
+    def _prepare_zones_collection(self) -> Collection:
 
         segments = collection_segments_under_resources(
             str(self.resources_root),
@@ -222,7 +222,7 @@ class SceneImporter:
         scene_root = ensure_collection_hierarchy(self.context, segments)
         scene_root.color_tag = leaf_collection_color_tag(self.path)
 
-        layers = find_or_create_child_collection(scene_root, "Layers")
-        layers.color_tag = "COLOR_04"
+        zones = find_or_create_child_collection(scene_root, "Zones")
+        zones.color_tag = "COLOR_04"
 
-        return layers
+        return zones
