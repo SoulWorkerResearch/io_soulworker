@@ -30,6 +30,7 @@ from io_soulworker.file_import.armature_builder import (
     build_armature_from_skeleton,
 )
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
+from io_soulworker.file_import.model.surface_nodes import apply_surface_params
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
     arrange_material_nodes,
@@ -243,6 +244,16 @@ class ModelFileReader(ModelChunkReader):
             else:
 
                 error("No textures found for material: %s", material.name)
+
+            apply_surface_params(
+                material,
+                pbsdf_node,
+                chunk,
+                resolve_texture=lambda relative: get_texture_path(
+                    self.path.parent,
+                    relative,
+                ),
+            )
 
             if chunk.transparency_type != VisTransparencyType.NONE:
 

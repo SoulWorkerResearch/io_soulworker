@@ -110,6 +110,21 @@ class ModelChunkReader(VisChunkFileReader):
             if override:
                 chunk.diffuse_map = override.diffuse
 
+                if override.specmul is not None:
+                    chunk.spec_mul = override.specmul
+
+                if override.specexp is not None:
+                    chunk.spec_exp = override.specexp
+
+                if override.alphathreshold is not None:
+                    chunk.custom_alpha_threshold = override.alphathreshold
+
+                if override.parallaxscale is not None:
+                    chunk.parallax_scale = override.parallaxscale
+
+                if override.parallaxbias is not None:
+                    chunk.parallax_bias = override.parallaxbias
+
             self.on_surface(chunk)
 
     @staticmethod
@@ -149,6 +164,18 @@ class ModelChunkReader(VisChunkFileReader):
                 material.shader = ShaderTag(shader_node)
 
             material.ambient = __color("ambient", node)
+
+            if "specmul" in node.attrib:
+                material.specmul = float(node.attrib["specmul"])
+
+            if "specexp" in node.attrib:
+                material.specexp = float(node.attrib["specexp"])
+
+            if "parallaxscale" in node.attrib:
+                material.parallaxscale = float(node.attrib["parallaxscale"])
+
+            if "parallaxbias" in node.attrib:
+                material.parallaxbias = float(node.attrib["parallaxbias"])
 
             material.diffuse = node.attrib["diffuse"]
             material.transparency = VisTransparencyType(

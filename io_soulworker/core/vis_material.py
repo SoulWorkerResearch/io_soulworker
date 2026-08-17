@@ -24,16 +24,16 @@ class VisMaterial:
     ambient: list[int]
     """ the ambient color of this surface """
 
-    specmul: int
-    """ specular multiplier """
+    specmul: float | None = None
+    """ specular multiplier (``materials.xml``); ``None`` if omitted """
 
-    specexp: int
-    """ specular exponent """
+    specexp: float | None = None
+    """ specular exponent (``materials.xml``); ``None`` if omitted """
 
-    parallaxscale: float
+    parallaxscale: float | None = None
     """ parallax scale """
 
-    parallaxbias: float
+    parallaxbias: float | None = None
     """ parallax bias """
 
     lightmapsize: Vector  # x, y
