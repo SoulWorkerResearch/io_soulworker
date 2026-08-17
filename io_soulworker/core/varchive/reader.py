@@ -184,9 +184,57 @@ class VArchiveReader:
         return raw.decode("cp949", errors="replace")
 
     def read_vstring(self) -> str:
-        """``operator>>(VArchive, VString)`` — same wire as ReadStringBinary."""
+        """``operator>>(VArchive, VString)`` — same as ReadStringBinary."""
 
         return self.read_string_binary()
+
+    def read_compressed_int(self) -> int:
+        """``VArchive::ReadCompressedInt`` — variable-length signed int."""
+
+        lead = self.read_uint8()
+        low = lead & 0x1F
+        kind = lead & 0xE0
+
+        if kind == 0:
+            return low
+
+        if kind == 0xA0:
+            return -1 - low
+
+        if kind == 0x20:
+            return (low << 8) | self.read_uint8()
+
+        if kind == 0x40:
+            mid = self.read_uint8()
+            return (low << 16) | (mid << 8) | self.read_uint8()
+
+        if kind == 0x60:
+            b1 = self.read_uint8()
+            b2 = self.read_uint8()
+            b3 = self.read_uint8()
+            return (low << 24) | (b1 << 16) | (b2 << 8) | b3
+
+        return self.read_uint32()
+
+    def read_encrypted_string(self) -> str:
+        """``VArchive::ReadEncryptedString`` — compressed length + XOR bytes.
+
+        Each byte ``i`` is stored as ``plain ^ ((i + 17) * (i + 11))``.
+        Negative length is an empty string.
+        """
+
+        length = self.read_compressed_int()
+
+        if length < 0:
+            return ""
+
+        raw = self.read(length)
+        plain = bytes(
+            byte ^ (((index + 17) * (index + 11)) & 0xFF)
+            for index, byte in enumerate(raw)
+        )
+
+        return plain.decode("cp949", errors="replace")
 
     def read_color_ref(self) -> int:
         """``VColorRef`` stored as little-endian RGBA uint32."""
@@ -260,6 +308,28 @@ class VArchiveReader:
         """``SerializeX(hkvAlignedBBox)`` — two SerializeX vec3."""
 
         return self.read_vec3(), self.read_vec3()
+
+    def read_class(self) -> tuple[str, int] | None:
+        """``VArchive::ReadClass`` — class tag, may append a type slot."""
+
+        tag = self.read_uint32()
+
+        if tag == 0:
+            return None
+
+        if (tag & self.TYPE_INDEX_FLAG) == 0:
+            raise VArchiveError(
+                f"ReadClass got object tag #{tag} (expected a type index)"
+            )
+
+        return self._read_class(tag)
+
+    def read_typed_object_reference(self) -> ArchiveObject | None:
+        """``operator>>(VArchive, VTypedObjectReference)`` (loading)."""
+
+        self.read_class()
+
+        return self.read_object()
 
     def read_object(self, *, expected: str |
                     None = None) -> ArchiveObject | None:

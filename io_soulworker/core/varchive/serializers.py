@@ -219,6 +219,92 @@ def serialize_object3d(ar: VArchiveReader, obj: Object3D) -> None:
         _serialize_object3d_vis_data(ar)
 
 
+def _serialize_visibility_object_collection(ar: VArchiveReader) -> None:
+    """``VisRefCountedVisibilityObjectCollection_cl::SerializeX`` (loading)."""
+
+    for _ in range(ar.read_int32()):
+        ar.read_object()  # VisVisibilityObject_cl (map sync)
+
+
+def serialize_mirror(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisMirror_cl::Serialize`` (loading). Save writes local version 12."""
+
+    assert isinstance(obj, Object3D)
+    version = ar.read_uint8()
+
+    if version >= 8:
+        serialize_object3d(ar, obj)
+
+    ar.read_int32()  # resolution / size
+
+    if version >= 11:
+        ar.read_bool()  # render into scene / take fog
+
+    if version < 8:
+        ar.read_vis_vector()  # plane origin
+        ar.read_mat3()  # plane orientation
+
+    ar.read_float()  # plane size / width
+    ar.read_float()  # plane size / height
+
+    if version >= 1:
+        ar.read_string_binary()  # mesh / model path
+
+    _serialize_effect_config(ar)
+
+    if version >= 2:
+        _serialize_visibility_object_collection(ar)
+
+    if version >= 4:
+        ar.read_object()  # VisVisibilityObjectAABox_cl
+
+    if version >= 3:
+        ar.read_float()  # far clip / fade
+
+    if version >= 5:
+        ar.read_uint32()  # render context / type
+
+    if version >= 6:
+        ar.read_int32()  # context flags
+
+    if version >= 7:
+        ar.read_float()  # bias
+        ar.read_float()  # scale
+
+    if version >= 9:
+        ar.read_bool()  # use shader / FX
+
+    if version >= 10:
+        ar.read_vec3()  # plane normal
+
+    if version >= 12:
+        ar.read_uint32()  # extra render flags
+
+
+def serialize_planar_water(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``PlanarWater_cl::Serialize`` (loading). Save writes local version 5."""
+
+    serialize_mirror(ar, obj)
+    version = ar.read_uint8()
+
+    if version >= 1:
+        ar.read_bool()  # use scene light
+
+    if version >= 2:
+        ar.read_object()  # linked VisLightSource_cl
+
+    if version >= 3:
+        ar.read_bool()  # foam / shore
+        ar.read_color_ref()  # water tint
+        ar.read_vec2()  # uv scale
+
+    if version >= 4:
+        ar.read_bool()  # displacement / waves
+
+        if version == 4:
+            ar.read_bool()  # extra v4 flag
+
+
 def serialize_visibility_zone(ar: VArchiveReader, obj: ArchiveObject) -> None:
     """``VisVisibilityZone_cl::Serialize`` (loading)."""
 
@@ -299,8 +385,16 @@ def serialize_forward_rendering_system(
 def serialize_fake_glow_post_process(
         ar: VArchiveReader,
         obj: ArchiveObject) -> None:
+    """``VFakeGlowPostProcess::Serialize`` (loading). Values unused."""
 
-    raise VArchiveError("VFakeGlowPostProcess should be leaf-skipped")
+    ar.read_bool()  # active
+    ar.read_int32()  # blur passes
+    ar.read_float()  # glow intensity
+    ar.read_float()  # glow threshold
+    ar.read_float()  # glow radius
+    ar.read_float()  # blur offset
+    ar.read_int32()  # downscale mode
+    ar.read_object()  # IVRendererNode
 
 
 def serialize_tone_mapping(ar: VArchiveReader, obj: ArchiveObject) -> None:
@@ -325,14 +419,77 @@ def serialize_tone_mapping(ar: VArchiveReader, obj: ArchiveObject) -> None:
 def serialize_copy_post_process(
         ar: VArchiveReader,
         obj: ArchiveObject) -> None:
-    """``VSimpleCopyPostprocess`` / ``VCopyPostProcess`` wire (loading).
+    """``VCopyPostProcess::Serialize`` (GamePlugin, loading).
 
-    LoginBackground names the class ``VCopyPostProcess``; the stock plugin
-    type is ``VSimpleCopyPostprocess``. Both write active + renderer ref.
+    LoginBackground uses this class. Layout is two int32s then the
+    renderer node — not the stock ``VSimpleCopyPostprocess``.
     """
 
+    ar.read_int32()  # source / target RT
+    ar.read_int32()  # copy flags
+    ar.read_object()  # IVRendererNode
+
+
+def serialize_simple_copy_post_process(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VSimpleCopyPostprocess::Serialize`` (loading)."""
+
     ar.read_bool()  # active
-    ar.read_object()  # renderer
+    ar.read_object()  # IVRendererNode
+
+
+def serialize_radial_blur(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VRadialBlur::Serialize`` (loading)."""
+
+    ar.read_float()  # center U
+    ar.read_float()  # center V
+    ar.read_float()  # blur strength
+    ar.read_object()  # IVRendererNode
+    ar.read_int32()  # flags / quality
+
+
+def serialize_post_process_screen_filter(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VPostProcessScreenFilter::Serialize`` (loading).
+
+    Engine skips the payload when the archive is already at EOF.
+    """
+
+    if ar.eof():
+        return
+
+    ar.read_bool()  # active
+    ar.read_int32()  # filter / blend mode
+    ar.read_object()  # IVRendererNode
+
+
+def serialize_post_process_outline(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VPostProcessOutline::Serialize`` (loading)."""
+
+    ar.read_int32()  # local version (engine overwrites after read)
+    ar.read_bool()  # active
+    ar.read_object()  # IVRendererNode
+    ar.read_color_ref()  # outline color
+    ar.read_float()  # thickness
+    ar.read_float()  # fade / distance
+    ar.read_float()  # extra radius
+    ar.read_int32()  # flags / quality
+
+
+def serialize_texture_serialization_proxy(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VTextureSerializationProxy::Serialize`` (loading).
+
+    Same wire as ``VTextureObject::DoArchiveExchange``: kind byte, then
+    load flags and filename when the texture is present.
+    """
+
+    _serialize_texture_exchange(ar)
 
 
 def serialize_static_geometry_instance(ar: VArchiveReader) -> dict:
@@ -797,6 +954,49 @@ def serialize_sector_box(ar: VArchiveReader, obj: ArchiveObject) -> None:
     serialize_base_entity(ar, obj)
 
 
+def serialize_gate_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VGateEntity_cl::Serialize`` (loading). Save writes local version 0."""
+
+    serialize_base_entity(ar, obj)
+    ar.read_uint8()  # local version
+    ar.read_string_binary()  # open animation
+    ar.read_string_binary()  # close animation
+    ar.read_string_binary()  # open sound
+    ar.read_string_binary()  # close sound
+    ar.read_string_binary()  # idle / loop animation
+
+
+def serialize_cube_map_handle(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``CubeMapHandle_cl::Serialize`` (loading). Save writes local version 5."""
+
+    serialize_base_entity(ar, obj)
+    version = ar.read_int32()
+
+    if version >= 3:
+        ar.read_int32()  # cubemap size / faces
+
+    if version >= 2:
+        ar.read_int32()  # update / capture mode
+
+    if version >= 1:
+        ar.read_float()  # near clip
+        ar.read_float()  # far clip
+        ar.read_int32()  # blur passes
+
+    ar.read_int32()  # render filter mask
+
+    if version >= 4:
+        ar.read_int32()  # extra capture flags
+
+    ar.read_float()  # intensity / bias
+    ar.read_int32()  # face / slot index
+
+    if version >= 5:
+        ar.read_bool()  # auto-gen mipmaps
+
+    ar.read_string_binary()  # cubemap key / texture path
+
+
 def serialize_static_collision_entity(
         ar: VArchiveReader,
         obj: ArchiveObject) -> None:
@@ -808,7 +1008,305 @@ def serialize_static_collision_entity(
     """
 
     serialize_base_entity(ar, obj)
-    ar.read_uint8()
+    ar.read_uint8()  # local version (engine writes 0)
+
+
+def serialize_anim_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``AnimEntity_cl::Serialize`` (loading). Save writes local version 3."""
+
+    serialize_base_entity(ar, obj)
+    version = ar.read_uint8()
+    ar.read_string_binary()  # animation name
+    ar.read_string_binary()  # path key
+    ar.read_float()  # path time
+
+    if version >= 2:
+        ar.read_object()  # VisPath_cl
+
+    if version >= 3:
+        ar.read_int32()  # skinning mode
+
+
+def serialize_cinematic_actor(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VCinematicActor_cl::Serialize`` (loading). Save writes local version 1."""
+
+    serialize_base_entity(ar, obj)
+    version = ar.read_uint8()
+    ar.read_string_binary()  # animation name
+    ar.read_string_binary()  # path key
+    ar.read_float()  # path time
+
+    if version >= 1:
+        ar.read_object()  # VisPath_cl
+
+
+def _serialize_path_node(ar: VArchiveReader, *, has_version: bool) -> None:
+    """``VisPathNode_cl::SerializeX`` (loading)."""
+
+    local_version = ar.read_uint8() if has_version else 0
+    ar.read_object()  # parent VisPath_cl
+    ar.read_vis_vector()  # local position
+    ar.read_vis_vector()  # control point 0
+    ar.read_vis_vector()  # control point 1
+    ar.read_uint8()  # inout type
+
+    if local_version >= 1:
+        ar.read_vstring()  # node key
+
+
+def serialize_path(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisPath_cl::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    version = ar.read_uint8()
+    node_count = ar.read_int32()
+    ar.read_bool()  # closed loop
+
+    if ar.loading_version < 25:
+        ar.read_vstring()  # object key (legacy)
+
+    for _ in range(node_count):
+        _serialize_path_node(ar, has_version=version > 0)
+
+
+def serialize_displacement_water(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``DisplacementWater_cl::Serialize`` (loading).
+
+    Extra fields are stored *before* ``PlanarWater_cl``.
+    """
+
+    ar.read_uint8()  # local version
+    ar.read_bool()  # radial grid
+    ar.read_int32()  # grid subdivisions x
+    ar.read_int32()  # grid subdivisions y
+    serialize_planar_water(ar, obj)
+
+
+def serialize_custom_volume_object(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VCustomVolumeObject::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    ar.read_uint32()  # local version
+    ar.read_string_binary()  # static mesh path
+    ar.read_bool()  # custom static mesh
+    ar.read_vec3()  # scale
+
+
+def serialize_skeletal_bone_proxy(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VSkeletalBoneProxyObject::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    ar.read_uint8()  # local version
+    ar.read_int32()  # bone index
+
+
+def _serialize_cloth_mesh(ar: VArchiveReader) -> None:
+    """``VClothMesh::SerializeX`` (loading) — two constraint lists."""
+
+    _serialize_particle_constraint_list(ar)
+    count = _serialize_particle_constraint_list(ar)
+
+    for _ in range(count):
+        ar.read_int32()  # point index / bone bind
+
+
+def serialize_cloth_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``ClothEntity_cl::Serialize`` (loading). Save writes local version 1."""
+
+    serialize_base_entity(ar, obj)
+    version = ar.read_uint8()
+    ar.read_uint8()  # model type
+    ar.read_string_binary()  # mesh / model path
+    ar.read_vec4()  # position
+    ar.read_vec4()  # orientation
+
+    if version >= 1:
+        ar.read_vis_vector()  # scaling
+
+    ar.read_float()  # physics ticks
+    ar.read_bool()  # simulate when visible
+    ar.read_float()  # gravity
+
+    if ar.read_bool():  # has cloth mesh
+        _serialize_cloth_mesh(ar)
+
+    ar.read_int32()  # initial tick count
+    ar.read_int32()  # reserved
+
+
+def serialize_directing_entity_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VDirectingOfEntityComponent::Serialize`` (loading)."""
+
+    serialize_object_component_base(ar, obj)
+    version = ar.read_uint8()
+
+    for _ in range(5):
+        ar.read_vstring()  # slot name
+        ar.read_vstring()  # animation / event
+        ar.read_vstring()  # extra key
+        ar.read_float()  # time / blend
+        ar.read_float()  # time / blend
+        ar.read_float()  # time / blend
+        ar.read_float()  # weight
+        ar.read_float()  # extra
+
+        if version >= 3:
+            ar.read_float()  # extra v3
+
+        if version >= 2:
+            ar.read_float()  # extra v2
+
+    ar.read_vstring()  # owner / group key
+    ar.read_uint32()  # flags
+
+    if version >= 4:
+        ar.read_int32()  # extra id
+
+
+def serialize_directing_prefab_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VDirectingOfPrefabComponent::Serialize`` (loading).
+
+    Does not call ``IVObjectComponent::Serialize``.
+    """
+
+    version = ar.read_uint8()
+    ar.read_float()  # blend / duration
+
+    if version >= 4:
+        ar.read_float()  # extra blend
+
+    if version >= 2:
+        ar.read_vis_vector()  # offset
+
+    ar.read_string_binary()  # prefab path
+    ar.read_string_binary()  # node / key
+
+    if version >= 3:
+        ar.read_string_binary()  # extra path / key
+
+    ar.read_int32()  # status / flags
+
+
+def serialize_havok_rigid_body(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``vHavokRigidBody::Serialize`` (loading). Save writes local version 9."""
+
+    serialize_object_component_base(ar, obj)
+    version = ar.read_uint8()
+    ar.read_int32()  # motion type
+    ar.read_vis_vector()  # box size / extent
+    ar.read_float()  # mass
+    ar.read_vis_vector()  # inertia / offset
+    ar.read_vis_vector()  # center of mass
+    ar.read_float()  # friction
+    ar.read_float()  # restitution
+    ar.read_float()  # linear damping
+    ar.read_float()  # angular damping
+    ar.read_float()  # max / extra
+    ar.read_color_ref()  # debug color
+
+    if version > 0:
+        ar.read_vstring()  # shape / mesh path
+
+    if version > 1:
+        ar.read_int32()  # quality type
+        ar.read_int32()  # collision filter
+        ar.read_int32()  # extra flags
+
+    if version >= 3:
+        ar.read_int32()  # collision layer
+        ar.read_int32()  # system group
+        ar.read_int32()  # subsystem id
+        ar.read_int32()  # extra group
+        ar.read_vis_vector()  # linear velocity
+        ar.read_vis_vector()  # angular velocity
+
+    if version >= 4:
+        ar.read_float()  # gravity factor
+
+    if version >= 5:
+        ar.read_int32()  # motion type extra
+        ar.read_int32()  # deactivation
+        ar.read_float()  # max angular speed
+        ar.read_vis_vector()  # pivot / offset
+        ar.read_float()  # extra scale
+
+    if version >= 6:
+        ar.read_int32()  # welding type
+
+    if version >= 7:
+        ar.read_float()  # max linear speed
+
+    if version >= 8:
+        ar.read_int32()  # contact flags
+
+    if version >= 9:
+        ar.read_int32()  # extra int
+
+
+def serialize_character_particle_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VCharacterParticleComponent::Serialize`` (loading)."""
+
+    serialize_object_component_base(ar, obj)
+    ar.read_uint8()  # local version
+    ar.read_vstring()  # particle effect path
+    ar.read_vstring()  # attach / bone name
+
+
+def serialize_follow_path_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VFollowPathComponent::Serialize`` (loading). Save writes version 2."""
+
+    serialize_object_component_base(ar, obj)
+    version = ar.read_uint8()
+    path = None
+
+    if version >= 1:
+        path = ar.read_object()  # VisPath_cl
+
+    if path is None:
+        ar.read_vstring()  # path key
+
+    ar.read_float()  # speed
+    ar.read_float()  # offset / time
+    ar.read_int32()  # direction / mode
+    ar.read_int32()  # flags
+
+    if version >= 2:
+        ar.read_int32()  # extra flags
+
+    ar.read_vis_vector()  # position offset
+    ar.read_vis_vector()  # orientation offset
+
+
+def serialize_light_clipping_volume_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VLightClippingVolumeComponent::Serialize`` (loading).
+
+    Does not call ``IVObjectComponent::Serialize``. Payload is a local
+    int32 version plus a ``VTypedObjectReference``.
+    """
+
+    ar.read_int32()  # local version
+    ar.read_typed_object_reference()  # clipping volume object
 
 
 def serialize_electronic_display(
@@ -855,7 +1353,7 @@ def serialize_particle_constraint_obox(
     """``VisParticleConstraintAABox_cl`` / ``OBox`` share this Serialize."""
 
     serialize_particle_constraint(ar, obj)
-    ar.read_bbox_vis()
+    ar.read_bbox_vis()  # box extents
     ar.read_bool()  # inverted / inside
 
 
@@ -887,12 +1385,12 @@ def serialize_particle_constraint_plane(
         ar.read_float()  # hkvPlane SerializeX
 
     if ar.loading_version >= 22:
-        ar.read_bool()
-        ar.read_float()
-        ar.read_float()
+        ar.read_bool()  # infinite / two-sided
+        ar.read_float()  # plane extent
+        ar.read_float()  # plane extent
 
         if version >= 3:
-            ar.read_float()
+            ar.read_float()  # extra thickness / padding
 
 
 def serialize_particle_constraint_cambox(
@@ -932,12 +1430,16 @@ def serialize_particle_affector_gravity(
     ar.read_float()  # radius
 
 
-def _serialize_particle_constraint_list(ar: VArchiveReader) -> None:
+def _serialize_particle_constraint_list(ar: VArchiveReader) -> int:
     """``VisParticleConstraintList_cl::SerializeX`` (loading)."""
 
-    for _ in range(ar.read_int32()):
+    count = ar.read_int32()
+
+    for _ in range(count):
         ar.read_object()  # constraint (map sync)
         ar.read_int32()  # influence flags
+
+    return count
 
 
 def _serialize_particle_group(ar: VArchiveReader) -> None:
@@ -1194,7 +1696,10 @@ def serialize_model_serialization_proxy(
 def serialize_static_mesh_alpha_controller(
         ar: VArchiveReader,
         obj: ArchiveObject) -> None:
-    """``VStaticMeshAlphaController::Serialize`` (loading)."""
+    """``VStaticMeshAlphaController::Serialize`` (loading).
+
+    Does not call ``IVObjectComponent::Serialize``. The float is unused.
+    """
 
     ar.read_float()  # alpha / fade
 
@@ -1346,21 +1851,173 @@ def serialize_projected_wallmark(
         ar.read_int32()  # visibility level
 
 
-def serialize_time_of_day(ar: VArchiveReader, obj: ArchiveObject) -> None:
-    """Minimal ``VTimeOfDay`` walk — leaf-skip preferred when lengths exist."""
+def _serialize_curve_2d(ar: VArchiveReader) -> None:
+    """``VCurve2DBase::SerializeX`` (loading). Values unused."""
 
-    raise VArchiveError("VTimeOfDay should be leaf-skipped or fully ported")
+    ar.read_uint8()  # local version
+    point_count = ar.read_int32()
+
+    if point_count > 0:
+        ar.read(24 * point_count)  # 6 floats per control point
+
+    ar.read_float()  # min / range
+    ar.read_float()  # max / range
+    ar.read_int32()  # lookup sample count
+
+
+def _serialize_color_curve(ar: VArchiveReader) -> None:
+    """``VColorCurve::SerializeX`` (loading). Values unused."""
+
+    ar.read_uint8()  # local version
+    ar.read_float()  # alpha / scale
+    _serialize_curve_2d(ar)
+    _serialize_curve_2d(ar)
+    _serialize_curve_2d(ar)
+    _serialize_curve_2d(ar)
+    ar.read_int16()  # lookup size
+
+
+def _serialize_script_instance(ar: VArchiveReader) -> None:
+    """``VScriptInstance::ScriptSerialize`` (loading). Values unused."""
+
+    size = ar.read_int32()
+    local_version = 0
+
+    if size < 0:
+        local_version = ar.read_uint8()
+        ar.read_int16()  # nested archive version
+
+        if local_version >= 1:
+            for _ in range(ar.read_int32()):
+                ar.read_object()  # captured VTypedObject
+
+            size = ar.read_int32()
+
+    if size > 0:
+        if local_version == 0:
+            ar.read_int16()  # nested archive version (legacy)
+
+        ar.read(size)  # Lua OnSerialize blob
+
+
+def serialize_script_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``VScriptComponent::Serialize`` (loading). Save writes version 2."""
+
+    serialize_object_component_base(ar, obj)
+    version = ar.read_uint8()
+    ar.read_object()  # owner VisTypedEngineObject (re-parent)
+    instance = ar.read_object()  # VScriptInstance
+
+    if version >= 2:
+        for _ in range(ar.read_int32()):
+            ar.read_encrypted_string()  # exposed member name
+            ar.read_encrypted_string()  # exposed member value
+
+    if instance is not None:
+        _serialize_script_instance(ar)
+
+
+def serialize_fmod_event(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VFmodEvent::Serialize`` (loading). Save writes local version 1."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    version = ar.read_int8()
+    ar.read_string_binary()  # event project path
+    ar.read_string_binary()  # event name
+    ar.read_vstring()  # full event path
+    ar.read_int32()  # flags / start mode
+
+    if version >= 1:
+        ar.read_bool()  # auto-start / paused
+
+
+def serialize_havok_ai_nav_mesh(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``vHavokAiNavMeshInstance::Serialize`` (loading). Values unused."""
+
+    serialize_typed_engine_object(ar, obj)
+    ar.read_uint32()  # local version
+    ar.read_uint32()  # flags / layer
+    ar.read_string_binary()  # navmesh resource path
+
+
+def serialize_time_of_day(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VTimeOfDay::Serialize`` (loading). Save writes local version 7."""
+
+    version = ar.read_uint8()
+    ar.read_float()  # time of day
+    ar.read_float()  # dawn / dusk
+    ar.read_float()  # night / duration
+    ar.read_bool()  # enabled
+
+    if version >= 3:
+        ar.read_bool()  # sun / moon flag
+
+    if version < 7:
+        ar.read_int32()  # legacy int (removed in v7)
+
+    if version >= 2:
+        ar.read_float()  # sun azimuth / pitch
+
+    if version >= 4:
+        ar.read_float()  # sun extra angle
+
+    sun_path_from_curve = False
+
+    if version >= 5:
+        sun_path_from_curve = ar.read_bool()
+
+    if version >= 6:
+        ar.read_float()  # fog / sky param
+        ar.read_float()  # fog / sky param
+        ar.read_float()  # fog / sky param
+        ar.read_float()  # fog / sky param
+
+    _serialize_color_curve(ar)
+    _serialize_color_curve(ar)
+    _serialize_curve_2d(ar)
+    _serialize_curve_2d(ar)
+
+    if version >= 3:
+        _serialize_curve_2d(ar)
+
+    _serialize_curve_2d(ar)
+    _serialize_curve_2d(ar)
+    _serialize_color_curve(ar)
+
+    if version >= 6:
+        _serialize_curve_2d(ar)
+        _serialize_curve_2d(ar)
+        _serialize_curve_2d(ar)
+        _serialize_curve_2d(ar)
+        _serialize_color_curve(ar)
+
+    if version >= 1:
+        _serialize_curve_2d(ar)
+
+    if version >= 5 and not sun_path_from_curve:
+        ar.read_vec4()  # sun path orientation
 
 
 def serialize_time_of_day_component(
         ar: VArchiveReader,
         obj: ArchiveObject) -> None:
+    """``VTimeOfDayComponent::Serialize`` (loading). Save writes version 1."""
 
     serialize_object_component_base(ar, obj)
+    version = ar.read_uint8()
+    ar.read_int32()  # time source / flags
+
+    if version > 0:
+        ar.read_float()  # time scale / offset
 
 
 def serialize_corona_component(ar: VArchiveReader, obj: ArchiveObject) -> None:
-    """``VCoronaComponent::Serialize`` (loading)."""
+    """``VCoronaComponent::Serialize`` (loading). Texture and params unused."""
 
     serialize_object_component_base(ar, obj)
     version = ar.read_int8()
