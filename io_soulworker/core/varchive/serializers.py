@@ -797,6 +797,20 @@ def serialize_sector_box(ar: VArchiveReader, obj: ArchiveObject) -> None:
     serialize_base_entity(ar, obj)
 
 
+def serialize_static_collision_entity(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
+    """``StaticCollisionEntity_cl::Serialize`` (loading).
+
+    Base entity plus a local version byte (engine currently writes ``0``).
+    Nested ``ReadObject`` inside the base entity must run so later type
+    indices stay aligned.
+    """
+
+    serialize_base_entity(ar, obj)
+    ar.read_uint8()
+
+
 def serialize_electronic_display(
         ar: VArchiveReader,
         obj: ArchiveObject) -> None:

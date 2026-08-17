@@ -43,6 +43,7 @@ def create_object(class_name: str) -> ArchiveObject:
         "VisParticleAffectorGravityPoint_cl",
         "VisParticleEffect_cl",
         "VSectorBox",
+        "StaticCollisionEntity_cl",
     ):
         return Object3D(class_name)
 
@@ -95,6 +96,7 @@ def build_serializers() -> dict[str, SerializeFn]:
         "VisParticleAffectorGravityPoint_cl": ser.serialize_particle_affector_gravity,
         "VisParticleEffect_cl": ser.serialize_particle_effect,
         "VSectorBox": ser.serialize_sector_box,
+        "StaticCollisionEntity_cl": ser.serialize_static_collision_entity,
         "VInterActionBox": ser.serialize_base_entity,
         "VSunGlare": ser.serialize_sun_glare,
         "VSimpleAnimationComponent": ser.serialize_simple_animation_component,
