@@ -36,7 +36,9 @@ def serialize_components(ar: VArchiveReader, owner: ArchiveObject) -> None:
             )
 
 
-def serialize_typed_engine_object(ar: VArchiveReader, obj: ArchiveObject) -> int:
+def serialize_typed_engine_object(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> int:
     """``VisTypedEngineObject_cl::Serialize`` (loading, archive >= 28).
 
     Returns the local version byte, or ``-1`` when the block is absent.
@@ -56,7 +58,9 @@ def serialize_typed_engine_object(ar: VArchiveReader, obj: ArchiveObject) -> int
     return local_version
 
 
-def serialize_object_component_base(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_object_component_base(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``IVObjectComponent::Serialize`` (loading)."""
 
     serialize_typed_engine_object(ar, obj)
@@ -111,14 +115,18 @@ def _read_zone_exchange(ar: VArchiveReader) -> ArchiveObject | None:
     return ar.read_object()
 
 
-def serialize_visibility_zone_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_visibility_zone_proxy(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisVisibilityZoneProxy_cl::Serialize`` (loading)."""
 
     ar.read_uint8()  # local version
     ar.read_int64()  # zone unique id
 
 
-def serialize_visibility_object(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_visibility_object(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisVisibilityObject_cl::Serialize`` (loading)."""
 
     assert isinstance(obj, Object3D)
@@ -266,7 +274,9 @@ def serialize_sky(ar: VArchiveReader, obj: ArchiveObject) -> None:
     _serialize_effect_config(ar)
 
 
-def serialize_forward_rendering_system(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_forward_rendering_system(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VForwardRenderingSystem::Serialize`` — config unused by importer."""
 
     local_version = ar.read_uint8()
@@ -286,7 +296,9 @@ def serialize_forward_rendering_system(ar: VArchiveReader, obj: ArchiveObject) -
     serialize_typed_engine_object(ar, obj)
 
 
-def serialize_fake_glow_post_process(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_fake_glow_post_process(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     raise VArchiveError("VFakeGlowPostProcess should be leaf-skipped")
 
@@ -310,7 +322,9 @@ def serialize_tone_mapping(ar: VArchiveReader, obj: ArchiveObject) -> None:
     ar.read_object()  # renderer back-ref
 
 
-def serialize_copy_post_process(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_copy_post_process(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VSimpleCopyPostprocess`` / ``VCopyPostProcess`` wire (loading).
 
     LoginBackground names the class ``VCopyPostProcess``; the stock plugin
@@ -399,7 +413,9 @@ def serialize_static_geometry_instance(ar: VArchiveReader) -> dict:
     }
 
 
-def serialize_static_mesh_instance(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_static_mesh_instance(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisStaticMeshInstance_cl::Serialize`` (loading)."""
 
     assert isinstance(obj, StaticMeshInstance)
@@ -781,7 +797,9 @@ def serialize_sector_box(ar: VArchiveReader, obj: ArchiveObject) -> None:
     serialize_base_entity(ar, obj)
 
 
-def serialize_electronic_display(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_electronic_display(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VElectronicDisplay_cl::Serialize`` (loading)."""
 
     serialize_base_entity(ar, obj)
@@ -796,7 +814,9 @@ def serialize_electronic_display(ar: VArchiveReader, obj: ArchiveObject) -> None
     ar.read_string_binary()  # movie / texture path
 
 
-def serialize_particle_constraint(ar: VArchiveReader, obj: ArchiveObject) -> int:
+def serialize_particle_constraint(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> int:
     """``VisParticleConstraint_cl::Serialize`` (loading)."""
 
     assert isinstance(obj, Object3D)
@@ -815,7 +835,9 @@ def serialize_particle_constraint(ar: VArchiveReader, obj: ArchiveObject) -> int
     return version
 
 
-def serialize_particle_constraint_obox(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_constraint_obox(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisParticleConstraintAABox_cl`` / ``OBox`` share this Serialize."""
 
     serialize_particle_constraint(ar, obj)
@@ -823,13 +845,17 @@ def serialize_particle_constraint_obox(ar: VArchiveReader, obj: ArchiveObject) -
     ar.read_bool()  # inverted / inside
 
 
-def serialize_particle_constraint_point(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_constraint_point(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     serialize_particle_constraint(ar, obj)
     ar.read_float()  # radius
 
 
-def serialize_particle_constraint_sphere(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_constraint_sphere(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     serialize_particle_constraint(ar, obj)
     ar.read_float()  # radius
@@ -837,7 +863,9 @@ def serialize_particle_constraint_sphere(ar: VArchiveReader, obj: ArchiveObject)
     ar.read_int32()  # axis / flags
 
 
-def serialize_particle_constraint_plane(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_constraint_plane(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     version = serialize_particle_constraint(ar, obj)
 
@@ -853,20 +881,26 @@ def serialize_particle_constraint_plane(ar: VArchiveReader, obj: ArchiveObject) 
             ar.read_float()
 
 
-def serialize_particle_constraint_cambox(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_constraint_cambox(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     serialize_particle_constraint(ar, obj)
     ar.read_vis_vector()  # box extent
 
 
-def serialize_particle_constraint_terrain(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_constraint_terrain(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     serialize_particle_constraint(ar, obj)
     ar.read_int8()  # local version
     ar.read_object()  # VTerrain
 
 
-def serialize_particle_affector_fan(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_affector_fan(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisParticleAffectorFan_cl`` / ``Cyclone`` share this Serialize."""
 
     serialize_particle_constraint(ar, obj)
@@ -875,7 +909,9 @@ def serialize_particle_affector_fan(ar: VArchiveReader, obj: ArchiveObject) -> N
     ar.read_float()  # angle / falloff
 
 
-def serialize_particle_affector_gravity(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_particle_affector_gravity(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     serialize_particle_constraint(ar, obj)
     ar.read_float()  # intensity
@@ -949,7 +985,9 @@ def serialize_particle_effect(ar: VArchiveReader, obj: ArchiveObject) -> None:
             _serialize_particle_group(ar)
 
 
-def serialize_camera_position_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_camera_position_entity(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``CameraPositionEntity::Serialize`` — camera extras unused by importer."""
 
     serialize_base_entity(ar, obj)
@@ -976,7 +1014,9 @@ def serialize_sun_glare(ar: VArchiveReader, obj: ArchiveObject) -> None:
         ar.read_float()  # bloom / fade
 
 
-def serialize_simple_animation_component(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_simple_animation_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VSimpleAnimationComponent::Serialize`` (loading)."""
 
     serialize_object_component_base(ar, obj)
@@ -987,7 +1027,9 @@ def serialize_simple_animation_component(ar: VArchiveReader, obj: ArchiveObject)
         ar.read_int32()  # flags / loop mode
 
 
-def serialize_skeleton_serialization_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_skeleton_serialization_proxy(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VSkeletonSerializationProxy::Serialize`` (loading)."""
 
     ctype = ar.read_uint8()
@@ -999,7 +1041,9 @@ def serialize_skeleton_serialization_proxy(ar: VArchiveReader, obj: ArchiveObjec
         ar.read_int32()  # owner index
 
 
-def serialize_vertex_deformer_stack(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_vertex_deformer_stack(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisVertexDeformerStack_cl::Serialize`` (loading)."""
 
     serialize_typed_engine_object(ar, obj)
@@ -1008,7 +1052,9 @@ def serialize_vertex_deformer_stack(ar: VArchiveReader, obj: ArchiveObject) -> N
         ar.read_object()  # deformer entry (map sync)
 
 
-def serialize_skinning_deformer(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_skinning_deformer(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisSkinningDeformer_cl::Serialize`` (loading)."""
 
     serialize_typed_engine_object(ar, obj)
@@ -1056,7 +1102,9 @@ def _serialize_anim_control_x(ar: VArchiveReader) -> None:
         _serialize_anim_control_x(ar)  # synchronized control (inline)
 
 
-def serialize_anim_final_skeletal_result(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_anim_final_skeletal_result(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisAnimFinalSkeletalResult_cl::Serialize`` (loading)."""
 
     serialize_typed_engine_object(ar, obj)
@@ -1064,7 +1112,9 @@ def serialize_anim_final_skeletal_result(ar: VArchiveReader, obj: ArchiveObject)
     ar.read_object()  # skeletal anim control (map sync)
 
 
-def serialize_skeletal_anim_control(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_skeletal_anim_control(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VisSkeletalAnimControl_cl::Serialize`` (loading)."""
 
     # IVisAnimResultGenerator_cl::Serialize
@@ -1099,7 +1149,9 @@ def serialize_anim_config(ar: VArchiveReader, obj: ArchiveObject) -> None:
         ar.read_bool()  # mesh flag
 
 
-def serialize_sequence_set_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_sequence_set_proxy(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VSequenceSetSerializationProxy::Serialize`` (loading)."""
 
     ar.read_string_binary()  # animation set path (unused)
@@ -1113,7 +1165,9 @@ def serialize_sequence_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
     ar.read_string_binary()  # sequence name (unused)
 
 
-def serialize_model_serialization_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_model_serialization_proxy(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VModelSerializationProxy::Serialize`` (loading)."""
 
     # VTypedObject::Serialize is a no-op on load for this proxy.
@@ -1123,7 +1177,9 @@ def serialize_model_serialization_proxy(ar: VArchiveReader, obj: ArchiveObject) 
         ar.read_proxy_object()  # VisAnimSequenceSet proxy (map sync)
 
 
-def serialize_static_mesh_alpha_controller(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_static_mesh_alpha_controller(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VStaticMeshAlphaController::Serialize`` (loading)."""
 
     ar.read_float()  # alpha / fade
@@ -1233,7 +1289,9 @@ def serialize_surface_texture_set_proxy(
             _serialize_surface_textures(ar)
 
 
-def serialize_projected_wallmark(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_projected_wallmark(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
     """``VProjectedWallmark::Serialize`` (loading)."""
 
     version = ar.read_int32()
@@ -1280,7 +1338,9 @@ def serialize_time_of_day(ar: VArchiveReader, obj: ArchiveObject) -> None:
     raise VArchiveError("VTimeOfDay should be leaf-skipped or fully ported")
 
 
-def serialize_time_of_day_component(ar: VArchiveReader, obj: ArchiveObject) -> None:
+def serialize_time_of_day_component(
+        ar: VArchiveReader,
+        obj: ArchiveObject) -> None:
 
     serialize_object_component_base(ar, obj)
 

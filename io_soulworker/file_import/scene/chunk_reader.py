@@ -42,7 +42,10 @@ class SceneChunkReader(VisChunkFileReader):
     def on_sky(self, chunk: St5gChunk) -> None:
         debug("Not impl callback")
 
-    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
+    def on_chunk_start(
+            self,
+            scope: VisChunkReaderScope,
+            reader: BinaryReader) -> None:
 
         info("read chunk: %s", VisChunkId.get_name(scope.chunk))
 
@@ -75,4 +78,7 @@ class SceneChunkReader(VisChunkFileReader):
                 self.on_sky(St5gChunk.from_reader(reader))
 
             case _:
-                debug("Not impl callback: %s", VisChunkId.get_name(scope.chunk))
+                debug(
+                    "Not impl callback: %s",
+                    VisChunkId.get_name(
+                        scope.chunk))

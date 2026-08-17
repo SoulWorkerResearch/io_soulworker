@@ -59,7 +59,10 @@ class ModelChunkReader(VisChunkFileReader):
     def on_export_transform(self, chunk: ExprChunk):
         debug('Not impl callback')
 
-    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
+    def on_chunk_start(
+            self,
+            scope: VisChunkReaderScope,
+            reader: BinaryReader) -> None:
 
         info('read chunk: %s', VisChunkId.get_name(scope.chunk))
 
@@ -168,7 +171,8 @@ class ModelChunkReader(VisChunkFileReader):
         if not isinstance(materials, Element):
             return dict()
 
-        return dict(map(create, (node for node in materials.findall('Material'))))
+        return dict(
+            map(create, (node for node in materials.findall('Material'))))
 
     @staticmethod
     def __materials_paths(path: Path):
@@ -178,5 +182,6 @@ class ModelChunkReader(VisChunkFileReader):
         # NPC_0001_Mirium.model -> NPC_0001_Mirium.model_data\\materials.xml
         yield path.parent / file
 
-        # NPC_0001_Mirium.model -> Overrides\\NPC_0001_Mirium.model_data\\materials.xml
+        # NPC_0001_Mirium.model ->
+        # Overrides\\NPC_0001_Mirium.model_data\\materials.xml
         yield path.parent / "Overrides" / file

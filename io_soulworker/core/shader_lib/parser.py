@@ -40,7 +40,11 @@ def _extract_block_body(text: str, brace_open_index: int) -> str:
     return ""
 
 
-def parse_shader_lib_text(text: str, *, path: str = "", stem: str = "") -> ShaderLibrary:
+def parse_shader_lib_text(
+        text: str,
+        *,
+        path: str = "",
+        stem: str = "") -> ShaderLibrary:
     """Parse EFFECT / PARAMCOMMENT declarations from ShaderLib source text."""
 
     library = ShaderLibrary(path=path, stem=stem)

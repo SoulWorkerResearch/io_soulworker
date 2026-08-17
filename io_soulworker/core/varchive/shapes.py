@@ -123,7 +123,10 @@ def read_zone_file(data: bytes | memoryview) -> ShapesArchiveResult:
     result.zone_version = ar.read_int32()
 
     if result.zone_version >= 10:
-        result.zone_pivot = (ar.read_double(), ar.read_double(), ar.read_double())
+        result.zone_pivot = (
+            ar.read_double(),
+            ar.read_double(),
+            ar.read_double())
 
     ar.read_int32()  # object count
     ar.read_int32()  # non-null count

@@ -31,7 +31,9 @@ class BrotChunk_KeyFrame(DataExchange_cl):
             writer.write_quaternion(quat)
 
     @staticmethod
-    def from_reader(reader: BinaryReader, bone_count: int) -> 'BrotChunk_KeyFrame':
+    def from_reader(
+            reader: BinaryReader,
+            bone_count: int) -> 'BrotChunk_KeyFrame':
 
         value = BrotChunk_KeyFrame()
 

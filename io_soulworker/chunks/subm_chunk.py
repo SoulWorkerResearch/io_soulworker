@@ -172,7 +172,9 @@ class VisBaseGeometryInfo(DataExchange_cl):
             writer.write_int16(self.lod_index)
 
     @staticmethod
-    def from_reader(reader: BinaryReader, version: int) -> 'VisBaseGeometryInfo':
+    def from_reader(
+            reader: BinaryReader,
+            version: int) -> 'VisBaseGeometryInfo':
 
         value = VisBaseGeometryInfo()
 

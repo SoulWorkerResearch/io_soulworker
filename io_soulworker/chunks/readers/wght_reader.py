@@ -15,7 +15,8 @@ class WGHTChunkReader:
 
     def all_of(self, vertices_count: int) -> list[WGHTChunk]:
 
-        return [WGHTChunk.from_reader(self.__reader__) for _ in range(vertices_count)]
+        return [WGHTChunk.from_reader(self.__reader__)
+                for _ in range(vertices_count)]
 
     @staticmethod
     def from_reader(reader: BinaryReader) -> 'WGHTChunkReader':

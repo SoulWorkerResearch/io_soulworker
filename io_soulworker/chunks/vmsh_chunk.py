@@ -275,7 +275,10 @@ class VMshChunk(DataExchange_cl):
 
         return 0
 
-    def __write_vertices(self, writer: BinaryWriter, vertex_count: int) -> None:
+    def __write_vertices(
+            self,
+            writer: BinaryWriter,
+            vertex_count: int) -> None:
 
         stride = self.descriptor.stride
 
@@ -307,7 +310,10 @@ class VMshChunk(DataExchange_cl):
 
             writer.write(raw)
 
-    def __write_indices(self, writer: BinaryWriter, indices: list[int]) -> None:
+    def __write_indices(
+            self,
+            writer: BinaryWriter,
+            indices: list[int]) -> None:
 
         match self.index_format:
 
@@ -332,7 +338,8 @@ class VMshChunk(DataExchange_cl):
 
         return []
 
-    def __vector3_at(self, data: list, index: int) -> tuple[float, float, float]:
+    def __vector3_at(self, data: list,
+                     index: int) -> tuple[float, float, float]:
 
         if index >= len(data):
             return (0.0, 0.0, 0.0)

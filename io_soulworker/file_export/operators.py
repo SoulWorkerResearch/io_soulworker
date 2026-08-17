@@ -35,7 +35,9 @@ def _active_mesh_object(context: Context):
     return None
 
 
-def _write_mtrs_chunk(writer: BinaryWriter, materials: list[MtrsChunk]) -> None:
+def _write_mtrs_chunk(
+        writer: BinaryWriter,
+        materials: list[MtrsChunk]) -> None:
 
     with VisChunkWriterScope(writer, VisChunkId.MTRS) as payload:
 

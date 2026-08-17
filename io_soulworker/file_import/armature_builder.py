@@ -80,7 +80,8 @@ def build_armature_from_skeleton(
 ) -> ArmatureBuildResult:
     active_object = context.view_layer.objects.active
 
-    if active_object is not None and getattr(active_object, "mode", "OBJECT") != "OBJECT":
+    if active_object is not None and getattr(
+            active_object, "mode", "OBJECT") != "OBJECT":
         bpy.ops.object.mode_set(mode="OBJECT")
 
     armature = bpy.data.armatures.new(

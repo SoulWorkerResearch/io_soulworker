@@ -18,9 +18,8 @@ class BposChunk(DataExchange_cl):
         key_frame_count = reader.read_uint32()
         assert key_frame_count > 0
 
-        self.key_frame_list = [
-            BposChunk_KeyFrame.from_reader(reader, self.bone_count) for _ in range(key_frame_count)
-        ]
+        self.key_frame_list = [BposChunk_KeyFrame.from_reader(
+            reader, self.bone_count) for _ in range(key_frame_count)]
 
     def write(self, writer: BinaryWriter) -> None:
 

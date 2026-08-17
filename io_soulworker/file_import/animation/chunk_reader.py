@@ -49,7 +49,10 @@ class AnimationFileChunkReader(VisChunkFileReader):
     def on_skeleton(self, chunk: VisSkeletonChunk_cl) -> None:
         debug('Not impl callback')
 
-    def on_chunk_start(self, scope: VisChunkReaderScope, reader: BinaryReader) -> None:
+    def on_chunk_start(
+            self,
+            scope: VisChunkReaderScope,
+            reader: BinaryReader) -> None:
 
         if scope.chunk == VisChunkId.HEAD:
 

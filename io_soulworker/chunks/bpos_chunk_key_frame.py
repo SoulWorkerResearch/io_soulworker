@@ -19,9 +19,8 @@ class BposChunk_KeyFrame(DataExchange_cl):
 
         self.time = reader.read_float()
 
-        self.vector_list = [
-            Vector([*(reader.read_float() for _ in range(3)), 1.0]) for _ in range(self.bone_count)
-        ]
+        self.vector_list = [Vector(
+            [*(reader.read_float() for _ in range(3)), 1.0]) for _ in range(self.bone_count)]
 
     def write(self, writer: BinaryWriter) -> None:
 
@@ -34,7 +33,9 @@ class BposChunk_KeyFrame(DataExchange_cl):
             writer.write_float(vec.z)
 
     @staticmethod
-    def from_reader(reader: BinaryReader, bone_count: int) -> 'BposChunk_KeyFrame':
+    def from_reader(
+            reader: BinaryReader,
+            bone_count: int) -> 'BposChunk_KeyFrame':
 
         value = BposChunk_KeyFrame()
 

@@ -272,7 +272,9 @@ def _load_param_metadata(node_tree: NodeTree) -> list[ShaderParamComment]:
     ]
 
 
-def ensure_effect_node_group(library: ShaderLibrary, effect: ShaderEffect) -> NodeTree:
+def ensure_effect_node_group(
+        library: ShaderLibrary,
+        effect: ShaderEffect) -> NodeTree:
     """Create or refresh a parameter-only shader node group for an EFFECT."""
 
     name = node_group_name(library.stem, effect.name)
@@ -358,7 +360,8 @@ def _set_texture_on_material(
         "ShaderNodeTexEnvironment",
     }:
 
-        tex_node = material_tree.nodes.new(_texture_node_type(param.value_type))
+        tex_node = material_tree.nodes.new(
+            _texture_node_type(param.value_type))
         tex_node.name = param.name
 
     tex_node.label = param.name
@@ -445,7 +448,10 @@ def arrange_material_nodes(node_tree: NodeTree) -> None:
     known = set(images) | set(groups) | set(bsdfs) | set(outputs)
     others = [n for n in nodes if n not in known]
 
-    def _stack(column_nodes: list[Node], origin_x: float, gap: float = 40.0) -> float:
+    def _stack(
+            column_nodes: list[Node],
+            origin_x: float,
+            gap: float = 40.0) -> float:
         """Layout a vertical stack; return column width used."""
 
         y = 0.0
@@ -471,7 +477,9 @@ def arrange_material_nodes(node_tree: NodeTree) -> None:
     _stack(outputs, x)
 
 
-def apply_shader_to_material(material: Material, shader: ShaderTag) -> Node | None:
+def apply_shader_to_material(
+        material: Material,
+        shader: ShaderTag) -> Node | None:
     """Add the EFFECT node group to a material and fill PARAMCOMMENT values."""
 
     node_tree = material.node_tree

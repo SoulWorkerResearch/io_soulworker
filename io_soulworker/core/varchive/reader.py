@@ -96,8 +96,9 @@ class VArchiveReader:
 
         if size < 0 or self._pos + size > len(self._data):
             raise VArchiveError(
-                f"unexpected EOF at {self._pos}: need {size}, have {self.remaining}"
-            )
+                f"unexpected EOF at {
+                    self._pos}: need {size}, have {
+                    self.remaining}")
 
         start = self._pos
         self._pos += size
@@ -209,7 +210,10 @@ class VArchiveReader:
     def read_vec3(self) -> Vector:
         """``SerializeX(hkvVec3)`` — three floats, no w."""
 
-        return Vector((self.read_float(), self.read_float(), self.read_float()))
+        return Vector(
+            (self.read_float(),
+             self.read_float(),
+             self.read_float()))
 
     def read_vec4(self) -> Vector:
 
@@ -257,7 +261,8 @@ class VArchiveReader:
 
         return self.read_vec3(), self.read_vec3()
 
-    def read_object(self, *, expected: str | None = None) -> ArchiveObject | None:
+    def read_object(self, *, expected: str |
+                    None = None) -> ArchiveObject | None:
         """``VShapesArchive::ReadObject`` + ``VArchive::ReadObject``."""
 
         if self.has_per_object_range:
@@ -273,7 +278,8 @@ class VArchiveReader:
 
         return self.read_object(expected=None)
 
-    def _read_object_body(self, *, expected: str | None) -> ArchiveObject | None:
+    def _read_object_body(self, *, expected: str |
+                          None) -> ArchiveObject | None:
 
         tag = self.read_uint32()
 
@@ -340,7 +346,8 @@ class VArchiveReader:
                         f"at payload start {payload_start}"
                     )
 
-            if expected is not None and not self._is_compatible(class_name, expected):
+            if expected is not None and not self._is_compatible(
+                    class_name, expected):
                 raise VArchiveError(
                     f"type mismatch: got {class_name!r}, expected {expected!r}"
                 )
@@ -365,15 +372,19 @@ class VArchiveReader:
             raise VArchiveError(f"object reference #{index} is null sentinel")
 
         if isinstance(entry, _TypeSlot):
-            raise VArchiveError(f"object reference #{index} points at a type slot")
+            raise VArchiveError(
+                f"object reference #{index} points at a type slot")
 
         if not isinstance(entry, ArchiveObject):
-            raise VArchiveError(f"object reference #{index} has unexpected type")
-
-        if expected is not None and not self._is_compatible(entry.class_name, expected):
             raise VArchiveError(
-                f"ref #{index} type mismatch: {entry.class_name!r} vs {expected!r}"
-            )
+                f"object reference #{index} has unexpected type")
+
+        if expected is not None and not self._is_compatible(
+                entry.class_name, expected):
+            raise VArchiveError(
+                f"ref #{index} type mismatch: {
+                    entry.class_name!r} vs {
+                    expected!r}")
 
         return entry
 

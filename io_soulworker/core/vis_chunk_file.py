@@ -12,11 +12,17 @@ class VisChunkFileReader(object):
 
         self.path = path
 
-    def on_chunk_start(self, scope: VisChunkReaderScope, _: BinaryReader) -> None:
+    def on_chunk_start(
+            self,
+            scope: VisChunkReaderScope,
+            _: BinaryReader) -> None:
 
         raise NotImplementedError("chunk: %d" % scope.chunk)
 
-    def run_sub(self, reader: BinaryReader, parent: VisChunkReaderScope) -> None:
+    def run_sub(
+            self,
+            reader: BinaryReader,
+            parent: VisChunkReaderScope) -> None:
 
         eof = parent.offset + parent.length
 

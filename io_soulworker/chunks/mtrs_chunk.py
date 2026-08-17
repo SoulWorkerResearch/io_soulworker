@@ -211,11 +211,15 @@ class MtrsChunk(DataExchange_cl):
     def __read_aux_names(count: int, reader: BinaryReader) -> list[str]:
         return [reader.read_utf8_uint32_string() for _ in range(count)]
 
-    def __read_mesh_config_effects(self, reader: BinaryReader) -> list[VisMaterialEffect]:
+    def __read_mesh_config_effects(
+            self, reader: BinaryReader) -> list[VisMaterialEffect]:
         count = reader.read_uint32()
         assert count <= 1
 
-        return [VisMaterialEffect.from_reader(reader, self.version) for _ in range(count)]
+        return [
+            VisMaterialEffect.from_reader(
+                reader,
+                self.version) for _ in range(count)]
 
     @staticmethod
     def from_reader(reader: BinaryReader) -> 'MtrsChunk':

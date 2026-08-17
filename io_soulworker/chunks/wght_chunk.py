@@ -20,7 +20,11 @@ class WGHTChunk(DataExchange_cl):
         def write(self, writer: BinaryWriter) -> None:
 
             writer.write_uint16(self.bone_index)
-            q = max(0, min(65535, int(round(self.weight / WGHT_WEIGHT_QUANTUM))))
+            q = max(
+                0, min(
+                    65535, int(
+                        round(
+                            self.weight / WGHT_WEIGHT_QUANTUM))))
             writer.write_uint16(q)
 
         @staticmethod

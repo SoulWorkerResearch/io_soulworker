@@ -199,7 +199,8 @@ class ModelFileReader(ModelChunkReader):
 
             if path is not None:
 
-                texture_node: ShaderNodeTexImage = nodes.new("ShaderNodeTexImage")
+                texture_node: ShaderNodeTexImage = nodes.new(
+                    "ShaderNodeTexImage")
                 texture_node.name = "Diffuse"
                 texture_node.label = "Diffuse"
                 debug("texture node: %s", texture_node)
@@ -375,5 +376,5 @@ class ModelFileReader(ModelChunkReader):
                 else:
 
                     debug(
-                        f"Warning: bone_index {entity.bone_index} not found in vertex groups"
-                    )
+                        f"Warning: bone_index {
+                            entity.bone_index} not found in vertex groups")

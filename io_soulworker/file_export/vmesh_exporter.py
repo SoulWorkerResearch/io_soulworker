@@ -18,7 +18,8 @@ from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
 from io_soulworker.unit_scale import blender_to_vision
 
 
-# Descriptor flags observed in shipped static meshes (pos/normal float3, uv float2).
+# Descriptor flags observed in shipped static meshes (pos/normal float3,
+# uv float2).
 _POS_OFFSET = 0x3000
 _NORMAL_OFFSET = 0x300C
 _TEX0_OFFSET = 0x2018
@@ -193,7 +194,8 @@ def build_vmesh_from_blender_object(obj) -> VmeshExportData:
     uvs: list[Vector] = []
     indices: list[int] = []
 
-    # material_index -> list of triangle corner vertex indices (into vertices[])
+    # material_index -> list of triangle corner vertex indices (into
+    # vertices[])
     material_triangles: dict[int, list[int]] = {}
 
     for triangle in mesh.loop_triangles:

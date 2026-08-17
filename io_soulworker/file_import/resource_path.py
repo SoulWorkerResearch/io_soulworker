@@ -10,7 +10,9 @@ def normalize_resource_relative(relative: str) -> Path:
     return Path(cleaned)
 
 
-def resolve_resource_path(resources_root: Path | str, relative: str) -> Path | None:
+def resolve_resource_path(
+        resources_root: Path | str,
+        relative: str) -> Path | None:
     """Resolve a game-relative path under ``resources_root``.
 
     Tries an exact join first, then a case-insensitive walk (Linux vs Windows

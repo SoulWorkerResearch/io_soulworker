@@ -12,10 +12,12 @@ class VisChunkId(enum.IntEnum):
     # Legacy static mesh (skipped by Vision VBaseMesh loader)
     SMSH = int.from_bytes(b"SMSH", byteorder="big")
 
-    # Vertex shadow-mesh relevance bitfield (1 bit/vertex → VDynamicMesh::SetShadowVertexRelevance)
+    # Vertex shadow-mesh relevance bitfield (1 bit/vertex →
+    # VDynamicMesh::SetShadowVertexRelevance)
     VSMR = int.from_bytes(b"VSMR", byteorder="big")
 
-    # Triangle shadow-mesh relevance bitfield (1 bit/triangle → VDynamicMesh::SetShadowTriangleRelevance)
+    # Triangle shadow-mesh relevance bitfield (1 bit/triangle →
+    # VDynamicMesh::SetShadowTriangleRelevance)
     TSMR = int.from_bytes(b"TSMR", byteorder="big")
 
     # Materials

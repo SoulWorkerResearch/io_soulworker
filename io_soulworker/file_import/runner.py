@@ -19,7 +19,7 @@ from bpy.types import (
 # https://github.com/microsoft/pylance-release/issues/5457#issuecomment-2074153709
 def in_blender():
 
-    return type(bpy.app.version) == tuple
+    return isinstance(bpy.app.version, tuple)
 
 
 class FileImportRunner(Operator, ImportHelper):
@@ -61,7 +61,9 @@ class FileImportRunner(Operator, ImportHelper):
 
     def create_collection(self, context: Context, name: str):
 
-        def get_layer_collection(layer_collection: LayerCollection, collection: Collection):
+        def get_layer_collection(
+                layer_collection: LayerCollection,
+                collection: Collection):
 
             if (layer_collection.name == collection.name):
 

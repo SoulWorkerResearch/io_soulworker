@@ -107,8 +107,7 @@ class ShpsChunk(DataExchange_cl):
 
         if remaining < 0:
             raise ValueError(
-                f"SHPS header overran chunk length: header={consumed} length={length}"
-            )
+                f"SHPS header overran chunk length: header={consumed} length={length}")
 
         self.object_stream = reader.read(remaining)
 
