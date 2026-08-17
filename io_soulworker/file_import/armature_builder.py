@@ -75,6 +75,8 @@ def build_armature_from_skeleton(
     context: bpy.types.Context,
     name: str,
     chunk: VisSkeletonChunk_cl,
+    *,
+    collection: bpy.types.Collection | None = None,
 ) -> ArmatureBuildResult:
     active_object = context.view_layer.objects.active
 
@@ -92,7 +94,8 @@ def build_armature_from_skeleton(
         armature
     )
 
-    context.collection.objects.link(armature_object)
+    target = collection or context.collection
+    target.objects.link(armature_object)
     context.view_layer.objects.active = armature_object
     armature_object.select_set(True)
 

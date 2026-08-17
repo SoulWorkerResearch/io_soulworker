@@ -1,7 +1,7 @@
 
-from logging import debug, info
+from logging import debug, error, info
 from pathlib import Path
-from xml.etree.ElementTree import Element, parse
+from xml.etree.ElementTree import Element, ParseError, parse
 
 from io_soulworker.chunks.bbbx_chunk import BBBXChunk
 from io_soulworker.chunks.bnds_chunk import BNDSChunk
@@ -156,7 +156,12 @@ class ModelChunkReader(VisChunkFileReader):
 
             return (material.name, material)
 
-        xml = parse(path)
+        try:
+            xml = parse(path)
+        except ParseError as exc:
+            error("Ignoring invalid materials.xml %s: %s", path, exc)
+            return {}
+
         root = xml.getroot()
 
         materials = root.find('Materials')

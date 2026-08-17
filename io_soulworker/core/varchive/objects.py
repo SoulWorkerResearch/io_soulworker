@@ -26,6 +26,11 @@ class StaticMeshInstance(ArchiveObject):
     path = ""
     matrix = Matrix.Identity(4)
     version = 0
+    collision_behavior = 0
+    physics_hint = 0
+    visibility_level = 0
+    light_mask = 0
+    geometries: list[dict] = []
 
     def __init__(self) -> None:
 
@@ -33,6 +38,11 @@ class StaticMeshInstance(ArchiveObject):
         self.path = ""
         self.matrix = Matrix.Identity(4)
         self.version = 0
+        self.collision_behavior = 0
+        self.physics_hint = 0
+        self.visibility_level = 0
+        self.light_mask = 0
+        self.geometries = []
 
     @property
     def translation(self) -> Vector:
@@ -42,6 +52,26 @@ class StaticMeshInstance(ArchiveObject):
             self.matrix[1][3],
             self.matrix[2][3],
         ))
+
+    @property
+    def visible_mask(self) -> int:
+        """OR of SGI ``m_iVisibleMask`` values (0 = not rendered)."""
+
+        if not self.geometries:
+            return 0
+
+        mask = 0
+
+        for geometry in self.geometries:
+            mask |= int(geometry.get("visible_mask", 0))
+
+        return mask
+
+    @property
+    def is_collision_only(self) -> bool:
+        """True when every SGI has a zero visible mask (helper collision mesh)."""
+
+        return bool(self.geometries) and self.visible_mask == 0
 
 
 class Object3D(ArchiveObject):

@@ -4,7 +4,7 @@ from io_soulworker.core.varchive.objects import (
     Object3D,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.shapes import ShapesArchiveResult, read_shapes_payload
+from io_soulworker.core.varchive.shapes import ShapesArchiveResult, read_shapes_payload, read_zone_file
 
 __all__ = [
     "ArchiveObject",
@@ -13,4 +13,5 @@ __all__ = [
     "ShapesArchiveResult",
     "StaticMeshInstance",
     "read_shapes_payload",
+    "read_zone_file",
 ]

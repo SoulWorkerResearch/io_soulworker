@@ -1,8 +1,24 @@
+from __future__ import annotations
+
 import bpy
 
 from logging import debug, error, warning
 from pathlib import Path
 from typing import final
+
+from bpy.types import (
+    ArmatureModifier,
+    Collection,
+    Context,
+    Material,
+    Mesh,
+    Object,
+    ShaderNodeBsdfPrincipled,
+    ShaderNodeTexImage,
+    VertexGroup,
+)
+from mathutils import Matrix
+
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
@@ -13,23 +29,46 @@ from io_soulworker.file_import.armature_builder import (
     NameHelper,
     build_armature_from_skeleton,
 )
-from io_soulworker.unit_scale import vision_to_blender
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
     arrange_material_nodes,
 )
+from io_soulworker.unit_scale import vision_to_blender
 
-from bpy.types import (
-    Context,
-    Material,
-    Mesh,
-    Object,
-    ShaderNodeBsdfPrincipled,
-    ShaderNodeTexImage,
-    ArmatureModifier,
-    VertexGroup,
-)
+# Resolved path → shared Mesh datablock (materials live on the mesh).
+_MESH_CACHE: dict[str, Mesh] = {}
+
+
+def clear_mesh_cache() -> None:
+    """Drop shared mesh references (datablocks themselves stay in ``bpy.data``)."""
+
+    _MESH_CACHE.clear()
+
+
+def mesh_cache_key(path: Path) -> str:
+    return str(path.resolve())
+
+
+def _live_cached_mesh(key: str) -> Mesh | None:
+    """Return the cached mesh if it still exists in this ``.blend``.
+
+    ``orphans_purge`` and File → New leave Python references to removed IDs.
+    Accessing those raises ``ReferenceError: StructRNA of type Mesh has been
+    removed``.
+    """
+
+    mesh = _MESH_CACHE.get(key)
+    if mesh is None:
+        return None
+
+    try:
+        mesh.name
+    except ReferenceError:
+        del _MESH_CACHE[key]
+        return None
+
+    return mesh
 
 
 class NodesHelper:
@@ -42,30 +81,80 @@ class NodesHelper:
 
 @final
 class ModelFileReader(ModelChunkReader):
+    """Load a ``.model`` / ``.vmesh`` into Blender.
+
+    Can reuse a previously loaded mesh datablock (scene static-mesh instances)
+    and place the resulting object with an optional world matrix.
+    """
 
     mesh: Mesh
     object: Object
     context: Context
     emission_strength: float
+    vertex_groups: list[VertexGroup]
 
-    # index - bone id
-    vertex_groups: list[VertexGroup] = []
-
-    def __init__(self, path: Path, context: Context, emission_strength: float) -> None:
+    def __init__(
+        self,
+        path: Path,
+        context: Context,
+        emission_strength: float,
+        *,
+        collection: Collection | None = None,
+        matrix_world: Matrix | None = None,
+        object_name: str | None = None,
+        reuse_mesh: bool = True,
+    ) -> None:
 
         super().__init__(path)
 
         self.emission_strength = emission_strength
-
-        # save context
         self.context = context
-
-        # create mesh
-        self.mesh = bpy.data.meshes.new(self.path.stem)
-
-        # create object
-        self.object = bpy.data.objects.new(self.mesh.name, self.mesh)
+        self.target_collection = collection
+        self.matrix_world = matrix_world
+        self.reuse_mesh = reuse_mesh
         self.vertex_groups = []
+        self.bone_index_to_vertex_group: dict[int, VertexGroup] = {}
+        self._cache_key = mesh_cache_key(path)
+        self._from_cache = False
+
+        name = object_name or self.path.stem
+        cached = _live_cached_mesh(self._cache_key) if reuse_mesh else None
+
+        if cached is not None:
+            self.mesh = cached
+            self.object = bpy.data.objects.new(name, self.mesh)
+            self._from_cache = True
+        else:
+            self.mesh = bpy.data.meshes.new(self.path.stem)
+            self.object = bpy.data.objects.new(name, self.mesh)
+
+    def run(self):
+        """Parse (unless mesh is cached), link, place; return the Blender object."""
+
+        if self._from_cache:
+            self._link_object()
+            self._apply_transform()
+            return self.object
+
+        super().run()
+
+        if self.reuse_mesh:
+            _MESH_CACHE[self._cache_key] = self.mesh
+
+        self._apply_transform()
+        return self.object
+
+    def _link_object(self) -> None:
+
+        collection = self.target_collection or self.context.collection
+
+        if self.object.name not in collection.objects:
+            collection.objects.link(self.object)
+
+    def _apply_transform(self) -> None:
+
+        if self.matrix_world is not None:
+            self.object.matrix_world = self.matrix_world
 
     # @override
     def on_surface(self, chunk: MtrsChunk):
@@ -103,22 +192,6 @@ class ModelFileReader(ModelChunkReader):
             nodes = node_tree.nodes
 
             pbsdf_node: ShaderNodeBsdfPrincipled = nodes["Principled BSDF"]
-
-            # if not v_material.diffuse_map:
-            #     debug("no diffuse_map")
-            #     ambient_occlusion: ShaderNodeAmbientOcclusion = nodes.new(4
-            #         "ShaderNodeAmbientOcclusion")
-
-            #     ambient_occlusion.samples = 32
-
-            #     ambient_occlusion.inputs[0].default_value = [
-            #         v / 255.0 for v in v_material.ambient]
-
-            #     node_tree.links.new(
-            #         pbsdf_node.inputs.get("Base Color"),
-            #         ambient_occlusion.outputs.get("Color")
-            #     )
-            # else:
 
             path = get_texture_path(self.path.parent, chunk.diffuse_map)
 
@@ -194,7 +267,6 @@ class ModelFileReader(ModelChunkReader):
 
         self.mesh_chunk = chunk
 
-        # fill vertices, edges and faces from file
         vertices = [vision_to_blender(vertex) for vertex in chunk.vertices]
         self.mesh.from_pydata(vertices, [], chunk.faces)
 
@@ -208,10 +280,10 @@ class ModelFileReader(ModelChunkReader):
 
         self.mesh.update()
 
-        if not self.mesh.validate(verbose=True):
-            warning("Mesh validation failed for %s", self.mesh.name)
+        if self.mesh.validate(verbose=True):
+            warning("Mesh had issues and was corrected: %s", self.mesh.name)
 
-        self.context.collection.objects.link(self.object)
+        self._link_object()
 
     # @override
     def on_skeleton(self, chunk: VisSkeletonChunk_cl):
@@ -220,6 +292,7 @@ class ModelFileReader(ModelChunkReader):
             self.context,
             self.mesh.name,
             chunk,
+            collection=self.target_collection,
         )
 
         modifier: ArmatureModifier = self.object.modifiers.new(
@@ -229,7 +302,7 @@ class ModelFileReader(ModelChunkReader):
 
         modifier.object = result.object
 
-        self.bone_index_to_vertex_group = {}  # Map bone index to vertex group
+        self.bone_index_to_vertex_group = {}
 
         vertex_groups = self.object.vertex_groups
 
@@ -243,8 +316,6 @@ class ModelFileReader(ModelChunkReader):
     # @override
     def on_sub_mesh(self, chunk: VisSubMeshChunk):
 
-        # TODO: i have no idea how this can be done without touching the interface.
-        #       hope someone can help me with this.
         def set_material(vertex_group_name: str, material_id: int):
 
             bpy.ops.object.mode_set(mode="EDIT")
@@ -291,7 +362,6 @@ class ModelFileReader(ModelChunkReader):
 
             for entity in chunk.values:
 
-                # Use the bone index mapping to get the correct vertex group
                 if entity.bone_index in self.bone_index_to_vertex_group:
 
                     vertex_group = self.bone_index_to_vertex_group[entity.bone_index]
@@ -307,6 +377,3 @@ class ModelFileReader(ModelChunkReader):
                     debug(
                         f"Warning: bone_index {entity.bone_index} not found in vertex groups"
                     )
-
-# https://youtu.be/UXQGKfCWCBc
-# https://youtu.be/6S-0XgGTn-E?list=RD6S-0XgGTn-E

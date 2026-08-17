@@ -36,11 +36,14 @@ def serialize_components(ar: VArchiveReader, owner: ArchiveObject) -> None:
             )
 
 
-def serialize_typed_engine_object(ar: VArchiveReader, obj: ArchiveObject) -> None:
-    """``VisTypedEngineObject_cl::Serialize`` (loading, archive >= 28)."""
+def serialize_typed_engine_object(ar: VArchiveReader, obj: ArchiveObject) -> int:
+    """``VisTypedEngineObject_cl::Serialize`` (loading, archive >= 28).
+
+    Returns the local version byte, or ``-1`` when the block is absent.
+    """
 
     if ar.loading_version < 28:
-        return
+        return -1
 
     local_version = ar.read_uint8()
 
@@ -49,6 +52,8 @@ def serialize_typed_engine_object(ar: VArchiveReader, obj: ArchiveObject) -> Non
 
     if local_version >= 2:
         obj.unique_id = ar.read_int64()
+
+    return local_version
 
 
 def serialize_object_component_base(ar: VArchiveReader, obj: ArchiveObject) -> None:
@@ -67,16 +72,22 @@ def serialize_object_component_base(ar: VArchiveReader, obj: ArchiveObject) -> N
             ar.read_int32()  # component id int (unused)
 
 
-def _serialize_visibility_data(ar: VArchiveReader) -> None:
-    """``VVisibilityData::Serialize_VisData`` — fields unused by importer."""
+def _serialize_visibility_data(ar: VArchiveReader) -> dict:
+    """``VVisibilityData::Serialize_VisData``."""
 
-    ar.read_uint8()  # vis-data version
+    vis_version = ar.read_uint8()
     ar.read_bbox_x()  # bounding box
     ar.read_vec3()  # frustum hint / center
-    ar.read_uint32()  # visibility flags
-    ar.read_float()  # near clip / radius-related
-    ar.read_int32()  # visibility bitmask / zone flags
-    ar.read_float()  # far / fade
+    visible_mask = ar.read_uint32()  # m_iVisibleMask
+    ar.read_float()  # m_fFarClipDistance
+    perform_test_flags = ar.read_int32()  # m_iPerformTestFlags
+    ar.read_float()  # m_fNearClipDistance
+
+    return {
+        "vis_version": vis_version,
+        "visible_mask": visible_mask,
+        "perform_test_flags": perform_test_flags,
+    }
 
 
 def _serialize_effect_config(ar: VArchiveReader) -> None:
@@ -98,6 +109,42 @@ def _read_zone_exchange(ar: VArchiveReader) -> ArchiveObject | None:
         return ar.read_proxy_object()
 
     return ar.read_object()
+
+
+def serialize_visibility_zone_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisVisibilityZoneProxy_cl::Serialize`` (loading)."""
+
+    ar.read_uint8()  # local version
+    ar.read_int64()  # zone unique id
+
+
+def serialize_visibility_object(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisVisibilityObject_cl::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    version = ar.read_uint8()
+
+    if version >= 3:
+        _serialize_visibility_data(ar)
+
+    ar.read_int32()  # flags
+    ar.read_bool()  # bounding box set
+
+    if version >= 2:
+        ar.read_bool()  # world-space bbox
+
+    ar.read_bbox_vis()  # local AABB
+
+    if version < 3:
+        ar.read_bbox_vis()  # world AABB
+
+    ar.read_uint8()  # reschedule mask
+
+    if version < 3:
+        ar.read_float()  # far clip
+
+    ar.read_int32()  # pixel threshold
 
 
 def _serialize_object3d_vis_data(ar: VArchiveReader) -> None:
@@ -274,10 +321,11 @@ def serialize_copy_post_process(ar: VArchiveReader, obj: ArchiveObject) -> None:
     ar.read_object()  # renderer
 
 
-def serialize_static_geometry_instance(ar: VArchiveReader) -> None:
-    """``VisStaticGeometryInstance_cl::SerializeX`` (loading) — unused DTO."""
+def serialize_static_geometry_instance(ar: VArchiveReader) -> dict:
+    """``VisStaticGeometryInstance_cl::SerializeX`` (loading)."""
 
     version = ar.read_uint8()
+    vis: dict = {}
 
     if version < 8:
         ar.read_float()  # legacy far clip / LOD
@@ -287,25 +335,24 @@ def serialize_static_geometry_instance(ar: VArchiveReader) -> None:
             ar.read_vec3()  # legacy center
             ar.read_int32()  # legacy vis flags
     else:
-        _serialize_visibility_data(ar)
+        vis = _serialize_visibility_data(ar)
 
-    ar.read_int32()  # geometry type
+    geometry_type = ar.read_int32()
 
     if version < 8:
         ar.read_bbox_vis()  # local AABB (unused)
 
-    ar.read_uint32()  # light mask
+    light_mask = ar.read_uint32()
 
     # Stock Vision also writes trace mask here. CharacterSelect / login
     # fixtures (SGI v8) omit those 4 bytes — validated via object-length
-    # checksum against the parent SMI payload.
+    # checksum against the parent SMI payload. Zone files match that layout.
     if version < 8:
         ar.read_uint32()  # trace mask
         ar.read_uint32()  # visible (legacy)
-    # version >= 8: no separate trace mask on disk for SW KR fixtures
 
-    ar.read_bool()  # cast / receive shadows
-    ar.read_int32()  # collision / physics flags
+    cast_shadows = ar.read_bool()  # m_bCastDynamicShadows
+    sorting_key = ar.read_int32()  # m_iSortingKey (not collision flags)
 
     if version != 6:
         ar.read_int64()  # geometry unique id (unused)
@@ -343,6 +390,14 @@ def serialize_static_geometry_instance(ar: VArchiveReader) -> None:
     if version >= 5:
         ar.read_object()  # surface / material owner (map sync)
 
+    return {
+        "geometry_type": geometry_type,
+        "light_mask": light_mask,
+        "cast_shadows": cast_shadows,
+        "sorting_key": sorting_key,
+        **vis,
+    }
+
 
 def serialize_static_mesh_instance(ar: VArchiveReader, obj: ArchiveObject) -> None:
     """``VisStaticMeshInstance_cl::Serialize`` (loading)."""
@@ -366,23 +421,34 @@ def serialize_static_mesh_instance(ar: VArchiveReader, obj: ArchiveObject) -> No
     # ... shows visibility level for iVersion >= 10; SW fixtures with
     # iVersion == 9 already include the int32 field.
     if obj.version >= 9:
-        ar.read_int32()  # visibility level
+        obj.visibility_level = ar.read_int32()
 
     if obj.version >= 1:
         if obj.version < 5:
-            ar.read_uint16()  # light / render bitmask (legacy)
+            obj.light_mask = ar.read_uint16()
         else:
-            ar.read_uint32()  # light / render bitmask
+            obj.light_mask = ar.read_uint32()
 
     if obj.version >= 9:
-        ar.read_uint8()  # collision behavior
+        # Write path (iVersion 10) stores VisCollisionBehavior as uint32;
+        # CharacterSelect (iVersion 9) stores a single uint8.
+        if obj.version >= 10:
+            obj.collision_behavior = ar.read_uint32()
+        else:
+            obj.collision_behavior = ar.read_uint8()
 
     # Physics hint appears with iVersion >= 10 (current write path).
     if obj.version >= 10:
-        ar.read_uint8()  # physics hint
+        obj.physics_hint = ar.read_uint8()
 
-    for _ in range(ar.read_int32()):
+    if ar.shallow_static_meshes and ar.current_payload_end is not None:
+        ar.seek(ar.current_payload_end)
+        return
+
+    obj.geometries = [
         serialize_static_geometry_instance(ar)
+        for _ in range(ar.read_int32())
+    ]
 
     if obj.version >= 4:
         if obj.version < 8:
@@ -709,6 +775,180 @@ def serialize_base_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
             ar.read_uint32()  # bone / submesh visibility bitmask (unused)
 
 
+def serialize_sector_box(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VSectorBox`` — GamePlugin entity; archive uses ``VisBaseEntity_cl``."""
+
+    serialize_base_entity(ar, obj)
+
+
+def serialize_electronic_display(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VElectronicDisplay_cl::Serialize`` (loading)."""
+
+    serialize_base_entity(ar, obj)
+    version = ar.read_int8()
+    ar.read_int32()  # display flags
+    ar.read_int32()  # display flags
+
+    if version >= 2:
+        ar.read_int32()  # extra flags
+
+    ar.read_string_binary()  # movie / texture path
+    ar.read_string_binary()  # movie / texture path
+
+
+def serialize_particle_constraint(ar: VArchiveReader, obj: ArchiveObject) -> int:
+    """``VisParticleConstraint_cl::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    version = ar.read_int8()
+    ar.read_color_ref()  # debug / influence color
+    ar.read_int32()  # reflect behavior
+    ar.read_bool()  # enabled
+    ar.read_bool()  # debug render
+    ar.read_float()  # restitution
+    ar.read_uint32()  # influence mask
+
+    if version >= 2:
+        ar.read_float()  # extra radius / padding
+
+    return version
+
+
+def serialize_particle_constraint_obox(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisParticleConstraintAABox_cl`` / ``OBox`` share this Serialize."""
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_bbox_vis()
+    ar.read_bool()  # inverted / inside
+
+
+def serialize_particle_constraint_point(ar: VArchiveReader, obj: ArchiveObject) -> None:
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_float()  # radius
+
+
+def serialize_particle_constraint_sphere(ar: VArchiveReader, obj: ArchiveObject) -> None:
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_float()  # radius
+    ar.read_bool()  # inverted
+    ar.read_int32()  # axis / flags
+
+
+def serialize_particle_constraint_plane(ar: VArchiveReader, obj: ArchiveObject) -> None:
+
+    version = serialize_particle_constraint(ar, obj)
+
+    for _ in range(4):
+        ar.read_float()  # hkvPlane SerializeX
+
+    if ar.loading_version >= 22:
+        ar.read_bool()
+        ar.read_float()
+        ar.read_float()
+
+        if version >= 3:
+            ar.read_float()
+
+
+def serialize_particle_constraint_cambox(ar: VArchiveReader, obj: ArchiveObject) -> None:
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_vis_vector()  # box extent
+
+
+def serialize_particle_constraint_terrain(ar: VArchiveReader, obj: ArchiveObject) -> None:
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_int8()  # local version
+    ar.read_object()  # VTerrain
+
+
+def serialize_particle_affector_fan(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisParticleAffectorFan_cl`` / ``Cyclone`` share this Serialize."""
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_float()  # intensity
+    ar.read_float()  # radius
+    ar.read_float()  # angle / falloff
+
+
+def serialize_particle_affector_gravity(ar: VArchiveReader, obj: ArchiveObject) -> None:
+
+    serialize_particle_constraint(ar, obj)
+    ar.read_float()  # intensity
+    ar.read_float()  # radius
+
+
+def _serialize_particle_constraint_list(ar: VArchiveReader) -> None:
+    """``VisParticleConstraintList_cl::SerializeX`` (loading)."""
+
+    for _ in range(ar.read_int32()):
+        ar.read_object()  # constraint (map sync)
+        ar.read_int32()  # influence flags
+
+
+def _serialize_particle_group(ar: VArchiveReader) -> None:
+    """``ParticleGroupBase_cl::SerializeX`` (loading)."""
+
+    dummy = Object3D("ParticleGroupBase_cl")
+    serialize_object3d(ar, dummy)
+    version = ar.read_int32()
+    ar.read_float()  # time scale / lifetime
+
+    if version >= 2:
+        ar.read_color_ref()  # tint
+
+    if version >= 3:
+        ar.read_uint32()  # visible bitmask
+
+    if version >= 4:
+        ar.read_vis_vector()  # wind / offset
+
+    if version >= 5:
+        ar.read_bool()  # paused / finished
+
+    if version >= 6:
+        ar.read_bool()  # extra flag
+
+    if version >= 7:
+        ar.read_object()  # attach entity
+
+    _serialize_particle_constraint_list(ar)
+
+
+def serialize_particle_effect(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisParticleEffect_cl::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    version = ar.read_int32()
+    file_mode = ar.read_uint8() if version >= 1 else 0
+
+    if version >= 4:
+        ar.read_uint32()  # random seed / flags
+
+    if file_mode == 0:
+        ar.read_string_binary()  # .vparticle path
+    elif file_mode == 1:
+        ar.read_object()  # VisParticleEffectFile_cl
+
+    if version >= 1 and ar.loading_version < 25:
+        ar.read_vstring()  # object key (legacy)
+
+    if version >= 3:
+        ar.read_bool()  # playing
+        ar.read_bool()  # finished / looped
+
+    for _ in range(ar.read_int32()):
+        present = True if version < 2 else ar.read_bool()
+
+        if present:
+            _serialize_particle_group(ar)
+
+
 def serialize_camera_position_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
     """``CameraPositionEntity::Serialize`` — camera extras unused by importer."""
 
@@ -717,6 +957,321 @@ def serialize_camera_position_entity(ar: VArchiveReader, obj: ArchiveObject) -> 
     ar.read_float()  # FOV
     ar.read_float()  # near clip
     ar.read_float()  # far clip
+
+
+def serialize_sun_glare(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VSunGlare::Serialize`` (loading) — Object3D plus glare params."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+
+    version = ar.read_uint8()
+    ar.read_uint32()  # flags / mask
+    ar.read_color_ref()  # tint
+    ar.read_int32()  # quality / samples
+    ar.read_float()  # intensity / size
+    ar.read_bool()  # enabled
+
+    if version >= 1:
+        ar.read_float()  # bloom / fade
+
+
+def serialize_simple_animation_component(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VSimpleAnimationComponent::Serialize`` (loading)."""
+
+    serialize_object_component_base(ar, obj)
+    version = ar.read_uint8()
+    ar.read_vstring()  # animation / sequence name (unused)
+
+    if version >= 1:
+        ar.read_int32()  # flags / loop mode
+
+
+def serialize_skeleton_serialization_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VSkeletonSerializationProxy::Serialize`` (loading)."""
+
+    ctype = ar.read_uint8()
+
+    if ctype == 1:
+        ar.read_proxy_object()  # owner mesh
+    elif ctype == 2:
+        ar.read_proxy_object()  # owner animation
+        ar.read_int32()  # owner index
+
+
+def serialize_vertex_deformer_stack(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisVertexDeformerStack_cl::Serialize`` (loading)."""
+
+    serialize_typed_engine_object(ar, obj)
+
+    for _ in range(ar.read_int32()):
+        ar.read_object()  # deformer entry (map sync)
+
+
+def serialize_skinning_deformer(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisSkinningDeformer_cl::Serialize`` (loading)."""
+
+    serialize_typed_engine_object(ar, obj)
+    ar.read_bool()  # hardware / mode flag
+
+
+def _serialize_anim_event_list(ar: VArchiveReader) -> None:
+    """``VisAnimEventList_cl::SerializeX`` (loading)."""
+
+    ar.read_float()  # start / cursor
+    ar.read_float()  # end time
+    ar.read_bool()  # direction
+    count = ar.read_int32()
+
+    for _ in range(count):
+        ar.read_float()  # event time
+
+        if ar.read_bool():
+            ar.read_string_binary()  # event key
+        else:
+            ar.read_int32()  # event id
+
+        if ar.loading_version >= 24:
+            ar.read_bool()  # auto-remove
+
+    ar.read_int32()  # current event
+    ar.read_int32()  # current loop
+
+
+def _serialize_anim_control_x(ar: VArchiveReader) -> None:
+    """``VisAnimControl_cl::SerializeX`` (loading)."""
+
+    ar.read_proxy_object()  # anim sequence
+    ar.read_float()  # current sequence time
+    ar.read_bool()  # paused
+    ar.read_uint32()  # flags
+    ar.read_float()  # speed factor
+    ar.read_float()  # start anim time
+    _serialize_anim_event_list(ar)
+
+    for _ in range(ar.read_int32()):
+        ar.read_object()  # event listener
+
+    for _ in range(ar.read_int32()):
+        _serialize_anim_control_x(ar)  # synchronized control (inline)
+
+
+def serialize_anim_final_skeletal_result(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisAnimFinalSkeletalResult_cl::Serialize`` (loading)."""
+
+    serialize_typed_engine_object(ar, obj)
+    ar.read_proxy_object()  # skeleton
+    ar.read_object()  # skeletal anim control (map sync)
+
+
+def serialize_skeletal_anim_control(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisSkeletalAnimControl_cl::Serialize`` (loading)."""
+
+    # IVisAnimResultGenerator_cl::Serialize
+    serialize_typed_engine_object(ar, obj)
+    ar.read_proxy_object()  # skeleton
+    # VisAnimControl_cl::SerializeX on the control subobject
+    _serialize_anim_control_x(ar)
+
+
+def serialize_anim_config(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VisAnimConfig_cl::Serialize`` (loading)."""
+
+    serialize_typed_engine_object(ar, obj)
+    ar.read_proxy_object()  # dynamic mesh
+    # High-bit version markers (0x8000000x) must be compared as unsigned.
+    iversion = ar.read_uint32()
+
+    if iversion >= 0x80000000:
+        if iversion >= 0x80000001:
+            ar.read_proxy_object()  # skeleton
+
+        ar.read_int32()  # final-result placeholder
+        ar.read_int32()  # skin mode
+        ar.read_bool()  # parent-zone flag
+        ar.read_int32()  # parent-zone extras
+
+    ar.read_object()  # vertex deformer stack
+    ar.read_object()  # final skeletal result
+    ar.read_bool()  # modified bbox flag
+
+    if iversion >= 0x80000002:
+        ar.read_bool()  # mesh flag
+
+
+def serialize_sequence_set_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VSequenceSetSerializationProxy::Serialize`` (loading)."""
+
+    ar.read_string_binary()  # animation set path (unused)
+
+
+def serialize_sequence_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VSequenceSerializationProxy::Serialize`` (loading)."""
+
+    ar.read_uint8()  # anim type
+    ar.read_proxy_object()  # sequence set
+    ar.read_string_binary()  # sequence name (unused)
+
+
+def serialize_model_serialization_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VModelSerializationProxy::Serialize`` (loading)."""
+
+    # VTypedObject::Serialize is a no-op on load for this proxy.
+    ar.read_string_binary()  # dynamic mesh path (unused)
+
+    for _ in range(ar.read_int32()):
+        ar.read_proxy_object()  # VisAnimSequenceSet proxy (map sync)
+
+
+def serialize_static_mesh_alpha_controller(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VStaticMeshAlphaController::Serialize`` (loading)."""
+
+    ar.read_float()  # alpha / fade
+
+
+def _serialize_texture_exchange(ar: VArchiveReader) -> None:
+    """``VTextureObject::DoArchiveExchange`` (loading)."""
+
+    if ar.read_bool():
+        ar.read_uint16()  # load flags
+        ar.read_string_binary()  # filename
+
+
+def _serialize_surface_textures(ar: VArchiveReader) -> None:
+    """``VisSurfaceTextures_cl::SerializeX`` (loading)."""
+
+    ar.read_uint8()  # local version
+    ar.read_vec4()  # lightmap scale / offset
+    _serialize_texture_exchange(ar)  # diffuse
+    _serialize_texture_exchange(ar)  # normal
+    _serialize_texture_exchange(ar)  # specular
+
+    for _ in range(4):
+        _serialize_texture_exchange(ar)  # model lightmaps
+
+    for _ in range(ar.read_int16()):
+        _serialize_texture_exchange(ar)  # auxiliary
+
+
+def _serialize_surface(ar: VArchiveReader) -> None:
+    """``VisSurface_cl::SerializeX`` (loading)."""
+
+    _serialize_surface_textures(ar)
+    version = ar.read_uint8()
+    ar.read_vstring()  # name
+    ar.read_int32()  # material flags
+    ar.read_color_ref()  # ambient
+    ar.read_uint8()  # transparency
+    ar.read_uint8()  # sorting key
+    ar.read_uint8()  # lighting method
+    ar.read_uint8()  # deferred ID
+    ar.read_bool()  # cast static shadows
+
+    if version < 1:
+        ar.read_bool()  # legacy manipulations
+    else:
+        ar.read_uint8()  # pass type
+
+    ar.read_bool()  # double sided
+    ar.read_bool()  # depth write
+    ar.read_float()  # spec mul
+    ar.read_float()  # spec exp
+    ar.read_float()  # parallax scale
+    ar.read_float()  # parallax bias
+    ar.read_float()  # alpha threshold
+    ar.read_float()  # depth bias
+    ar.read_float()  # depth bias clamp
+    ar.read_float()  # slope scaled depth bias
+    ar.read_int32()  # user flags
+    ar.read_vstring()  # user data
+    ar.read_uint8()  # shader mode
+    _serialize_effect_config(ar)
+
+    if version >= 2:
+        ar.read_uint8()  # mobile shader flags
+
+
+def serialize_volumetric_cone(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VolumetricCone_cl::Serialize`` (loading)."""
+
+    assert isinstance(obj, Object3D)
+    serialize_object3d(ar, obj)
+    version = ar.read_int32()
+    ar.read_color_ref()  # tint
+
+    for _ in range(5):
+        ar.read_float()  # radius / length / angles
+
+    ar.read_object()  # linked light
+    ar.read_uint8()  # enabled
+    ar.read_uint8()  # flags
+    ar.read_uint8()  # flags
+    ar.read_float()  # intensity / fade
+
+    if version >= 1:
+        ar.read_uint32()  # light mask
+
+    if version >= 2:
+        ar.read_float()  # extra param
+        ar.read_float()  # extra param
+
+
+def serialize_surface_texture_set_proxy(
+    ar: VArchiveReader,
+    obj: ArchiveObject,
+) -> None:
+    """``VSurfaceTextureSetSerializationProxy::Serialize`` (loading)."""
+
+    version = ar.read_uint8()
+    count = ar.read_int16()
+    as_surfaces = ar.read_bool() if version >= 1 else False
+
+    for _ in range(count):
+        if as_surfaces:
+            _serialize_surface(ar)
+        else:
+            _serialize_surface_textures(ar)
+
+
+def serialize_projected_wallmark(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VProjectedWallmark::Serialize`` (loading)."""
+
+    version = ar.read_int32()
+    ar.read_vis_vector()  # origin
+    ar.read_vis_vector()  # direction
+    ar.read_vis_vector()  # up
+    ar.read_vis_vector()  # right
+    ar.read_vis_vector()  # extent / size
+    ar.read_float()  # radius / fade
+    ar.read_string_binary()  # texture path (unused)
+    ar.read_color_ref()  # tint
+    ar.read_uint32()  # flags / mask
+    ar.read_float()  # intensity
+    ar.read_float()  # rotation
+
+    if version >= 1:
+        ar.read_uint32()  # extra flags
+
+    if version >= 2:
+        ar.read_bool()  # enabled / affect static
+
+    if 3 <= version <= 7:
+        ar.read_int64()  # unique id (unused)
+
+    if version >= 4:
+        ar.read_float()  # depth / bias
+
+    if version >= 5:
+        ar.read_float()  # far / lifetime
+
+    if version >= 6:
+        ar.read_uint32()  # sorting / stencil
+
+    if version >= 7:
+        _serialize_effect_config(ar)
+
+    if version >= 9:
+        ar.read_int32()  # visibility level
 
 
 def serialize_time_of_day(ar: VArchiveReader, obj: ArchiveObject) -> None:
@@ -731,5 +1286,23 @@ def serialize_time_of_day_component(ar: VArchiveReader, obj: ArchiveObject) -> N
 
 
 def serialize_corona_component(ar: VArchiveReader, obj: ArchiveObject) -> None:
+    """``VCoronaComponent::Serialize`` (loading)."""
 
     serialize_object_component_base(ar, obj)
+    version = ar.read_int8()
+    ar.read_string_binary()  # corona texture
+    ar.read_float()  # size / scale
+    ar.read_uint32()  # color / flags
+    ar.read_uint32()  # color / flags
+    ar.read_float()  # fade / distance
+    ar.read_float()  # fade / distance
+    ar.read_float()  # fade / distance
+    ar.read_uint8()  # flags
+    ar.read_uint8()  # flags
+    ar.read_int32()  # sort / mask
+
+    if version >= 1:
+        ar.read_uint32()  # extra mask
+
+    if version >= 2:
+        ar.read_int32()  # extra param

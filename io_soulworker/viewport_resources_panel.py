@@ -6,15 +6,22 @@ from pathlib import Path
 from bpy.app.handlers import persistent
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
-from bpy.types import Collection, Context, LayerCollection, Operator, Panel, Scene
+from bpy.types import Context, Operator, Panel, Scene
 
 from io_soulworker.file_export.operators import (
     IO_SOULWORKER_OT_export_model,
     IO_SOULWORKER_OT_export_vmesh,
 )
 from io_soulworker.file_import.animation.file_reader import AnimationFileReader
+from io_soulworker.file_import.collections import (
+    collection_segments_under_resources,
+    ensure_collection_hierarchy,
+    leaf_collection_color_tag,
+    set_active_collection,
+)
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
+from io_soulworker.file_import.scene.importer import SceneImporter
 from io_soulworker.file_import.shaders.node_groups import sync_shader_node_groups
 
 
@@ -39,112 +46,19 @@ def _sync_shader_libs_on_load(_dummy) -> None:
             sync_shader_node_groups(root)
 
 
-def _get_layer_collection(
-    layer_collection: LayerCollection,
-    collection: Collection,
-) -> LayerCollection | None:
+def _resources_root(context: Context) -> Path | None:
 
-    if layer_collection.collection == collection:
+    raw = (context.scene.soulworker_unpack_resources or "").strip()
 
-        return layer_collection
-
-    for layer in layer_collection.children:
-
-        found = _get_layer_collection(layer, collection)
-
-        if found is not None:
-
-            return found
-
-    return None
-
-
-def _set_active_collection(context: Context, collection: Collection) -> None:
-
-    view_layer = context.view_layer
-    layer_collection = _get_layer_collection(
-        view_layer.layer_collection,
-        collection,
-    )
-
-    if layer_collection is not None:
-
-        view_layer.active_layer_collection = layer_collection
-
-
-def _find_or_create_child_collection(
-    parent: Collection,
-    name: str,
-) -> Collection:
-
-    for child in parent.children:
-
-        if child.name == name:
-
-            return child
-
-    new_collection = bpy.data.collections.new(name)
-    parent.children.link(new_collection)
-
-    return new_collection
-
-
-def _ensure_collection_hierarchy(
-    context: Context,
-    segment_names: list[str],
-) -> Collection:
-
-    current = context.scene.collection
-
-    for name in segment_names:
-
-        current = _find_or_create_child_collection(current, name)
-
-    return current
-
-
-def _collection_segments_for_model(
-    resources_root_raw: str,
-    model_path: Path,
-) -> list[str] | None:
-
-    root_raw = (resources_root_raw or "").strip()
-
-    if not root_raw:
-
+    if not raw:
         return None
 
-    root = Path(bpy.path.abspath(root_raw)).resolve()
-    model_parent = Path(bpy.path.abspath(str(model_path))).resolve().parent
+    root = Path(bpy.path.abspath(raw)).resolve()
 
-    try:
-
-        relative = model_parent.relative_to(root)
-
-    except ValueError:
-
+    if not root.is_dir():
         return None
 
-    if relative == Path("."):
-
-        return ["project"]
-
-    return ["project", *relative.parts]
-
-
-def _leaf_collection_color_tag(model_path: Path) -> str:
-
-    ext = model_path.suffix.lower()
-
-    if ext == ".model":
-
-        return "COLOR_02"
-
-    if ext == ".vmesh":
-
-        return "COLOR_03"
-
-    return "NONE"
+    return root
 
 
 class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
@@ -175,17 +89,19 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
             self.report({"ERROR"}, "A .model or .vmesh file is required")
             return {"CANCELLED"}
 
-        segments = _collection_segments_for_model(
+        segments = collection_segments_under_resources(
             context.scene.soulworker_unpack_resources,
             path,
         )
 
+        collection = None
+
         if segments is not None:
 
-            leaf = _ensure_collection_hierarchy(context, segments)
-            leaf.color_tag = _leaf_collection_color_tag(path)
+            collection = ensure_collection_hierarchy(context, segments)
+            collection.color_tag = leaf_collection_color_tag(path)
 
-            _set_active_collection(context, leaf)
+            set_active_collection(context, collection)
 
         elif (context.scene.soulworker_unpack_resources or "").strip():
 
@@ -194,9 +110,13 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
                 "The file is not inside the specified resources folder; no collection hierarchy was created",
             )
 
-        ModelFileReader(path, context, 7.0).run()
+        ModelFileReader(
+            path,
+            context,
+            7.0,
+            collection=collection,
+        ).run()
 
-        # If an animation with the same stem exists next to the model - import it too.
         anim_path = path.with_suffix(".anim")
         if anim_path.is_file():
             debug("import animation: %s", anim_path)
@@ -208,6 +128,81 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
                     {"WARNING"},
                     f"Failed to import animation: {anim_path.name}",
                 )
+
+        return {"FINISHED"}
+
+
+class IO_SOULWORKER_OT_open_scene(Operator, ImportHelper):
+
+    bl_idname = "io_soulworker.open_scene"
+    bl_label = "Open Scene"
+    bl_options = {"REGISTER", "UNDO"}
+
+    if in_blender():
+
+        filter_glob: StringProperty(
+            default="*.vscene", options={"HIDDEN"})  # type: ignore
+
+    else:
+
+        filter_glob: str
+
+    def execute(self, context: Context):
+
+        context.scene.render.engine = "BLENDER_EEVEE"
+
+        path = Path(self.filepath)
+        ext = path.suffix.lower()
+
+        if not path.is_file() or ext != ".vscene":
+            error("not a .vscene file: %s", path)
+            self.report({"ERROR"}, "A .vscene file is required")
+            return {"CANCELLED"}
+
+        resources = _resources_root(context)
+
+        if resources is None:
+            self.report(
+                {"ERROR"},
+                "Set SoulWorker Resources to the unpacked _datas folder first",
+            )
+            return {"CANCELLED"}
+
+        try:
+            result = SceneImporter(
+                path,
+                context,
+                resources,
+                emission_strength=7.0,
+            ).run()
+        except Exception as exc:
+            error("Scene import failed: %s", exc)
+            self.report({"ERROR"}, f"Scene import failed: {exc}")
+            return {"CANCELLED"}
+
+        placed = len(result.objects)
+        missing = len(result.missing_paths)
+        total = result.static_mesh_count + result.zone_mesh_count
+
+        if placed == 0 and total == 0:
+            self.report({"WARNING"}, "Scene has no static mesh instances")
+        elif placed == 0:
+            self.report(
+                {"ERROR"},
+                f"No meshes placed ({missing} missing under Resources)",
+            )
+            return {"CANCELLED"}
+        elif missing:
+            self.report(
+                {"WARNING"},
+                f"Placed {placed}/{total} meshes "
+                f"({missing} missing)",
+            )
+        else:
+            self.report(
+                {"INFO"},
+                f"Placed {placed} static mesh instance(s)",
+            )
 
         return {"FINISHED"}
 
@@ -230,7 +225,11 @@ class IO_SOULWORKER_PT_unpack_resources(Panel):
 
         layout.operator(
             IO_SOULWORKER_OT_open_resource.bl_idname,
-            text="Open",
+            text="Open Model",
+        )
+        layout.operator(
+            IO_SOULWORKER_OT_open_scene.bl_idname,
+            text="Open Scene",
         )
 
 

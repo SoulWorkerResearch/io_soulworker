@@ -43,6 +43,8 @@ class VArchiveReader:
         serializers: dict[str, SerializeFn] | None = None,
         aliases: dict[str, str] | None = None,
         leaf_skip_classes: set[str] | None = None,
+        zone_file: bool = False,
+        shallow_static_meshes: bool = False,
     ) -> None:
 
         self._data = memoryview(data)
@@ -53,10 +55,17 @@ class VArchiveReader:
         self.serializers = serializers if serializers is not None else {}
         self.aliases = aliases if aliases is not None else {}
         self.leaf_skip_classes = leaf_skip_classes if leaf_skip_classes is not None else set()
+        # ``VZoneShapesArchive``: no per-object progress prefix; SMI local
+        # version 0 is followed by 9 extra bytes before ``iVersion``.
+        self.zone_file = zone_file
+        # Read path/transform then skip the rest of the SMI payload (SGI).
+        self.shallow_static_meshes = shallow_static_meshes
+        self.current_payload_end: int | None = None
         # Vision::InitArchive seeds loadArray[0]=nullptr and m_nMapCount=1 so
         # object/type indices written to the stream are 1-based.
         self.load_array: list[Any] = [None]
         self.objects: list[ArchiveObject] = []
+        self.skipped_classes: dict[str, int] = {}
 
     @property
     def position(self) -> int:
@@ -148,6 +157,12 @@ class VArchiveReader:
     def read_float(self) -> float:
 
         value, = unpack_from("<f", self.read(4))
+
+        return value
+
+    def read_double(self) -> float:
+
+        value, = unpack_from("<d", self.read(8))
 
         return value
 
@@ -271,47 +286,68 @@ class VArchiveReader:
         class_name, schema = self._read_class(tag)
         payload_len: int | None = None
         payload_start = self._pos
+        previous_payload_end = self.current_payload_end
 
         if self.use_object_lengths:
             payload_len = self.read_uint32()
             payload_start = self._pos
+            self.current_payload_end = payload_start + payload_len
+        else:
+            self.current_payload_end = None
 
         obj = self._create_object(class_name)
         obj.archive_index = len(self.load_array)
         self.load_array.append(obj)
         self.objects.append(obj)
 
-        if class_name in self.leaf_skip_classes and payload_len is not None:
-            self.seek(payload_start + payload_len)
-            return obj
-
         handler_name = self.aliases.get(class_name, class_name)
         handler = self.serializers.get(handler_name)
 
-        if handler is None:
-            raise VArchiveError(
-                f"no serializer for class {class_name!r} "
-                f"(schema={schema}) at offset {payload_start}"
-            )
+        try:
+            # Prefer an explicit serializer. Otherwise, with object lengths, skip
+            # the opaque payload so large game scenes can still yield static
+            # meshes. Classes that embed nested ReadObject MUST be registered
+            # (see VModelSerializationProxy) — blind skips desync loadArray.
+            if handler is None:
+                if payload_len is None:
+                    raise VArchiveError(
+                        f"no serializer for class {class_name!r} "
+                        f"(schema={schema}) at offset {payload_start}"
+                    )
 
-        handler(self, obj)
+                self.skipped_classes[class_name] = (
+                    self.skipped_classes.get(class_name, 0) + 1
+                )
+                self.seek(payload_start + payload_len)
+                return obj
 
-        if payload_len is not None:
-            consumed = self._pos - payload_start
+            if class_name in self.leaf_skip_classes and payload_len is not None:
+                self.skipped_classes[class_name] = (
+                    self.skipped_classes.get(class_name, 0) + 1
+                )
+                self.seek(payload_start + payload_len)
+                return obj
 
-            if consumed != payload_len:
+            handler(self, obj)
+
+            if payload_len is not None:
+                consumed = self._pos - payload_start
+
+                if consumed != payload_len:
+                    raise VArchiveError(
+                        f"{class_name}: object length mismatch "
+                        f"(expected {payload_len}, consumed {consumed}) "
+                        f"at payload start {payload_start}"
+                    )
+
+            if expected is not None and not self._is_compatible(class_name, expected):
                 raise VArchiveError(
-                    f"{class_name}: object length mismatch "
-                    f"(expected {payload_len}, consumed {consumed}) "
-                    f"at payload start {payload_start}"
+                    f"type mismatch: got {class_name!r}, expected {expected!r}"
                 )
 
-        if expected is not None and not self._is_compatible(class_name, expected):
-            raise VArchiveError(
-                f"type mismatch: got {class_name!r}, expected {expected!r}"
-            )
-
-        return obj
+            return obj
+        finally:
+            self.current_payload_end = previous_payload_end
 
     def _object_reference(
         self,

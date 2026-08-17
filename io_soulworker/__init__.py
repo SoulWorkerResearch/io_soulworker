@@ -15,6 +15,7 @@ from io_soulworker.file_export.operators import (
 )
 from io_soulworker.viewport_resources_panel import (
     IO_SOULWORKER_OT_open_resource,
+    IO_SOULWORKER_OT_open_scene,
     IO_SOULWORKER_PT_export,
     IO_SOULWORKER_PT_unpack_resources,
     register_unpack_resources_props,
@@ -44,6 +45,7 @@ classes = {
     FileImportObjectPanelFeatures,
     FileImportRunner,
     IO_SOULWORKER_OT_open_resource,
+    IO_SOULWORKER_OT_open_scene,
     IO_SOULWORKER_OT_export_vmesh,
     IO_SOULWORKER_OT_export_model,
     IO_SOULWORKER_PT_unpack_resources,

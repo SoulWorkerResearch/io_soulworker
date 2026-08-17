@@ -26,6 +26,23 @@ class ShapesArchiveResult:
     lights: list[LightSource] = field(default_factory=list)
     visibility_zones: list[ArchiveObject] = field(default_factory=list)
     think_interval: float = 0.0
+    skipped_classes: dict[str, int] = field(default_factory=dict)
+    zone_version: int = 0
+    zone_pivot: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+
+def _collect_shapes(ar: VArchiveReader, result: ShapesArchiveResult) -> None:
+
+    result.objects = list(ar.objects)
+    result.skipped_classes = dict(ar.skipped_classes)
+
+    for obj in ar.objects:
+        if isinstance(obj, StaticMeshInstance):
+            result.static_meshes.append(obj)
+        elif isinstance(obj, LightSource):
+            result.lights.append(obj)
+        elif isinstance(obj, Object3D):
+            result.entities.append(obj)
 
 
 def read_shapes_payload(
@@ -77,14 +94,47 @@ def read_shapes_payload(
         # Free scene objects — classified into result lists after the walk.
         ar.read_object()
 
-    result.objects = list(ar.objects)
+    _collect_shapes(ar, result)
+    return result
 
-    for obj in ar.objects:
-        if isinstance(obj, StaticMeshInstance):
-            result.static_meshes.append(obj)
-        elif isinstance(obj, LightSource):
-            result.lights.append(obj)
-        elif isinstance(obj, Object3D):
-            result.entities.append(obj)
 
+def read_zone_file(data: bytes | memoryview) -> ShapesArchiveResult:
+    """Walk a ``.vzone`` stream (``VZoneShapesArchive``).
+
+    Header: archive version, zone local version, optional ``hkvVec3d`` pivot
+    (local >= 10), then object / non-null / root counts. No SHPS type
+    statistics and no per-object progress prefix.
+    """
+
+    ar = VArchiveReader(
+        data,
+        loading_version=30,
+        use_object_lengths=False,
+        has_per_object_range=False,
+        serializers=build_serializers(),
+        aliases=ALIASES,
+        leaf_skip_classes=set(),
+        zone_file=True,
+    )
+
+    result = ShapesArchiveResult()
+    archive_version = ar.read_int32()
+    ar.loading_version = archive_version
+    result.zone_version = ar.read_int32()
+
+    if result.zone_version >= 10:
+        result.zone_pivot = (ar.read_double(), ar.read_double(), ar.read_double())
+
+    ar.read_int32()  # object count
+    ar.read_int32()  # non-null count
+    root_count = ar.read_int32()
+    ar.read_int32()  # reserved
+
+    for _ in range(root_count):
+        if ar.eof():
+            break
+
+        ar.read_object()
+
+    _collect_shapes(ar, result)
     return result
