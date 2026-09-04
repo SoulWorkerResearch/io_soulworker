@@ -380,9 +380,11 @@ class AnimationFileReader(AnimationFileChunkReader):
         rotations_by_bone = {}
         scales_by_bone = {}
         source_refs_by_name = {bone.name: bone for bone in source_refs}
+        target_refs_by_name = {bone.name: bone for bone in target_refs}
         basis_location_keys_by_bone = {}
         basis_rotation_keys_by_bone = {}
         scale_keys_by_bone = {}
+        animated_bone_names: list[str] = []
 
         for target_ref in target_refs:
             bone_name = target_ref.name
@@ -417,6 +419,7 @@ class AnimationFileReader(AnimationFileChunkReader):
             basis_location_keys_by_bone[bone_name] = []
             basis_rotation_keys_by_bone[bone_name] = []
             scale_keys_by_bone[bone_name] = []
+            animated_bone_names.append(bone_name)
 
         key_frames = sorted({
             frame
@@ -435,28 +438,37 @@ class AnimationFileReader(AnimationFileChunkReader):
         if not key_frames:
             return
 
+        vision_rest_worlds = self._world_matrices_from_refs(target_refs)
+        blender_rest_worlds = {
+            bone.name: bone.matrix_local.copy()
+            for bone in armature_object.data.bones
+        }
         frames = range(key_frames[0], key_frames[-1] + 1)
 
         for frame in frames:
-            for bone_name in basis_location_keys_by_bone:
+            vision_pose_worlds = self._animated_world_matrices(
+                target_refs_by_name,
+                positions_by_bone,
+                rotations_by_bone,
+                frame,
+            )
+
+            for bone_name in animated_bone_names:
                 rest_bone = armature_object.data.bones.get(bone_name)
 
                 if rest_bone is None:
                     continue
 
-                rest_local = self._rest_local_matrix(rest_bone)
-                local_matrix = self._local_animation_matrix(
-                    rest_local,
-                    self._sample_vector_track(
-                        positions_by_bone.get(bone_name, {}),
-                        frame
-                    ),
-                    self._sample_quaternion_track(
-                        rotations_by_bone.get(bone_name, {}),
-                        frame
-                    ),
+                target_ref = target_refs_by_name[bone_name]
+                parent_name = target_ref.parent_name
+                basis = self._pose_basis_from_skinning_delta(
+                    blender_rest_worlds[bone_name],
+                    vision_rest_worlds[bone_name],
+                    vision_pose_worlds[bone_name],
+                    blender_rest_worlds.get(parent_name) if parent_name else None,
+                    vision_rest_worlds.get(parent_name) if parent_name else None,
+                    vision_pose_worlds.get(parent_name) if parent_name else None,
                 )
-                basis = rest_local.inverted() @ local_matrix
 
                 if positions_by_bone.get(bone_name):
                     basis_location_keys_by_bone[bone_name].append(
@@ -730,6 +742,124 @@ class AnimationFileReader(AnimationFileChunkReader):
             return rest_bone.matrix_local.copy()
 
         return rest_bone.parent.matrix_local.inverted() @ rest_bone.matrix_local
+
+    @staticmethod
+    def _compose_local_matrix(
+            position: Vector,
+            orientation: Quaternion) -> Matrix:
+        matrix = orientation.to_matrix().to_4x4()
+        matrix.translation = position.to_3d()
+
+        return matrix
+
+    @classmethod
+    def _world_matrices_from_refs(
+            cls,
+            refs: list[SkeletonBoneRef]) -> dict[str, Matrix]:
+        refs_by_name = {ref.name: ref for ref in refs}
+        worlds: dict[str, Matrix] = {}
+
+        def build(name: str) -> Matrix:
+            cached = worlds.get(name)
+
+            if cached is not None:
+                return cached
+
+            ref = refs_by_name[name]
+            local = cls._compose_local_matrix(
+                ref.local_position,
+                ref.local_orientation,
+            )
+
+            if ref.parent_name and ref.parent_name in refs_by_name:
+                matrix = build(ref.parent_name) @ local
+            else:
+                matrix = local
+
+            worlds[name] = matrix
+
+            return matrix
+
+        for ref in refs:
+            build(ref.name)
+
+        return worlds
+
+    def _animated_world_matrices(
+        self,
+        refs_by_name: dict[str, SkeletonBoneRef],
+        positions_by_bone: dict[str, dict[int, Vector]],
+        rotations_by_bone: dict[str, dict[int, Quaternion]],
+        frame: int,
+    ) -> dict[str, Matrix]:
+        worlds: dict[str, Matrix] = {}
+
+        def build(name: str) -> Matrix:
+            cached = worlds.get(name)
+
+            if cached is not None:
+                return cached
+
+            ref = refs_by_name[name]
+            position = self._sample_vector_track(
+                positions_by_bone.get(name, {}),
+                frame,
+            )
+            rotation = self._sample_quaternion_track(
+                rotations_by_bone.get(name, {}),
+                frame,
+            )
+
+            if position is None:
+                position = ref.local_position
+
+            if rotation is None:
+                rotation = ref.local_orientation
+
+            local = self._compose_local_matrix(position, rotation)
+
+            if ref.parent_name and ref.parent_name in refs_by_name:
+                matrix = build(ref.parent_name) @ local
+            else:
+                matrix = local
+
+            worlds[name] = matrix
+
+            return matrix
+
+        for name in refs_by_name:
+            build(name)
+
+        return worlds
+
+    @staticmethod
+    def _pose_basis_from_skinning_delta(
+        blender_rest: Matrix,
+        vision_rest: Matrix,
+        vision_pose: Matrix,
+        parent_blender_rest: Matrix | None,
+        parent_vision_rest: Matrix | None,
+        parent_vision_pose: Matrix | None,
+    ) -> Matrix:
+        """Map a Vision joint delta onto a Blender rest pose with a different tail."""
+
+        delta = vision_pose @ vision_rest.inverted()
+
+        if (
+            parent_blender_rest is None
+            or parent_vision_rest is None
+            or parent_vision_pose is None
+        ):
+            return blender_rest.inverted() @ delta @ blender_rest
+
+        parent_delta = parent_vision_pose @ parent_vision_rest.inverted()
+
+        return (
+            blender_rest.inverted()
+            @ parent_delta.inverted()
+            @ delta
+            @ blender_rest
+        )
 
     @staticmethod
     def _local_animation_matrix(
