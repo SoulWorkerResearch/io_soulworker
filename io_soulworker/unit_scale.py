@@ -24,3 +24,11 @@ def vision_matrix_to_blender(matrix: Matrix) -> Matrix:
     result = matrix.copy()
     result.translation = vision_to_blender(result.translation)
     return result
+
+
+def blender_matrix_to_vision(matrix: Matrix) -> Matrix:
+    """Inverse of ``vision_matrix_to_blender``: scale translation only."""
+
+    result = matrix.copy()
+    result.translation = blender_to_vision(result.translation)
+    return result

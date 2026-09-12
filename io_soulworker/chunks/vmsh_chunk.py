@@ -131,14 +131,12 @@ class VMshChunk(DataExchange_cl):
                 pos = reader.read_vector3()
                 self.vertices.append(pos)
 
-            # TODO: normals are not used in the current implementation
-            # if self.descriptor.has_component(self.descriptor.normal_offset):
+            if self.descriptor.has_component(self.descriptor.normal_offset):
 
-            #     off = self.descriptor.offset_of(self.descriptor.normal_offset)
-            #     reader.seek(t + off)
+                off = self.descriptor.offset_of(self.descriptor.normal_offset)
+                reader.seek(t + off)
 
-            #     normal = reader.read_vector3()
-            #     self.normals.append(normal)
+                self.normals.append(reader.read_vector3())
 
             if self.descriptor.has_component(self.descriptor.tex_offset[0]):
 

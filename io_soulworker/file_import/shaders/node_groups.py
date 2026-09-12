@@ -7,6 +7,10 @@ from pathlib import Path
 import bpy
 from bpy.types import Image, Material, Node, NodeTree, ShaderNodeGroup
 
+from io_soulworker.core.materials_xml.shader_param_string import (
+    format_param_float,
+    paramstring_from_params,
+)
 from io_soulworker.core.materials_xml.shader_tag import ShaderTag
 from io_soulworker.core.shader_lib import (
     ShaderEffect,
@@ -14,7 +18,10 @@ from io_soulworker.core.shader_lib import (
     ShaderParamComment,
     scan_shader_libs,
 )
-from io_soulworker.file_import.resource_path import load_blender_image
+from io_soulworker.file_import.resource_path import (
+    game_relative_texture_path,
+    load_blender_image,
+)
 
 NODE_GROUP_PREFIX = "SW."
 _PARAMS_KEY = "soulworker_params"
@@ -537,3 +544,176 @@ def apply_shader_to_material(
         _set_input_value(group_node, node_tree, name, raw, param)
 
     return group_node
+
+
+def _components_from_socket(socket, count: int) -> list[float]:
+
+    raw = getattr(socket, "default_value", 0.0)
+
+    try:
+
+        values = [float(part) for part in raw]
+
+    except TypeError:
+
+        values = [float(raw)]
+
+    return (values + [0.0] * count)[:count]
+
+
+def _texture_value_from_nodes(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        resources_root: Path | None) -> str:
+
+    socket = group_node.inputs.get(param.name)
+
+    if socket is not None:
+
+        for link in socket.links:
+
+            image = getattr(link.from_node, "image", None)
+
+            if image is not None and image.filepath:
+
+                return game_relative_texture_path(
+                    image.filepath,
+                    resources_root,
+                )
+
+    tex_node = material_tree.nodes.get(param.name)
+    image = getattr(tex_node, "image", None) if tex_node is not None else None
+
+    if image is not None and image.filepath:
+
+        return game_relative_texture_path(image.filepath, resources_root)
+
+    return param.default
+
+
+def _param_value_from_nodes(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        resources_root: Path | None) -> str:
+
+    if param.value_type in _TEXTURE_TYPES:
+
+        return _texture_value_from_nodes(
+            material_tree,
+            group_node,
+            param,
+            resources_root,
+        )
+
+    if param.value_type == "float4x4":
+
+        values: list[float] = []
+
+        for row_index in range(4):
+
+            socket = group_node.inputs.get(f"{param.name}_r{row_index}")
+
+            if socket is None:
+
+                values.extend([0.0, 0.0, 0.0, 1.0 if row_index == 3 else 0.0])
+                continue
+
+            values.extend(_components_from_socket(socket, 3))
+            values.append(1.0 if row_index == 3 else 0.0)
+
+        return ",".join(format_param_float(value) for value in values)
+
+    socket = group_node.inputs.get(param.name)
+
+    if socket is None:
+
+        return param.default
+
+    match param.value_type:
+
+        case "float":
+            return format_param_float(_components_from_socket(socket, 1)[0])
+
+        case "int":
+            return str(int(_components_from_socket(socket, 1)[0]))
+
+        case "float2":
+            return ",".join(
+                format_param_float(value)
+                for value in _components_from_socket(socket, 2)
+            )
+
+        case "float3":
+            return ",".join(
+                format_param_float(value)
+                for value in _components_from_socket(socket, 3)
+            )
+
+        case "float4":
+            return ",".join(
+                format_param_float(value)
+                for value in _components_from_socket(socket, 4)
+            )
+
+    return param.default
+
+
+def collect_shader_from_material(
+        material: Material,
+        resources_root: Path | None = None) -> tuple[str, str, str] | None:
+    """Return ``(library_stem, effect, paramstring)`` from an EFFECT node group.
+
+    ``paramstring`` follows PARAMCOMMENT order from the ShaderLib metadata
+    stored on the node group.
+    """
+
+    node_tree = material.node_tree
+
+    if node_tree is None:
+
+        return None
+
+    for node in node_tree.nodes:
+
+        if node.bl_idname != "ShaderNodeGroup":
+
+            continue
+
+        group_tree = node.node_tree
+
+        if group_tree is None:
+
+            continue
+
+        effect = group_tree.get("soulworker_effect")
+        library = group_tree.get("soulworker_library")
+
+        if not effect or not library:
+
+            continue
+
+        params = _load_param_metadata(group_tree)
+
+        if not params:
+
+            continue
+
+        values = {
+            param.name: _param_value_from_nodes(
+                node_tree,
+                node,
+                param,
+                resources_root,
+            )
+            for param in params
+        }
+
+        return (
+            str(library),
+            str(effect),
+            paramstring_from_params(params, values),
+        )
+
+    return None

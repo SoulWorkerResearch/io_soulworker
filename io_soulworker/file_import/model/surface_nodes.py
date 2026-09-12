@@ -23,6 +23,14 @@ def roughness_from_spec_exp(spec_exp: float) -> float:
     return (2.0 / (max(spec_exp, 0.0) + 2.0)) ** 0.5
 
 
+def spec_exp_from_roughness(roughness: float) -> float:
+    """Inverse of ``roughness_from_spec_exp``."""
+
+    r2 = max(float(roughness), 1e-8) ** 2
+
+    return max(0.0, 2.0 / r2 - 2.0)
+
+
 def apply_surface_params(
         material: Material,
         principled: ShaderNodeBsdfPrincipled,

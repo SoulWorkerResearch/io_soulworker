@@ -295,6 +295,17 @@ class ModelFileReader(ModelChunkReader):
         if self.mesh.validate(verbose=True):
             warning("Mesh had issues and was corrected: %s", self.mesh.name)
 
+        if hasattr(self.mesh, "shade_smooth"):
+
+            self.mesh.shade_smooth()
+
+        if chunk.normals and len(chunk.normals) == len(self.mesh.vertices):
+
+            self.mesh.normals_split_custom_set_from_vertices(
+                [tuple(normal) for normal in chunk.normals]
+            )
+            self.mesh.update()
+
         self._link_object()
 
     # @override

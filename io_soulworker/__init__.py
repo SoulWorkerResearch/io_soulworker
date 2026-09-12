@@ -61,6 +61,18 @@ def menu_func_import(self, context):
     )
 
 
+def menu_func_export(self, context):
+
+    self.layout.operator(
+        IO_SOULWORKER_OT_export_vmesh.bl_idname,
+        text="SoulWorker Static Mesh (.vmesh)",
+    )
+    self.layout.operator(
+        IO_SOULWORKER_OT_export_model.bl_idname,
+        text="SoulWorker Dynamic Mesh (.model)",
+    )
+
+
 def register():
 
     for cls in classes:
@@ -69,11 +81,13 @@ def register():
     register_unpack_resources_props()
 
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
 def unregister():
 
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
 
     unregister_unpack_resources_props()
 
