@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from logging import error
 from pathlib import Path
+
+import bpy
+from bpy.types import Image
 
 
 def normalize_resource_relative(relative: str) -> Path:
@@ -48,3 +52,15 @@ def resolve_resource_path(
         return current.resolve()
 
     return None
+
+
+def load_blender_image(path: Path | str) -> Image | None:
+    """Load an image datablock; return ``None`` if Blender cannot read it."""
+
+    resolved = Path(path).resolve()
+
+    try:
+        return bpy.data.images.load(str(resolved), check_existing=True)
+    except RuntimeError as exc:
+        error("Cannot load texture %s: %s", resolved, exc)
+        return None

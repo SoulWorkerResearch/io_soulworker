@@ -156,8 +156,11 @@ class VMshChunk(DataExchange_cl):
 
         self.indices = list(self.__indices(reader))
 
-        vertices_per_face = self.index_count // self.current_prim_count
-        self.faces = list(indices_to_face(self.indices, vertices_per_face))
+        if self.current_prim_count > 0 and self.index_count > 0:
+            vertices_per_face = self.index_count // self.current_prim_count
+            self.faces = list(indices_to_face(self.indices, vertices_per_face))
+        else:
+            self.faces = []
 
         self.bounding_box = HavokBoundingBox.from_reader(reader)
         self.unused = reader.read_int32()

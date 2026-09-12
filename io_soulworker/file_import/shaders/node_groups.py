@@ -14,6 +14,7 @@ from io_soulworker.core.shader_lib import (
     ShaderParamComment,
     scan_shader_libs,
 )
+from io_soulworker.file_import.resource_path import load_blender_image
 
 NODE_GROUP_PREFIX = "SW."
 _PARAMS_KEY = "soulworker_params"
@@ -81,7 +82,7 @@ def _load_resource_image(relative: str) -> Image | None:
 
     debug("load shader texture: %s", path)
 
-    return bpy.data.images.load(str(path), check_existing=True)
+    return load_blender_image(path)
 
 
 def _parse_floats(raw: str) -> list[float]:

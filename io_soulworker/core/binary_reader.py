@@ -55,12 +55,26 @@ class BinaryReader(BufferedReader):
         length = self.read_uint32()
         self.seek(length, SEEK_CUR)
 
+    @staticmethod
+    def decode_game_string(value: bytes) -> str:
+        """Length-prefixed strings are usually cp949; some later assets are UTF-8."""
+
+        if not value:
+            return ""
+
+        for encoding in ("cp949", "utf-8"):
+            try:
+                return value.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+
+        return value.decode("cp949", errors="replace")
+
     def read_utf8_uint32_string(self) -> str:
         length = self.read_uint32()
         value, = unpack("<%ds" % length, self.read(length))
 
-        # Korean encoding
-        return value.decode('cp949')
+        return BinaryReader.decode_game_string(value)
 
     def read_color(self) -> VisColor:
         return VisColor(*[self.read_uint8()

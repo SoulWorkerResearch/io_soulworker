@@ -31,6 +31,7 @@ from io_soulworker.file_import.armature_builder import (
 )
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.surface_nodes import apply_surface_params
+from io_soulworker.file_import.resource_path import load_blender_image
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
     arrange_material_nodes,
@@ -198,7 +199,9 @@ class ModelFileReader(ModelChunkReader):
 
             debug("texture path: %s", path)
 
-            if path is not None:
+            image = load_blender_image(path) if path is not None else None
+
+            if image is not None:
 
                 texture_node: ShaderNodeTexImage = nodes.new(
                     "ShaderNodeTexImage")
@@ -206,10 +209,7 @@ class ModelFileReader(ModelChunkReader):
                 texture_node.label = "Diffuse"
                 debug("texture node: %s", texture_node)
 
-                texture_node.image = bpy.data.images.load(
-                    str(path),
-                    check_existing=True
-                )
+                texture_node.image = image
 
                 debug("texture loaded: %s", texture_node.image.name_full)
 
