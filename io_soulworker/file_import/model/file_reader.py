@@ -154,9 +154,24 @@ class ModelFileReader(ModelChunkReader):
             collection.objects.link(self.object)
 
     def _apply_transform(self) -> None:
+        """Place the mesh and any armature modifiers with the same world matrix.
 
-        if self.matrix_world is not None:
-            self.object.matrix_world = self.matrix_world
+        Scene entity import moves the mesh via ``matrix_world``. The armature
+        must share that transform; otherwise skinning evaluates against an
+        armature left at the origin and the mesh explodes.
+        """
+
+        if self.matrix_world is None:
+            return
+
+        self.object.matrix_world = self.matrix_world
+
+        for modifier in self.object.modifiers:
+            if (
+                isinstance(modifier, ArmatureModifier)
+                and modifier.object is not None
+            ):
+                modifier.object.matrix_world = self.matrix_world
 
     # @override
     def on_surface(self, chunk: MtrsChunk):

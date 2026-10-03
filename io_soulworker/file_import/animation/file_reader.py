@@ -249,8 +249,27 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         return []
 
+    def _armatures_from_target(self, skeleton_index: int) -> list[Object]:
+        """Armature on the explicit ``target_object`` (scene entity import)."""
+
+        if self.target_object is None:
+            return []
+
+        armature = self._armature_from_modifiers(
+            self.target_object,
+            skeleton_index,
+        )
+
+        if armature is None:
+            return []
+
+        return [armature]
+
     def _resolve_armature_objects(self, skeleton_index: int) -> list[Object]:
         """Targets for the animation clip at ``skeleton_index``."""
+
+        if self.target_object is not None:
+            return self._armatures_from_target(skeleton_index)
 
         if self.import_source == AnimationImportSource.MESH:
             return self._armatures_by_name(skeleton_index)
@@ -1005,6 +1024,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         context: bpy.types.Context,
         *,
         import_source: AnimationImportSource = AnimationImportSource.USER,
+        target_object: Object | None = None,
         report_error: Callable[[str], None] | None = None,
         report_warning: Callable[[str], None] | None = None,
     ) -> None:
@@ -1013,6 +1033,7 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         self.context = context
         self.import_source = import_source
+        self.target_object = target_object
         self.report_error = report_error
         self.report_warning = report_warning
         self._reported_warning_keys: set[str] = set()

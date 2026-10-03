@@ -3,7 +3,10 @@ from __future__ import annotations
 from io_soulworker.core.varchive.objects import (
     ArchiveObject,
     LightSource,
+    ModelSerializationProxy,
     Object3D,
+    SequenceSetSerializationProxy,
+    SimpleAnimationComponent,
     StaticMeshInstance,
 )
 from io_soulworker.core.varchive.reader import SerializeFn, VArchiveReader
@@ -56,6 +59,15 @@ def create_object(class_name: str) -> ArchiveObject:
 
     if class_name == "VisLightSource_cl":
         return LightSource()
+
+    if class_name == "VModelSerializationProxy":
+        return ModelSerializationProxy()
+
+    if class_name == "VSequenceSetSerializationProxy":
+        return SequenceSetSerializationProxy()
+
+    if class_name == "VSimpleAnimationComponent":
+        return SimpleAnimationComponent()
 
     if class_name in (
         "VisObject3D_cl",
