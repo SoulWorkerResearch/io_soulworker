@@ -74,20 +74,16 @@ def zone_files_for_scene(scene_path: Path) -> list[Path]:
 def vision_orientation_matrix(entity: Object3D) -> Matrix:
     """Vision ``VisObject3D`` rotation as a 3×3 Blender matrix.
 
-    Orientation is Euler degrees ``(yaw, pitch, roll)``. Empirically matched to
-    archived ``mat3`` payloads: ``Rz(-yaw) @ Rx(-pitch) @ Ry(-roll)``.
-    When the archive stores an explicit rotation matrix, that wins.
+    Orientation is Euler degrees ``(yaw, pitch, roll)`` composed as
+    ``Rz(+yaw) @ Rx(-pitch) @ Ry(-roll)`` (Z axis sign matches Blender space).
     """
-
-    if entity.rotation_matrix is not None:
-        return entity.rotation_matrix.copy()
 
     yaw = radians(entity.orientation.x)
     pitch = radians(entity.orientation.y)
     roll = radians(entity.orientation.z)
 
     return (
-        Matrix.Rotation(-yaw, 3, "Z")
+        Matrix.Rotation(yaw, 3, "Z")
         @ Matrix.Rotation(-pitch, 3, "X")
         @ Matrix.Rotation(-roll, 3, "Y")
     )
@@ -279,7 +275,8 @@ class SceneImporter:
                 continue
 
             if collection is None:
-                collection = find_or_create_child_collection(parent, "Entities")
+                collection = find_or_create_child_collection(
+                    parent, "Entities")
                 collection.color_tag = "COLOR_06"
 
             resolved = resolve_resource_path(
