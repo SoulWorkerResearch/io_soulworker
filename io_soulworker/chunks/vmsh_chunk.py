@@ -131,14 +131,12 @@ class VMshChunk(DataExchange_cl):
                 pos = reader.read_vector3()
                 self.vertices.append(pos)
 
-            # TODO: normals are not used in the current implementation
-            # if self.descriptor.has_component(self.descriptor.normal_offset):
+            if self.descriptor.has_component(self.descriptor.normal_offset):
 
-            #     off = self.descriptor.offset_of(self.descriptor.normal_offset)
-            #     reader.seek(t + off)
+                off = self.descriptor.offset_of(self.descriptor.normal_offset)
+                reader.seek(t + off)
 
-            #     normal = reader.read_vector3()
-            #     self.normals.append(normal)
+                self.normals.append(reader.read_vector3())
 
             if self.descriptor.has_component(self.descriptor.tex_offset[0]):
 
@@ -156,8 +154,11 @@ class VMshChunk(DataExchange_cl):
 
         self.indices = list(self.__indices(reader))
 
-        vertices_per_face = self.index_count // self.current_prim_count
-        self.faces = list(indices_to_face(self.indices, vertices_per_face))
+        if self.current_prim_count > 0 and self.index_count > 0:
+            vertices_per_face = self.index_count // self.current_prim_count
+            self.faces = list(indices_to_face(self.indices, vertices_per_face))
+        else:
+            self.faces = []
 
         self.bounding_box = HavokBoundingBox.from_reader(reader)
         self.unused = reader.read_int32()

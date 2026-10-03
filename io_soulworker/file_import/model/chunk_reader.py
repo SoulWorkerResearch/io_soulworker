@@ -177,12 +177,16 @@ class ModelChunkReader(VisChunkFileReader):
             if "parallaxbias" in node.attrib:
                 material.parallaxbias = float(node.attrib["parallaxbias"])
 
-            material.diffuse = node.attrib["diffuse"]
+            material.diffuse = node.attrib.get("diffuse", "")
             material.transparency = VisTransparencyType(
-                exchange_transparency(node.attrib["transparency"])
+                exchange_transparency(
+                    node.attrib.get("transparency", "opaque"))
             )
 
-            material.alphathreshold = __float("alphathreshold", node)
+            if "alphathreshold" in node.attrib:
+                material.alphathreshold = __float("alphathreshold", node)
+            else:
+                material.alphathreshold = -1.0
 
             return (material.name, material)
 

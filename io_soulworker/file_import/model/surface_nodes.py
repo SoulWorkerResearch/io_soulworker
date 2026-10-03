@@ -4,11 +4,11 @@ from collections.abc import Callable
 from logging import debug
 from pathlib import Path
 
-import bpy
 from bpy.types import Material, ShaderNodeBsdfPrincipled, ShaderNodeTexImage
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from io_soulworker.file_import.resource_path import load_blender_image
 
 
 def specular_ior_level(spec_mul: float) -> float:
@@ -21,6 +21,14 @@ def roughness_from_spec_exp(spec_exp: float) -> float:
     """Phong exponent → Beckmann roughness: ``sqrt(2 / (n + 2))``."""
 
     return (2.0 / (max(spec_exp, 0.0) + 2.0)) ** 0.5
+
+
+def spec_exp_from_roughness(roughness: float) -> float:
+    """Inverse of ``roughness_from_spec_exp``."""
+
+    r2 = max(float(roughness), 1e-8) ** 2
+
+    return max(0.0, 2.0 / r2 - 2.0)
 
 
 def apply_surface_params(
@@ -115,13 +123,16 @@ def _add_image_node(
 
         return None
 
+    image = load_blender_image(path)
+
+    if image is None:
+
+        return None
+
     node: ShaderNodeTexImage = node_tree.nodes.new("ShaderNodeTexImage")
     node.name = name
     node.label = name
-    node.image = bpy.data.images.load(
-        str(path),
-        check_existing=True,
-    )
+    node.image = image
 
     if non_color and node.image is not None:
 

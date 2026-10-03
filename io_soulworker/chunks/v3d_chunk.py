@@ -38,7 +38,7 @@ class V3dChunk(DataExchange_cl):
 
     @staticmethod
     def _read_optional_string(reader: BinaryReader) -> str:
-        """Length-prefixed cp949 string; `0xFFFFFFFF` means empty."""
+        """Length-prefixed game string; `0xFFFFFFFF` means empty."""
 
         length = reader.read_uint32()
 
@@ -47,7 +47,7 @@ class V3dChunk(DataExchange_cl):
 
         value, = unpack("<%ds" % length, reader.read(length))
 
-        return value.decode("cp949")
+        return BinaryReader.decode_game_string(value)
 
     @staticmethod
     def _write_optional_string(writer: BinaryWriter, value: str) -> None:

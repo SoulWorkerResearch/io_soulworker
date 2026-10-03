@@ -3,6 +3,22 @@ from logging import warning
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 
 
+_TRANSPARENCY_TO_NAME = {
+    VisTransparencyType.NONE: "opaque",
+    VisTransparencyType.MULTIPLICATIVE: "modulate",
+    VisTransparencyType.ALPHA: "alpha",
+    VisTransparencyType.ADDITIVE: "additive",
+    VisTransparencyType.ALPHATEST: "alphatest",
+    VisTransparencyType.ADD_MODULATE: "addmodulate",
+    VisTransparencyType.ADDITIVE_NOALPHA: "additivenoalpha",
+    VisTransparencyType.NOCOLORWRITE: "nocolorwrite",
+    VisTransparencyType.MODULATE2X: "modulate2x",
+    VisTransparencyType.SUBTRACTIVE: "subtractive",
+    VisTransparencyType.PREMULTIPLIEDALPHA: "premultipliedalpha",
+    VisTransparencyType.ALPHA_NOALPHATEST: "alphasmooth",
+}
+
+
 def exchange_transparency(name: str) -> VisTransparencyType:
 
     match name.lower():
@@ -46,3 +62,9 @@ def exchange_transparency(name: str) -> VisTransparencyType:
         case _:
             warning('Undefined transparency type')
             return VisTransparencyType.NONE
+
+
+def transparency_to_exchange(value: VisTransparencyType) -> str:
+    """Inverse of ``exchange_transparency`` for materials.xml attributes."""
+
+    return _TRANSPARENCY_TO_NAME.get(value, "opaque")

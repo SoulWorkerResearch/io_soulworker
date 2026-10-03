@@ -3,10 +3,25 @@ from __future__ import annotations
 from io_soulworker.core.varchive.objects import (
     ArchiveObject,
     LightSource,
+    ModelSerializationProxy,
     Object3D,
+    SequenceSetSerializationProxy,
+    SimpleAnimationComponent,
     StaticMeshInstance,
 )
 from io_soulworker.core.varchive.reader import VArchiveError, VArchiveReader
+
+
+def _apply_preferred_animation_from_components(obj: Object3D) -> None:
+    """Fill ``preferred_animation`` from ``VSimpleAnimationComponent`` if empty."""
+
+    if obj.preferred_animation:
+        return
+
+    for component in obj.components:
+        if isinstance(component, SimpleAnimationComponent) and component.animation_name:
+            obj.preferred_animation = component.animation_name
+            return
 
 
 def serialize_components(ar: VArchiveReader, owner: ArchiveObject) -> None:
@@ -883,7 +898,11 @@ def serialize_base_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
     serialize_object3d(ar, obj)
 
     entity_version = ar.read_uint8()
-    ar.read_proxy_object()  # mesh / model resource (map sync)
+    mesh = ar.read_proxy_object()  # mesh / model resource
+
+    if isinstance(mesh, ModelSerializationProxy):
+        obj.model_path = mesh.path
+        obj.animation_set_paths = list(mesh.sequence_set_paths)
 
     if entity_version >= 9:
         _serialize_visibility_data(ar)
@@ -911,7 +930,10 @@ def serialize_base_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
         ar.read_bbox_vis()  # custom AABB (unused)
 
     if entity_version < 9:
-        ar.read_vstring()  # legacy model path (unused)
+        legacy_path = ar.read_vstring()  # legacy model path
+
+        if not obj.model_path and legacy_path:
+            obj.model_path = legacy_path
 
     ar.read_bool()  # cast shadows
 
@@ -946,6 +968,8 @@ def serialize_base_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
     if entity_version >= 4 and ar.read_uint8() != 0:
         for _ in range(ar.read_int32()):
             ar.read_uint32()  # bone / submesh visibility bitmask (unused)
+
+    _apply_preferred_animation_from_components(obj)
 
 
 def serialize_sector_box(ar: VArchiveReader, obj: ArchiveObject) -> None:
@@ -1014,11 +1038,15 @@ def serialize_static_collision_entity(
 def serialize_anim_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
     """``AnimEntity_cl::Serialize`` (loading). Save writes local version 3."""
 
+    assert isinstance(obj, Object3D)
     serialize_base_entity(ar, obj)
     version = ar.read_uint8()
-    ar.read_string_binary()  # animation name
+    animation_name = ar.read_string_binary()
     ar.read_string_binary()  # path key
     ar.read_float()  # path time
+
+    if animation_name:
+        obj.preferred_animation = animation_name
 
     if version >= 2:
         ar.read_object()  # VisPath_cl
@@ -1030,11 +1058,15 @@ def serialize_anim_entity(ar: VArchiveReader, obj: ArchiveObject) -> None:
 def serialize_cinematic_actor(ar: VArchiveReader, obj: ArchiveObject) -> None:
     """``VCinematicActor_cl::Serialize`` (loading). Save writes local version 1."""
 
+    assert isinstance(obj, Object3D)
     serialize_base_entity(ar, obj)
     version = ar.read_uint8()
-    ar.read_string_binary()  # animation name
+    animation_name = ar.read_string_binary()
     ar.read_string_binary()  # path key
     ar.read_float()  # path time
+
+    if animation_name:
+        obj.preferred_animation = animation_name
 
     if version >= 1:
         ar.read_object()  # VisPath_cl
@@ -1535,9 +1567,10 @@ def serialize_simple_animation_component(
         obj: ArchiveObject) -> None:
     """``VSimpleAnimationComponent::Serialize`` (loading)."""
 
+    assert isinstance(obj, SimpleAnimationComponent)
     serialize_object_component_base(ar, obj)
     version = ar.read_uint8()
-    ar.read_vstring()  # animation / sequence name (unused)
+    obj.animation_name = ar.read_vstring()
 
     if version >= 1:
         ar.read_int32()  # flags / loop mode
@@ -1670,7 +1703,8 @@ def serialize_sequence_set_proxy(
         obj: ArchiveObject) -> None:
     """``VSequenceSetSerializationProxy::Serialize`` (loading)."""
 
-    ar.read_string_binary()  # animation set path (unused)
+    assert isinstance(obj, SequenceSetSerializationProxy)
+    obj.path = ar.read_string_binary()
 
 
 def serialize_sequence_proxy(ar: VArchiveReader, obj: ArchiveObject) -> None:
@@ -1686,11 +1720,15 @@ def serialize_model_serialization_proxy(
         obj: ArchiveObject) -> None:
     """``VModelSerializationProxy::Serialize`` (loading)."""
 
+    assert isinstance(obj, ModelSerializationProxy)
     # VTypedObject::Serialize is a no-op on load for this proxy.
-    ar.read_string_binary()  # dynamic mesh path (unused)
+    obj.path = ar.read_string_binary()
 
     for _ in range(ar.read_int32()):
-        ar.read_proxy_object()  # VisAnimSequenceSet proxy (map sync)
+        nested = ar.read_proxy_object()  # VisAnimSequenceSet proxy
+
+        if isinstance(nested, SequenceSetSerializationProxy) and nested.path:
+            obj.sequence_set_paths.append(nested.path)
 
 
 def serialize_static_mesh_alpha_controller(

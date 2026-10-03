@@ -31,6 +31,7 @@ from io_soulworker.file_import.armature_builder import (
 )
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.surface_nodes import apply_surface_params
+from io_soulworker.file_import.resource_path import load_blender_image
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
     arrange_material_nodes,
@@ -153,9 +154,24 @@ class ModelFileReader(ModelChunkReader):
             collection.objects.link(self.object)
 
     def _apply_transform(self) -> None:
+        """Place the mesh and any armature modifiers with the same world matrix.
 
-        if self.matrix_world is not None:
-            self.object.matrix_world = self.matrix_world
+        Scene entity import moves the mesh via ``matrix_world``. The armature
+        must share that transform; otherwise skinning evaluates against an
+        armature left at the origin and the mesh explodes.
+        """
+
+        if self.matrix_world is None:
+            return
+
+        self.object.matrix_world = self.matrix_world
+
+        for modifier in self.object.modifiers:
+            if (
+                isinstance(modifier, ArmatureModifier)
+                and modifier.object is not None
+            ):
+                modifier.object.matrix_world = self.matrix_world
 
     # @override
     def on_surface(self, chunk: MtrsChunk):
@@ -198,7 +214,9 @@ class ModelFileReader(ModelChunkReader):
 
             debug("texture path: %s", path)
 
-            if path is not None:
+            image = load_blender_image(path) if path is not None else None
+
+            if image is not None:
 
                 texture_node: ShaderNodeTexImage = nodes.new(
                     "ShaderNodeTexImage")
@@ -206,10 +224,7 @@ class ModelFileReader(ModelChunkReader):
                 texture_node.label = "Diffuse"
                 debug("texture node: %s", texture_node)
 
-                texture_node.image = bpy.data.images.load(
-                    str(path),
-                    check_existing=True
-                )
+                texture_node.image = image
 
                 debug("texture loaded: %s", texture_node.image.name_full)
 
@@ -294,6 +309,17 @@ class ModelFileReader(ModelChunkReader):
 
         if self.mesh.validate(verbose=True):
             warning("Mesh had issues and was corrected: %s", self.mesh.name)
+
+        if hasattr(self.mesh, "shade_smooth"):
+
+            self.mesh.shade_smooth()
+
+        if chunk.normals and len(chunk.normals) == len(self.mesh.vertices):
+
+            self.mesh.normals_split_custom_set_from_vertices(
+                [tuple(normal) for normal in chunk.normals]
+            )
+            self.mesh.update()
 
         self._link_object()
 

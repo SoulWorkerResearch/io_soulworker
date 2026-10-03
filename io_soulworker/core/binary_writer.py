@@ -64,7 +64,11 @@ class BinaryWriter(BufferedWriter):
         self.write_int32(int(value))
 
     def write_utf8_uint32_string(self, value: str) -> None:
-        data = value.encode("cp949")
+        try:
+            data = value.encode("cp949")
+        except UnicodeEncodeError:
+            data = value.encode("utf-8")
+
         self.write_uint32(len(data))
         self.write(data)
 

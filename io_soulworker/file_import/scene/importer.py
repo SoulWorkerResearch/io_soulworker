@@ -4,10 +4,16 @@ from dataclasses import dataclass, field
 from logging import error, info, warning
 from pathlib import Path
 
-from bpy.types import Collection, Context, Object
+import bpy
+from bpy.types import ArmatureModifier, Collection, Context, Object
+from mathutils import Euler, Matrix
 
-from io_soulworker.core.varchive.objects import StaticMeshInstance
+from io_soulworker.core.varchive.objects import Object3D, StaticMeshInstance
 from io_soulworker.core.varchive.shapes import read_zone_file
+from io_soulworker.file_import.animation.file_reader import (
+    AnimationFileReader,
+    AnimationImportSource,
+)
 from io_soulworker.file_import.collections import (
     collection_segments_under_resources,
     ensure_collection_hierarchy,
@@ -18,7 +24,7 @@ from io_soulworker.file_import.collections import (
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.resource_path import resolve_resource_path
 from io_soulworker.file_import.scene.file_reader import SceneFileReader
-from io_soulworker.unit_scale import vision_matrix_to_blender
+from io_soulworker.unit_scale import vision_matrix_to_blender, vision_to_blender
 
 
 def _blender_id_int32(value: int) -> int:
@@ -64,6 +70,15 @@ def zone_files_for_scene(scene_path: Path) -> list[Path]:
     )
 
 
+def entity_world_matrix(entity: Object3D) -> Matrix:
+    """Vision entity position + XYZ euler (radians) → Blender world matrix."""
+
+    translation = Matrix.Translation(vision_to_blender(entity.position))
+    rotation = Euler(entity.orientation, "XYZ").to_matrix().to_4x4()
+
+    return translation @ rotation
+
+
 @dataclass
 class SceneImportResult:
     """Outcome of placing SHPS / zone static meshes into the Blender scene."""
@@ -73,6 +88,7 @@ class SceneImportResult:
     missing_paths: list[str] = field(default_factory=list)
     static_mesh_count: int = 0
     zone_mesh_count: int = 0
+    entity_count: int = 0
 
 
 class SceneImporter:
@@ -122,6 +138,11 @@ class SceneImporter:
                 result.static_mesh_count,
                 self.path.name,
             )
+            result.entity_count += self._place_entities(
+                reader.shapes.entities,
+                root,
+                result,
+            )
 
         for zone_path in zone_files_for_scene(self.path):
             zone_collection = find_or_create_child_collection(
@@ -147,12 +168,23 @@ class SceneImporter:
                 placed,
                 zone_path.stem,
             )
+            result.entity_count += self._place_entities(
+                parsed.entities,
+                zone_collection,
+                result,
+            )
 
         if result.missing_paths:
             warning(
                 "Scene import skipped %d missing mesh path(s)",
                 len(result.missing_paths),
             )
+
+        info(
+            "Imported %d entity mesh(es) with model paths from %s",
+            result.entity_count,
+            self.path.name,
+        )
 
         return result
 
@@ -208,6 +240,165 @@ class SceneImporter:
             placed += 1
 
         return placed
+
+    def _place_entities(
+        self,
+        entities: list[Object3D],
+        parent: Collection,
+        result: SceneImportResult,
+    ) -> int:
+
+        placed = 0
+        collection: Collection | None = None
+
+        for entity in entities:
+            if not entity.model_path:
+                continue
+
+            if collection is None:
+                collection = find_or_create_child_collection(parent, "Entities")
+                collection.color_tag = "COLOR_06"
+
+            resolved = resolve_resource_path(
+                self.resources_root,
+                entity.model_path,
+            )
+
+            if resolved is None:
+                error("Missing entity model: %s", entity.model_path)
+                result.missing_paths.append(entity.model_path)
+                continue
+
+            object_name = Path(
+                entity.model_path.replace("\\", "/")
+            ).stem
+
+            obj = ModelFileReader(
+                resolved,
+                self.context,
+                self.emission_strength,
+                collection=collection,
+                matrix_world=entity_world_matrix(entity),
+                object_name=object_name,
+                reuse_mesh=False,
+            ).run()
+
+            obj["soulworker_class"] = entity.class_name
+            obj["soulworker_path"] = entity.model_path
+            obj["soulworker_preferred_animation"] = entity.preferred_animation
+
+            self._bind_entity_animation(entity, obj, resolved)
+
+            result.objects.append(obj)
+            placed += 1
+
+        if placed:
+            info(
+                "Imported %d entity mesh(es) into %s/Entities",
+                placed,
+                parent.name,
+            )
+
+        return placed
+
+    def _bind_entity_animation(
+        self,
+        entity: Object3D,
+        mesh_object: Object,
+        model_path: Path,
+    ) -> None:
+
+        anim_candidates = list(entity.animation_set_paths)
+
+        if not anim_candidates:
+            sibling = Path(entity.model_path.replace("\\", "/")).with_suffix(
+                ".anim"
+            )
+            anim_candidates.append(str(sibling).replace("/", "\\"))
+
+        for anim_ref in anim_candidates:
+            resolved_anim = resolve_resource_path(
+                self.resources_root,
+                anim_ref,
+            )
+
+            if resolved_anim is None:
+                sibling = model_path.with_suffix(".anim")
+
+                if sibling.is_file():
+                    resolved_anim = sibling
+                else:
+                    continue
+
+            if not resolved_anim.is_file():
+                continue
+
+            try:
+                AnimationFileReader(
+                    resolved_anim,
+                    self.context,
+                    import_source=AnimationImportSource.MESH,
+                    target_object=mesh_object,
+                ).run()
+            except Exception as exc:
+                error(
+                    "Failed to import animation %s for %s: %s",
+                    resolved_anim,
+                    entity.model_path,
+                    exc,
+                )
+                return
+
+            if entity.preferred_animation:
+                self._apply_preferred_action(
+                    mesh_object,
+                    resolved_anim.stem,
+                    entity.preferred_animation,
+                )
+
+            return
+
+        if entity.preferred_animation or entity.animation_set_paths:
+            warning(
+                "No animation file for entity model %s",
+                entity.model_path,
+            )
+
+    def _apply_preferred_action(
+        self,
+        mesh_object: Object,
+        anim_stem: str,
+        preferred: str,
+    ) -> None:
+
+        action_name = f"{anim_stem}:{preferred}"
+        armature = None
+
+        for modifier in mesh_object.modifiers:
+            if isinstance(modifier, ArmatureModifier) and modifier.object:
+                armature = modifier.object
+                break
+
+        if armature is None:
+            warning(
+                "No armature to assign preferred animation %s on %s",
+                preferred,
+                mesh_object.name,
+            )
+            return
+
+        action = bpy.data.actions.get(action_name)
+
+        if action is None:
+            warning(
+                "Preferred animation action %s not found for %s",
+                action_name,
+                mesh_object.name,
+            )
+            return
+
+        animation_data = armature.animation_data_create()
+        animation_data.action = action
 
     def _prepare_zones_collection(self) -> Collection:
 

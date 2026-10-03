@@ -79,12 +79,53 @@ class Object3D(ArchiveObject):
 
     position = Vector((0.0, 0.0, 0.0))
     orientation = Vector((0.0, 0.0, 0.0))
+    model_path = ""
+    preferred_animation = ""
+    animation_set_paths: list[str] = []
 
     def __init__(self, class_name: str = "VisObject3D_cl") -> None:
 
         super().__init__(class_name)
         self.position = Vector((0.0, 0.0, 0.0))
         self.orientation = Vector((0.0, 0.0, 0.0))
+        self.model_path = ""
+        self.preferred_animation = ""
+        self.animation_set_paths = []
+
+
+class ModelSerializationProxy(ArchiveObject):
+    """``VModelSerializationProxy`` — dynamic mesh path + sequence sets."""
+
+    path = ""
+    sequence_set_paths: list[str] = []
+
+    def __init__(self) -> None:
+
+        super().__init__("VModelSerializationProxy")
+        self.path = ""
+        self.sequence_set_paths = []
+
+
+class SequenceSetSerializationProxy(ArchiveObject):
+    """``VSequenceSetSerializationProxy`` — ``.anim`` resource path."""
+
+    path = ""
+
+    def __init__(self) -> None:
+
+        super().__init__("VSequenceSetSerializationProxy")
+        self.path = ""
+
+
+class SimpleAnimationComponent(ArchiveObject):
+    """``VSimpleAnimationComponent`` — preferred sequence name."""
+
+    animation_name = ""
+
+    def __init__(self) -> None:
+
+        super().__init__("VSimpleAnimationComponent")
+        self.animation_name = ""
 
 
 class LightSource(Object3D):

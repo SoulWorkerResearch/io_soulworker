@@ -6,15 +6,12 @@ from bpy.props import StringProperty
 from bpy.types import Context, Operator
 from bpy_extras.io_utils import ExportHelper
 
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.vis_bin_header import VisBinHeader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_writer_scope import (
-    VisChunkWriterScope,
-    write_chunk_file_eof,
+from io_soulworker.file_export.model_exporter import write_model_file
+from io_soulworker.file_export.resources_xml import (
+    model_data_dir,
+    resolve_export_path,
 )
-from io_soulworker.file_export.vmesh_exporter import build_vmesh_from_blender_object
+from io_soulworker.file_export.vmesh_exporter import write_vmesh_file
 from io_soulworker.file_import.runner import in_blender
 
 
@@ -35,57 +32,51 @@ def _active_mesh_object(context: Context):
     return None
 
 
-def _write_mtrs_chunk(
-        writer: BinaryWriter,
-        materials: list[MtrsChunk]) -> None:
+def _armature_of(mesh_obj):
+    """Return the armature object linked to this mesh via an Armature modifier."""
 
-    with VisChunkWriterScope(writer, VisChunkId.MTRS) as payload:
+    if mesh_obj is None:
 
-        payload.write_uint32(len(materials))
+        return None
 
-        for material in materials:
+    for modifier in mesh_obj.modifiers:
 
-            material.write(payload)
+        if modifier.type == "ARMATURE" and modifier.object is not None:
 
+            return modifier.object
 
-def write_vmesh_file(path: Path, obj) -> None:
+    if mesh_obj.parent is not None and mesh_obj.parent.type == "ARMATURE":
 
-    data = build_vmesh_from_blender_object(obj)
+        return mesh_obj.parent
 
-    with BinaryWriter(path.open("wb")) as writer:
-
-        header = VisBinHeader()
-        header.cid = VisChunkId.VBIN
-        header.version = 65536
-        header.write(writer)
-
-        with VisChunkWriterScope(writer, VisChunkId.VMSH) as payload:
-
-            data.mesh.write(payload)
-
-        _write_mtrs_chunk(writer, data.materials)
-
-        with VisChunkWriterScope(writer, VisChunkId.SUBM) as payload:
-
-            data.sub_meshes.write(payload)
-
-        with VisChunkWriterScope(writer, VisChunkId.EXPR) as payload:
-
-            data.export_transform.write(payload)
-
-        write_chunk_file_eof(writer)
+    return None
 
 
-def write_dummy_model_file(path: Path) -> None:
-    """Placeholder .model writer (dynamic mesh export not implemented yet)."""
+def _resources_root(context: Context) -> Path | None:
 
-    with BinaryWriter(path.open("wb")) as writer:
+    raw = getattr(context.scene, "soulworker_unpack_resources", "") or ""
+    raw = raw.strip()
 
-        header = VisBinHeader()
-        header.cid = VisChunkId.VBIN
-        header.version = 65536
-        header.write(writer)
-        write_chunk_file_eof(writer)
+    if not raw:
+
+        return None
+
+    root = Path(bpy.path.abspath(raw)).resolve()
+
+    if not root.is_dir():
+
+        return None
+
+    return root
+
+
+def _export_path(filepath: str, obj, suffix: str) -> Path:
+
+    return resolve_export_path(
+        Path(bpy.path.abspath(filepath)),
+        obj.name,
+        suffix,
+    )
 
 
 class IO_SOULWORKER_OT_export_vmesh(Operator, ExportHelper):
@@ -132,15 +123,11 @@ class IO_SOULWORKER_OT_export_vmesh(Operator, ExportHelper):
             self.report({"ERROR"}, "Select a mesh object to export")
             return {"CANCELLED"}
 
-        path = Path(bpy.path.abspath(self.filepath))
-
-        if path.suffix.lower() != ".vmesh":
-
-            path = path.with_suffix(".vmesh")
+        path = _export_path(self.filepath, obj, self.filename_ext)
 
         try:
 
-            write_vmesh_file(path, obj)
+            write_vmesh_file(path, obj, _resources_root(context))
 
         except Exception as exc:
 
@@ -149,12 +136,15 @@ class IO_SOULWORKER_OT_export_vmesh(Operator, ExportHelper):
             return {"CANCELLED"}
 
         debug("exported .vmesh: %s", path)
-        self.report({"INFO"}, f"Exported {path.name}")
+        self.report(
+            {"INFO"},
+            f"Exported {path.name} and {model_data_dir(path).name}",
+        )
         return {"FINISHED"}
 
 
 class IO_SOULWORKER_OT_export_model(Operator, ExportHelper):
-    """Dummy export for dynamic SoulWorker .model files."""
+    """Export the active mesh (+ armature) as a dynamic SoulWorker .model."""
 
     bl_idname = "io_soulworker.export_model"
     bl_label = "Export SoulWorker .model"
@@ -186,24 +176,39 @@ class IO_SOULWORKER_OT_export_model(Operator, ExportHelper):
 
     def execute(self, context: Context):
 
-        path = Path(bpy.path.abspath(self.filepath))
+        obj = _active_mesh_object(context)
 
-        if path.suffix.lower() != ".model":
+        if obj is None:
 
-            path = path.with_suffix(".model")
+            self.report({"ERROR"}, "Select a mesh object to export")
+            return {"CANCELLED"}
+
+        path = _export_path(self.filepath, obj, self.filename_ext)
+
+        armature_obj = _armature_of(obj)
 
         try:
 
-            write_dummy_model_file(path)
+            write_model_file(path, obj, armature_obj, _resources_root(context))
 
         except Exception as exc:
 
-            error("Failed to export dummy .model %s: %s", path, exc)
+            error("Failed to export .model %s: %s", path, exc)
             self.report({"ERROR"}, f"Export failed: {exc}")
             return {"CANCELLED"}
 
-        self.report(
-            {"WARNING"},
-            f"Wrote dummy .model (not a full dynamic mesh): {path.name}",
-        )
+        debug("exported .model: %s", path)
+        data_name = model_data_dir(path).name
+
+        if armature_obj is None:
+
+            self.report(
+                {"WARNING"},
+                f"Exported {path.name} and {data_name} without skeleton",
+            )
+
+        else:
+
+            self.report({"INFO"}, f"Exported {path.name} and {data_name}")
+
         return {"FINISHED"}
