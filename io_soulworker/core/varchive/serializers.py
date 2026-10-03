@@ -221,8 +221,9 @@ def serialize_object3d(ar: VArchiveReader, obj: Object3D) -> None:
     if ar.loading_version >= 7:
         flags = ar.read_uint32()
 
+        # Bit 0x20 set → rotation is euler-only; clear → explicit mat3 follows.
         if (flags & 0x20) == 0:
-            ar.read_mat3()  # local rotation matrix (unused)
+            obj.rotation_matrix = ar.read_mat3()
 
     if ar.loading_version >= 10:
         ar.read_object()  # parent Object3D (map sync only)
