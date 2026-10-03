@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from logging import error, info, warning
+from math import radians
 from pathlib import Path
 
 import bpy
 from bpy.types import ArmatureModifier, Collection, Context, Object
-from mathutils import Euler, Matrix
+from mathutils import Matrix
 
 from io_soulworker.core.varchive.objects import Object3D, StaticMeshInstance
 from io_soulworker.core.varchive.shapes import read_zone_file
@@ -70,11 +71,33 @@ def zone_files_for_scene(scene_path: Path) -> list[Path]:
     )
 
 
+def vision_orientation_matrix(entity: Object3D) -> Matrix:
+    """Vision ``VisObject3D`` rotation as a 3×3 Blender matrix.
+
+    Orientation is Euler degrees ``(yaw, pitch, roll)``. Empirically matched to
+    archived ``mat3`` payloads: ``Rz(-yaw) @ Rx(-pitch) @ Ry(-roll)``.
+    When the archive stores an explicit rotation matrix, that wins.
+    """
+
+    if entity.rotation_matrix is not None:
+        return entity.rotation_matrix.copy()
+
+    yaw = radians(entity.orientation.x)
+    pitch = radians(entity.orientation.y)
+    roll = radians(entity.orientation.z)
+
+    return (
+        Matrix.Rotation(-yaw, 3, "Z")
+        @ Matrix.Rotation(-pitch, 3, "X")
+        @ Matrix.Rotation(-roll, 3, "Y")
+    )
+
+
 def entity_world_matrix(entity: Object3D) -> Matrix:
-    """Vision entity position + XYZ euler (radians) → Blender world matrix."""
+    """Vision entity position + orientation → Blender world matrix."""
 
     translation = Matrix.Translation(vision_to_blender(entity.position))
-    rotation = Euler(entity.orientation, "XYZ").to_matrix().to_4x4()
+    rotation = vision_orientation_matrix(entity).to_4x4()
 
     return translation @ rotation
 

@@ -79,6 +79,7 @@ class Object3D(ArchiveObject):
 
     position = Vector((0.0, 0.0, 0.0))
     orientation = Vector((0.0, 0.0, 0.0))
+    rotation_matrix: Matrix | None = None
     model_path = ""
     preferred_animation = ""
     animation_set_paths: list[str] = []
@@ -88,6 +89,7 @@ class Object3D(ArchiveObject):
         super().__init__(class_name)
         self.position = Vector((0.0, 0.0, 0.0))
         self.orientation = Vector((0.0, 0.0, 0.0))
+        self.rotation_matrix = None
         self.model_path = ""
         self.preferred_animation = ""
         self.animation_set_paths = []
