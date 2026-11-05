@@ -19,7 +19,10 @@ from io_soulworker.file_export.mesh_builder import (
     build_material_sidecars,
     mtrs_from_sidecars,
 )
-from io_soulworker.file_export.resources_xml import write_export_sidecars
+from io_soulworker.file_export.resources_xml import (
+    rebase_material_resources,
+    write_export_sidecars,
+)
 
 
 class VmeshExportData:
@@ -80,6 +83,9 @@ def write_vmesh_file(
         resources_root: Path | None = None) -> None:
 
     data = build_vmesh_from_blender_object(obj, resources_root)
+    data.sidecars = rebase_material_resources(
+        path, data.sidecars, resources_root)
+    data.materials = mtrs_from_sidecars(data.sidecars)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with BinaryWriter(path.open("wb")) as writer:

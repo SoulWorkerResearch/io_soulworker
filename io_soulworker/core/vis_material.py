@@ -21,6 +21,15 @@ class VisMaterial:
     shader: ShaderTag | None = None
     """ optional Shader tag from materials.xml """
 
+    attributes: dict[str, str] | None = None
+    """ raw ``<Material>`` attributes from materials.xml, kept for export """
+
+    specularmap: str = ""
+    """ ``specularmap`` attribute; overrides the MTRS specular map when set """
+
+    normalmap: str = ""
+    """ ``normalmap`` attribute; overrides the MTRS normal map when set """
+
     ambient: list[int]
     """ the ambient color of this surface """
 

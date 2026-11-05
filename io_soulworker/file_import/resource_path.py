@@ -24,6 +24,13 @@ def resolve_resource_path(
     """
 
     root = Path(resources_root)
+    cleaned = relative.replace("\\", "/")
+
+    # Export sidecars may carry absolute POSIX paths; keep them as-is when
+    # they exist instead of stripping the leading slash into a root-relative.
+    if cleaned.startswith("/") and Path(cleaned).is_file():
+        return Path(cleaned).resolve()
+
     rel = normalize_resource_relative(relative)
 
     if not rel.parts:

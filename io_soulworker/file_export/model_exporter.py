@@ -17,9 +17,10 @@ Chunk sequence expected by the Vision VDynamicMesh loader:
 
 from __future__ import annotations
 
+from json import loads
 from pathlib import Path
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 from io_soulworker.chunks.bbbx_chunk import BBBXChunk
 from io_soulworker.chunks.bnds_chunk import BNDSChunk
@@ -48,8 +49,12 @@ from io_soulworker.file_export.mesh_builder import (
     build_material_sidecars,
     mtrs_from_sidecars,
 )
-from io_soulworker.file_export.resources_xml import write_export_sidecars
-from io_soulworker.unit_scale import blender_matrix_to_vision
+from io_soulworker.file_export.resources_xml import (
+    rebase_material_resources,
+    write_export_sidecars,
+)
+from io_soulworker.file_import.model.skeleton_builder import build_bone_transforms
+from io_soulworker.unit_scale import blender_matrix_to_vision, blender_to_vision
 
 
 _MAX_WEIGHTS_PER_VERTEX = 4
@@ -137,12 +142,83 @@ def _parent_bone_id(bone, name_to_index: dict[str, int]) -> int:
     )
 
 
+def _skeleton_from_import(armature_obj) -> VisSkeletonChunk_cl | None:
+    """Replay the SKEL chunk captured at import.
+
+    The model viewer draws the blue hierarchy from local space and the green
+    bone positions from inverse object space. Rebuilding those from Blender's
+    Y-along-bone rest pose does not match Vision's stored quaternions.
+    """
+
+    raw = armature_obj.get("soulworker_skeleton")
+
+    if not raw:
+
+        return None
+
+    try:
+
+        payload = loads(raw)
+
+    except (TypeError, ValueError):
+
+        return None
+
+    if not payload:
+
+        return None
+
+    if [entry["name"] for entry in payload] != [
+            bone.name for bone in _ordered_bones(armature_obj)]:
+        return None
+
+    skeleton = VisSkeletonChunk_cl()
+    skeleton.version = VisSkeletonChunk_cl.VERSION
+    skeleton.bone_mask_count = 0
+
+    for index, entry in enumerate(payload):
+
+        bone = VisSkeletalBone_cl()
+        bone.id = index
+        bone.name = entry["name"]
+        bone.parent_id = int(entry["parent_id"])
+        if "inverse_position" in entry and "inverse_orientation" in entry:
+            bone.inverse_object_space_position = Vector(
+                entry["inverse_position"])
+            bone.inverse_object_space_orientation = Quaternion(
+                entry["inverse_orientation"])
+        bone.local_space_position = blender_to_vision(
+            Vector(entry["local_position"]))
+        bone.local_space_orientation = Quaternion(entry["local_orientation"])
+        skeleton.bones.append(bone)
+
+    def local_matrix(bone):
+        matrix = bone.local_space_orientation.to_matrix().to_4x4()
+        matrix.translation = bone.local_space_position
+        return matrix
+
+    # Older imports stored native local transforms but no inverse bind data.
+    # Reconstruct from those, never from the old pretty-bone display axes.
+    transforms = build_bone_transforms(skeleton.bones, local_matrix)
+    for entry, bone, transform in zip(payload, skeleton.bones, transforms):
+        if "inverse_position" not in entry or "inverse_orientation" not in entry:
+            inverse = transform.matrix.inverted()
+            bone.inverse_object_space_position = inverse.translation
+            bone.inverse_object_space_orientation = inverse.to_quaternion()
+
+    return skeleton
+
+
 def _build_skeleton(armature_obj) -> VisSkeletonChunk_cl:
+
+    imported = _skeleton_from_import(armature_obj)
+
+    if imported is not None:
+
+        return imported
 
     bones = _ordered_bones(armature_obj)
     name_to_index = {bone.name: index for index, bone in enumerate(bones)}
-    armature_world = armature_obj.matrix_world
-
     skeleton = VisSkeletonChunk_cl()
     skeleton.version = VisSkeletonChunk_cl.VERSION
     skeleton.bone_mask_count = 0
@@ -151,8 +227,7 @@ def _build_skeleton(armature_obj) -> VisSkeletonChunk_cl:
 
     for bone in bones:
 
-        world = armature_world @ bone.matrix_local
-        world.translation = armature_world @ bone.head_local
+        world = bone.matrix_local.copy()
         world_matrices[bone.name] = blender_matrix_to_vision(world)
 
     for bone in bones:
@@ -240,9 +315,47 @@ def _build_weights(
     return result
 
 
-def _build_bounding_boxes(
-        armature_obj,
-        mesh_bounds: HavokBoundingBox) -> BBBXChunk:
+def _stored_bone_bounds(armature_obj) -> dict[str, tuple[Vector, Vector]]:
+    """Per-bone boxes captured at import, keyed by bone name."""
+
+    raw = armature_obj.get("soulworker_bone_bounds")
+
+    if not raw:
+
+        return {}
+
+    try:
+
+        payload = loads(raw)
+
+    except (TypeError, ValueError):
+
+        return {}
+
+    result = {}
+
+    for entry in payload:
+
+        try:
+
+            result[entry["name"]] = (
+                Vector(entry["min"]), Vector(entry["max"]))
+
+        except (KeyError, TypeError, ValueError):
+
+            continue
+
+    return result
+
+
+def _build_bounding_boxes(armature_obj) -> BBBXChunk:
+    """BBBX: one bone-space box per bone, in skeleton order.
+
+    Replay the boxes captured at import. Bones without a stored box get an
+    empty box, which is what many shipped models (PC_B among them) carry; the
+    engine then falls back to the mesh bounds. Writing the whole mesh box for
+    every bone draws a cage of oversized boxes in the model viewer.
+    """
 
     bbbx = BBBXChunk()
 
@@ -250,12 +363,24 @@ def _build_bounding_boxes(
 
         return bbbx
 
-    for _ in _ordered_bones(armature_obj):
+    stored = _stored_bone_bounds(armature_obj)
+
+    for bone in _ordered_bones(armature_obj):
 
         entity = BBBXChunk.Entity()
         entity.bounds = HavokBoundingBox()
-        entity.bounds.min = mesh_bounds.min.copy()
-        entity.bounds.max = mesh_bounds.max.copy()
+        box = stored.get(bone.name)
+
+        if box is None:
+
+            entity.bounds.min = Vector((0.0, 0.0, 0.0))
+            entity.bounds.max = Vector((0.0, 0.0, 0.0))
+
+        else:
+
+            entity.bounds.min = box[0].copy()
+            entity.bounds.max = box[1].copy()
+
         bbbx.values.append(entity)
 
     return bbbx
@@ -304,7 +429,11 @@ def build_model_from_blender_object(
         armature_obj=None,
         resources_root: Path | None = None) -> ModelExportData:
 
-    geometry: GeometryBuild = build_geometry(mesh_obj)
+    transform = (
+        armature_obj.matrix_world.inverted() @ mesh_obj.matrix_world
+        if armature_obj is not None else None
+    )
+    geometry: GeometryBuild = build_geometry(mesh_obj, transform=transform)
     sidecars = build_material_sidecars(mesh_obj, resources_root)
     materials = mtrs_from_sidecars(sidecars)
     export_transform = _build_export_transform()
@@ -321,8 +450,7 @@ def build_model_from_blender_object(
             geometry.source_vertex_indices,
         )
 
-    bounding_boxes = _build_bounding_boxes(
-        armature_obj, geometry.mesh.bounding_box)
+    bounding_boxes = _build_bounding_boxes(armature_obj)
     cbpr = _build_cbpr(armature_obj)
     bnds = _build_bnds(geometry.mesh.bounding_box)
 
@@ -360,6 +488,9 @@ def write_model_file(
     target = Path(path)
     data = build_model_from_blender_object(
         mesh_obj, armature_obj, resources_root)
+    data.sidecars = rebase_material_resources(
+        target, data.sidecars, resources_root)
+    data.materials = mtrs_from_sidecars(data.sidecars)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     with BinaryWriter(target.open("wb")) as writer:

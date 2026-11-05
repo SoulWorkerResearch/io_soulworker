@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from logging import debug
+from os.path import relpath
 from pathlib import Path
 from xml.etree.ElementTree import Element, ElementTree, indent
 
@@ -10,9 +12,53 @@ from io_soulworker.file_export.materials_xml import (
     materials_xml_path,
     write_materials_xml,
 )
+from io_soulworker.file_import.resource_path import resolve_resource_path
 
 
 _TEXTURE_SUFFIXES = {".dds", ".tga", ".png", ".jpg", ".jpeg", ".bmp"}
+
+
+def rebase_material_resources(
+        mesh_path: Path,
+        materials: list[MaterialSidecar],
+        resources_root: Path | None = None) -> list[MaterialSidecar]:
+    """Keep asset references valid when exporting outside the resource tree.
+
+    Vision material paths are relative to the mesh directory. Across drives,
+    use an absolute filename, since Windows cannot express a relative path.
+    """
+    def reference(raw: str) -> str:
+        if not raw:
+            return raw
+        resolved = None
+        for base in (resources_root, mesh_path.parent):
+            if base is not None:
+                resolved = resolve_resource_path(base, raw)
+                if resolved is not None:
+                    break
+        if resolved is None:
+            return raw
+        try:
+            return relpath(resolved, mesh_path.parent).replace("/", "\\")
+        except ValueError:
+            return str(resolved)
+
+    result = []
+    for material in materials:
+        params = ShaderParamString(material.paramstring)
+        for name, value in params.items():
+            if Path(value.replace("\\", "/")).suffix.lower() in _TEXTURE_SUFFIXES:
+                params[name] = reference(value)
+        library = material.shader_library_binary()
+        result.append(replace(
+            material,
+            diffuse=reference(material.diffuse),
+            specular=reference(material.specular),
+            normal=reference(material.normal),
+            shader_library_path=reference(library),
+            paramstring=params.to_string(),
+        ))
+    return result
 
 
 def model_data_dir(mesh_path: Path) -> Path:
@@ -105,7 +151,7 @@ def write_resources_xml(
             "Manager": "Textures",
             "Filename": texture,
             "CustomInt": "1,64" if texture in diffuse_names else "1,0",
-            "Size": str(_resource_file_size(texture, resources_root)),
+            "Size": str(_resource_file_size(texture, resources_root, mesh_path.parent)),
         }
         entries.append(attrib)
 
@@ -114,7 +160,7 @@ def write_resources_xml(
         entries.append({
             "Manager": "EffectLibs",
             "Filename": library,
-            "Size": str(_resource_file_size(library, resources_root)),
+            "Size": str(_resource_file_size(library, resources_root, mesh_path.parent)),
         })
 
     materials_relative = _project_relative(
@@ -203,15 +249,15 @@ def _project_relative(path: Path, resources_root: Path | None) -> str:
     return path.name
 
 
-def _resource_file_size(relative: str, resources_root: Path | None) -> int:
-
-    if resources_root is None:
-
-        return 0
-
-    candidate = resources_root / relative.replace("\\", "/")
-
-    return _file_size(candidate)
+def _resource_file_size(
+        relative: str, resources_root: Path | None,
+        mesh_directory: Path | None = None) -> int:
+    for base in (mesh_directory, resources_root):
+        if base is not None:
+            resolved = resolve_resource_path(base, relative)
+            if resolved is not None:
+                return _file_size(resolved)
+    return 0
 
 
 def _normalize_resource_name(raw: str) -> str:
@@ -286,7 +332,7 @@ def _effect_libraries(materials: list[MaterialSidecar]) -> list[str]:
         _add_unique(
             result,
             seen,
-            f"Shaders\\{material.shader_library_stem}.ShaderLib",
+            material.shader_library_binary(),
         )
 
     return result

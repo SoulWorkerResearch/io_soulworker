@@ -4,6 +4,7 @@ from logging import debug
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.binary_writer import BinaryWriter
 from io_soulworker.core.data_exchange import DataExchange_cl
+from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
 from io_soulworker.core.vis_color import VisColor
@@ -220,6 +221,88 @@ class MtrsChunk(DataExchange_cl):
             VisMaterialEffect.from_reader(
                 reader,
                 self.version) for _ in range(count)]
+
+    SERIALIZED_FIELDS = (
+        "version", "flags", "lighting_method", "ui_sorting_key", "spec_mul",
+        "spec_exp", "transparency_type", "ui_deferred_id", "depth_bias",
+        "depth_bias_clamp", "slope_scaled_depth_bias",
+        "custom_alpha_threshold", "aux_texture_paths", "user_data",
+        "user_flags", "brightness", "parallax_scale", "parallax_bias",
+        "override_library", "override_material", "ui_mobile_shader_flags",
+    )
+    """Surface fields round-tripped through ``to_dict`` / ``apply_dict``.
+
+    ``name`` and the three texture maps are left out on purpose: export
+    rewrites those from the Blender material and the target location.
+    """
+
+    def to_dict(self) -> dict:
+        """JSON-friendly copy of every serialized surface field."""
+
+        values = {
+            name: getattr(self, name) for name in self.SERIALIZED_FIELDS
+        }
+
+        for key in ("flags", "lighting_method", "transparency_type"):
+            values[key] = int(values[key])
+
+        values["aux_texture_paths"] = list(self.aux_texture_paths)
+        values["ambient_color"] = [
+            self.ambient_color.r, self.ambient_color.g,
+            self.ambient_color.b, self.ambient_color.a,
+        ]
+        values["light_color"] = [
+            self.light_color.r, self.light_color.g,
+            self.light_color.b, self.light_color.a,
+        ]
+        values["config_effects"] = [
+            {
+                "library": effect.library,
+                "name": effect.name,
+                "param": effect.param,
+                "template_name": effect.template_name,
+            }
+            for effect in self.config_effects
+        ]
+
+        return values
+
+    def apply_dict(self, values: dict) -> None:
+        """Inverse of ``to_dict``; keys that are missing keep their value."""
+
+        for name in self.SERIALIZED_FIELDS:
+            if name in values:
+                setattr(self, name, values[name])
+
+        if "flags" in values:
+            self.flags = VisSurfaceFlags(int(values["flags"]))
+
+        if "lighting_method" in values:
+            self.lighting_method = VisLightingMethod(
+                int(values["lighting_method"]))
+
+        if "transparency_type" in values:
+            self.transparency_type = VisTransparencyType(
+                int(values["transparency_type"]))
+
+        if "aux_texture_paths" in values:
+            self.aux_texture_paths = [
+                str(path) for path in values["aux_texture_paths"]]
+
+        for key in ("ambient_color", "light_color"):
+            if key in values:
+                setattr(self, key, VisColor(*[int(c) for c in values[key]]))
+
+        if "config_effects" in values:
+            effects = []
+            for entry in values["config_effects"]:
+                effect = VisMaterialEffect()
+                effect.library = str(entry.get("library", ""))
+                effect.name = str(entry.get("name", ""))
+                effect.param = str(entry.get("param", ""))
+                effect.template_name = str(entry.get("template_name", ""))
+                effects.append(effect)
+            self.config_effects = effects
 
     @staticmethod
     def from_reader(reader: BinaryReader) -> 'MtrsChunk':
