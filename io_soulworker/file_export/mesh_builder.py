@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from json import loads
 from pathlib import Path
 
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.subm_chunk import VisMeshBuffer_cl, VisSubMeshChunk
@@ -11,6 +12,8 @@ from io_soulworker.chunks.vmsh_chunk import VMshChunk
 from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_index_format import VisIndexFormat
+from io_soulworker.core.vis_lighting_method import VisLightingMethod
+from io_soulworker.core.vis_material_lighting import VisMaterialLighting
 from io_soulworker.core.vis_mesh_effect_config import VisEffectConfig_cl
 from io_soulworker.core.vis_prim_type import VisPrimitiveType
 from io_soulworker.core.vis_render_state import VisRenderState
@@ -22,7 +25,15 @@ from io_soulworker.file_export.materials_xml import (
     MaterialSidecar,
 )
 from io_soulworker.file_import.model.surface_nodes import spec_exp_from_roughness
-from io_soulworker.file_import.resource_path import game_relative_texture_path
+from io_soulworker.file_import.resource_path import (
+    game_relative_texture_path,
+    resolve_resource_path,
+)
+from io_soulworker.core.materials_xml.shader_param_string import (
+    ShaderParamString, paramstring_from_params,
+)
+from io_soulworker.core.shader_lib import parse_shader_lib_file
+from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.shaders.node_groups import (
     collect_shader_from_material,
 )
@@ -32,6 +43,10 @@ from io_soulworker.unit_scale import blender_to_vision
 _POS_OFFSET = 0x3000
 _NORMAL_OFFSET = 0x300C
 _TEX0_OFFSET = 0x2018
+
+EXPORT_VMSH_VERSION = 1
+"""Every shipped SoulWorker mesh is VMSH version 1 with ``TRILIST`` plus an
+index buffer; newer layouts load too but differ from the originals."""
 
 _DEFAULT_RENDER_FLAGS = (
     VisRenderStateFlag.FRONTFACE
@@ -90,17 +105,17 @@ def make_vertex_descriptor() -> VisMBVertexDescriptor_cl:
     return descriptor
 
 
-def _vertex_and_normal_transforms(obj):
+def _vertex_and_normal_transforms(obj, transform: Matrix | None = None):
 
-    vertex_transform = obj.matrix_world.to_3x3()
+    vertex_transform = transform if transform is not None else obj.matrix_world.to_3x3()
 
     try:
 
-        normal_transform = vertex_transform.inverted().transposed()
+        normal_transform = vertex_transform.to_3x3().inverted().transposed()
 
     except ValueError:
 
-        normal_transform = vertex_transform.copy()
+        normal_transform = vertex_transform.to_3x3().copy()
 
     return vertex_transform, normal_transform
 
@@ -199,7 +214,7 @@ def _diffuse_from_blender_material(
 
         return linked
 
-    return DEFAULT_DIFFUSE
+    return ""
 
 
 def _specular_from_blender_material(
@@ -253,7 +268,9 @@ def _transparency_from_blender_material(
 
 def material_sidecar_from_blender(
         material,
-        resources_root: Path | None = None) -> MaterialSidecar:
+        resources_root: Path | None = None,
+        *, source_material=None,
+        source_directory: Path | None = None) -> MaterialSidecar:
 
     if material is None:
 
@@ -267,12 +284,83 @@ def material_sidecar_from_blender(
         material)
     doublesided = not bool(getattr(material, "use_backface_culling", True))
     shader = collect_shader_from_material(material, resources_root)
+    source_shader = getattr(source_material, "shader", None)
+    source_root = resources_root or material.get(
+        "soulworker_resources_root", "")
+    if not source_root and source_directory is not None:
+        source_root = next((parent for parent in source_directory.parents
+                            if (parent / 'Shaders').is_dir()
+                            and (parent / 'Character').is_dir()), None)
+    library_path = material.get("soulworker_shader_library_path", "")
+    if not library_path and source_shader is not None and source_directory is not None:
+        library = resolve_resource_path(
+            source_directory, source_shader.library)
+        if library is not None:
+            library_path = str(library)
+
+    stored_effect = material.get("soulworker_shader_effect", "")
+    if shader is None and (stored_effect or source_shader is not None):
+        params = ShaderParamString(
+            material.get("soulworker_shader_paramstring", "")
+            if stored_effect else source_shader.paramstring.to_string())
+        effect_name = stored_effect or source_shader.effect
+        library_name = material.get("soulworker_shader_library", "")
+        if not library_name and source_shader is not None:
+            library_name = Path(source_shader.library.replace('\\', '/')).stem
+        if source_root:
+            for name, value in params.items():
+                resolved = resolve_resource_path(source_root, value)
+                if resolved is not None:
+                    params[name] = str(resolved)
+        paramstring = params.to_string()
+        if library_path and Path(library_path).is_file():
+            effect = parse_shader_lib_file(
+                Path(library_path)).effects.get(effect_name)
+            if effect is not None:
+                paramstring = paramstring_from_params(effect.params, params)
+        shader = (library_name, effect_name, paramstring)
+
+    stored_diffuse = material.get("soulworker_diffuse") or ""
+    stored_specular = material.get("soulworker_specular") or ""
+    stored_normal = material.get("soulworker_normal") or ""
+
+    def stored_texture(raw: str) -> str:
+        directory = source_directory or material.get(
+            "soulworker_source_directory", "")
+        if directory and raw:
+            resolved = resolve_resource_path(directory, raw)
+            if resolved is None:
+                resolved = resolve_resource_path(
+                    directory, 'Textures/' + Path(raw.replace('\\', '/')).name)
+            if resolved is not None:
+                return str(resolved)
+        # Some original MTRS paths still point into the author's _Graphic
+        # tree. Recover by basename only when the unpacked tree has one match.
+        if source_root and raw:
+            name = Path(raw.replace('\\', '/')).name
+            matches = (path for path in Path(
+                source_root).rglob(name) if path.is_file())
+            first = next(matches, None)
+            if first is not None and next(matches, None) is None:
+                resolved = resolve_resource_path(
+                    source_root, str(first.relative_to(source_root)))
+                if resolved is not None:
+                    return str(resolved)
+        return raw
 
     sidecar = MaterialSidecar(
-        name=material.name or "material",
-        diffuse=_diffuse_from_blender_material(material, resources_root),
-        specular=specular_map,
-        normal=_named_image_path(material, "Normal", resources_root),
+        name=material.get("soulworker_material_name")
+        or material.name or "material",
+        diffuse=_diffuse_from_blender_material(
+            material,
+            resources_root,
+        ) or stored_texture(stored_diffuse) or DEFAULT_DIFFUSE,
+        specular=specular_map or stored_texture(stored_specular),
+        normal=_named_image_path(
+            material,
+            "Normal",
+            resources_root,
+        ) or stored_texture(stored_normal),
         transparency=transparency,
         doublesided=doublesided,
         spec_mul=spec_mul,
@@ -285,8 +373,107 @@ def material_sidecar_from_blender(
         sidecar.shader_library_stem, sidecar.shader_effect, sidecar.paramstring = (
             shader
         )
+        sidecar.shader_library_path = library_path
+
+    _apply_stored_surface(sidecar, material)
 
     return sidecar
+
+
+def _stored_json(material, key: str) -> dict:
+
+    raw = material.get(key)
+
+    if not raw:
+
+        return {}
+
+    try:
+
+        value = loads(raw)
+
+    except (TypeError, ValueError):
+
+        return {}
+
+    return value if isinstance(value, dict) else {}
+
+
+def _xml_bool(raw, default: bool) -> bool:
+
+    if raw is None:
+
+        return default
+
+    return str(raw).strip().upper() == "TRUE"
+
+
+_LIGHTING_BY_METHOD = {
+    int(VisLightingMethod.FULLBRIGHT): VisMaterialLighting.NONE.value,
+    int(VisLightingMethod.LIGHTMAPPING): VisMaterialLighting.LIGHTMAPPING.value,
+    int(VisLightingMethod.LIGHTGRID): VisMaterialLighting.LIGHT_GRID.value,
+}
+
+
+def _apply_stored_surface(sidecar: MaterialSidecar, material) -> None:
+    """Prefer surface fields captured at import over node-tree heuristics.
+
+    Blender has no notion of Vision transparency modes, alpha thresholds,
+    ambient colour or surface flags, so a material that came from a .model
+    keeps the values it was imported with. Edit the ``soulworker_mtrs`` /
+    ``soulworker_material_xml`` custom properties to change them.
+    """
+
+    stored_mtrs = _stored_json(material, "soulworker_mtrs")
+    stored_xml = _stored_json(material, "soulworker_material_xml")
+
+    if stored_mtrs:
+
+        try:
+
+            sidecar.transparency = VisTransparencyType(
+                int(stored_mtrs.get(
+                    "transparency_type", int(sidecar.transparency))))
+
+        except ValueError:
+
+            pass
+
+        sidecar.alphathreshold = float(stored_mtrs.get(
+            "custom_alpha_threshold", sidecar.alphathreshold))
+        sidecar.spec_mul = float(stored_mtrs.get("spec_mul", sidecar.spec_mul))
+        sidecar.spec_exp = float(stored_mtrs.get("spec_exp", sidecar.spec_exp))
+        sidecar.parallax_scale = float(stored_mtrs.get(
+            "parallax_scale", sidecar.parallax_scale))
+        sidecar.parallax_bias = float(stored_mtrs.get(
+            "parallax_bias", sidecar.parallax_bias))
+        sidecar.sorting_key = int(stored_mtrs.get(
+            "ui_sorting_key", sidecar.sorting_key))
+        sidecar.user_flags = int(stored_mtrs.get(
+            "user_flags", sidecar.user_flags))
+        sidecar.lighting = _LIGHTING_BY_METHOD.get(
+            int(stored_mtrs.get("lighting_method", 0)), sidecar.lighting)
+
+        ambient = stored_mtrs.get("ambient_color")
+
+        if isinstance(ambient, (list, tuple)) and len(ambient) == 4:
+
+            sidecar.ambient = tuple(int(component) for component in ambient)
+
+        sidecar.mtrs_fields = stored_mtrs
+
+    if stored_xml:
+
+        sidecar.doublesided = _xml_bool(
+            stored_xml.get("doublesided"), sidecar.doublesided)
+        sidecar.depthwrite = _xml_bool(
+            stored_xml.get("depthwrite"), sidecar.depthwrite)
+
+        if stored_xml.get("Lighting"):
+
+            sidecar.lighting = str(stored_xml["Lighting"])
+
+        sidecar.xml_attributes = stored_xml
 
 
 def build_material_sidecars(
@@ -299,10 +486,55 @@ def build_material_sidecars(
 
         return [MaterialSidecar(name="default")]
 
-    return [
-        material_sidecar_from_blender(slot, resources_root)
-        for slot in slots
-    ]
+    source = mesh_obj.data.get("soulworker_source_path", "")
+    if not source:
+        # Recover pre-metadata imports only when an image and its stored
+        # relative filename identify an existing source model unambiguously.
+        for material in slots:
+            if material is None or material.node_tree is None:
+                continue
+            relative = Path((material.get("soulworker_diffuse")
+                            or "").replace('\\', '/'))
+            if relative.is_absolute() or '..' in relative.parts or not relative.parts:
+                continue
+            for node in material.node_tree.nodes:
+                image = getattr(node, 'image', None)
+                if image is None:
+                    continue
+                path = Path(image.filepath)
+                if tuple(part.lower() for part in path.parts[-len(relative.parts):]) != tuple(
+                        part.lower() for part in relative.parts):
+                    continue
+                for _ in relative.parts:
+                    path = path.parent
+                candidate = path / (mesh_obj.data.name + '.model')
+                if candidate.is_file():
+                    source = str(candidate)
+                    break
+            if source:
+                break
+    overrides = {}
+    source_directory = None
+    if source and Path(source).is_file():
+        reader = ModelChunkReader(Path(source))
+        reader.run()
+        overrides = reader.xml_materials
+        source_directory = Path(source).parent
+
+    result = []
+    for slot in slots:
+        source_material = None
+        if slot is not None:
+            name = slot.get("soulworker_material_name", slot.name)
+            source_material = overrides.get(name)
+            base, separator, suffix = name.rpartition('.')
+            if source_material is None and separator and suffix.isdigit():
+                source_material = overrides.get(base)
+        result.append(material_sidecar_from_blender(
+            slot, resources_root, source_material=source_material,
+            source_directory=source_directory,
+        ))
+    return result
 
 
 def mtrs_from_sidecars(sidecars: list[MaterialSidecar]) -> list[MtrsChunk]:
@@ -378,7 +610,7 @@ def _resolve_surface_for_triangle(
     return 0
 
 
-def build_geometry(mesh_obj) -> GeometryBuild:
+def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuild:
     """Build VMSH + SUBM with per-surface vertex ranges and shared vertices."""
 
     if mesh_obj is None or mesh_obj.type != "MESH":
@@ -389,7 +621,7 @@ def build_geometry(mesh_obj) -> GeometryBuild:
     mesh.calc_loop_triangles()
     uv_layer = mesh.uv_layers.active.data if mesh.uv_layers.active else None
     vertex_transform, normal_transform = _vertex_and_normal_transforms(
-        mesh_obj)
+        mesh_obj, transform)
     use_vertex_normals = (
         not getattr(mesh, "has_custom_normals", False)
         and _faces_are_all_sharp(mesh)
@@ -535,13 +767,13 @@ def build_geometry(mesh_obj) -> GeometryBuild:
     vmsh = VMshChunk()
     vmsh.chunk_id = VisChunkId.VMSH
     vmsh.loader_version = VMshChunk.LOADER_VERSION
-    vmsh.version = VMshChunk.LOCAL_VERSION
+    vmsh.version = EXPORT_VMSH_VERSION
     vmsh.descriptor = make_vertex_descriptor()
     vmsh.usage_flag_vertices = 0
     vmsh.bind_flag_vertices = 0
     vmsh.mesh_data_is_big_endian = False
     vmsh.unused_1 = 0
-    vmsh.prim_type = VisPrimitiveType.INDEXED_TRILIST
+    vmsh.prim_type = VisPrimitiveType.TRILIST
     vmsh.index_format = VisIndexFormat._16
     vmsh.mem_usage_flag_indices = 0
     vmsh.bind_flag_indices = 0

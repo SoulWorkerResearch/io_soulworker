@@ -5,6 +5,7 @@ from enum import Enum
 from dataclasses import dataclass
 from json import loads
 from logging import debug
+from math import radians
 from pathlib import Path
 
 from bpy.types import Action, ArmatureModifier, Bone, Object
@@ -470,7 +471,14 @@ class AnimationFileReader(AnimationFileChunkReader):
                 positions_by_bone,
                 rotations_by_bone,
                 frame,
+                scales_by_bone,
             )
+            blender_pose_worlds = {
+                name: pose @ vision_rest_worlds[name].inverted()
+                @ blender_rest_worlds[name]
+                for name, pose in vision_pose_worlds.items()
+                if name in blender_rest_worlds
+            }
 
             for bone_name in animated_bone_names:
                 rest_bone = armature_object.data.bones.get(bone_name)
@@ -478,36 +486,26 @@ class AnimationFileReader(AnimationFileChunkReader):
                 if rest_bone is None:
                     continue
 
-                target_ref = target_refs_by_name[bone_name]
-                parent_name = target_ref.parent_name
-                basis = self._pose_basis_from_skinning_delta(
-                    blender_rest_worlds[bone_name],
-                    vision_rest_worlds[bone_name],
-                    vision_pose_worlds[bone_name],
-                    blender_rest_worlds.get(parent_name) if parent_name else None,
-                    vision_rest_worlds.get(parent_name) if parent_name else None,
-                    vision_pose_worlds.get(parent_name) if parent_name else None,
+                parent = rest_bone.parent
+                parent_args = {} if parent is None else {
+                    "parent_matrix": blender_pose_worlds[parent.name],
+                    "parent_matrix_local": parent.matrix_local,
+                }
+                basis = rest_bone.convert_local_to_pose(
+                    blender_pose_worlds[bone_name], rest_bone.matrix_local,
+                    invert=True, **parent_args,
                 )
 
-                if positions_by_bone.get(bone_name):
-                    basis_location_keys_by_bone[bone_name].append(
-                        (frame, basis.to_translation())
-                    )
-
-                if rotations_by_bone.get(bone_name):
-                    basis_rotation_keys_by_bone[bone_name].append(
-                        (frame, basis.to_quaternion())
-                    )
-
-                if scales_by_bone.get(bone_name):
-                    sampled_scale = self._sample_vector_track(
-                        scales_by_bone[bone_name],
-                        frame,
-                    )
-                    if sampled_scale is not None:
-                        scale_keys_by_bone[bone_name].append(
-                            (frame, sampled_scale)
-                        )
+                # Convert the complete transform with Blender's inheritance
+                # rules instead of copying raw scale values into pose channels.
+                location, rotation, scale = basis.decompose()
+                previous = basis_rotation_keys_by_bone[bone_name]
+                if previous and previous[-1][1].dot(rotation) < 0.0:
+                    rotation.negate()
+                basis_location_keys_by_bone[bone_name].append(
+                    (frame, location))
+                previous.append((frame, rotation))
+                scale_keys_by_bone[bone_name].append((frame, scale))
 
         for bone_name, keys in basis_location_keys_by_bone.items():
             self._add_vector_curves(
@@ -554,25 +552,23 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         if offset_chunk is not None:
             cumulative = Vector((0.0, 0.0, 0.0))
-            for key_frame in offset_chunk.key_frame_list:
+            for index, key_frame in enumerate(offset_chunk.key_frame_list):
                 frame = vision_time_to_frame(key_frame.time)
-                if offset_chunk.version == 0:
-                    cumulative = cumulative + key_frame.offset
-                    location_keys.append(
-                        (frame, vision_to_blender(cumulative.copy())))
-                else:
-                    location_keys.append(
-                        (frame, vision_to_blender(key_frame.offset.copy())))
+                # Each sample describes the interval ending at its time. The
+                # first sample is the looping boundary, not a starting offset.
+                if index > 0:
+                    cumulative += key_frame.offset
+                location_keys.append(
+                    (frame, vision_to_blender(cumulative.copy())))
 
         if rotation_chunk is not None:
             cumulative_angle = 0.0
-            for key_frame in rotation_chunk.key_frame_list:
+            for index, key_frame in enumerate(rotation_chunk.key_frame_list):
                 frame = vision_time_to_frame(key_frame.time)
-                if rotation_chunk.version == 0:
+                if index > 0:
                     cumulative_angle += key_frame.angle
-                    angle = cumulative_angle
-                else:
-                    angle = key_frame.angle
+                # Vision Euler motion deltas use degrees; mathutils uses radians.
+                angle = radians(cumulative_angle)
 
                 if rotation_chunk.axis == AtdrChunk.AXIS_X:
                     rotation = Quaternion(Vector((1.0, 0.0, 0.0)), angle)
@@ -765,11 +761,9 @@ class AnimationFileReader(AnimationFileChunkReader):
     @staticmethod
     def _compose_local_matrix(
             position: Vector,
-            orientation: Quaternion) -> Matrix:
-        matrix = orientation.to_matrix().to_4x4()
-        matrix.translation = position.to_3d()
-
-        return matrix
+            orientation: Quaternion,
+            scale: Vector | None = None) -> Matrix:
+        return Matrix.LocRotScale(position.to_3d(), orientation, scale)
 
     @classmethod
     def _world_matrices_from_refs(
@@ -810,6 +804,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         positions_by_bone: dict[str, dict[int, Vector]],
         rotations_by_bone: dict[str, dict[int, Quaternion]],
         frame: int,
+        scales_by_bone: dict[str, dict[int, Vector]] | None = None,
     ) -> dict[str, Matrix]:
         worlds: dict[str, Matrix] = {}
 
@@ -849,36 +844,18 @@ class AnimationFileReader(AnimationFileChunkReader):
         for name in refs_by_name:
             build(name)
 
+        # Vision.dll CalculateObjectAnimResult (0x1800A7290) carries local
+        # scale through unchanged; it never scales child joint positions.
+        # Skinning then uses R_world @ S_local @ inverse_bind (0x1800A6CC0).
+        for name in refs_by_name:
+            scale = self._sample_vector_track(
+                (scales_by_bone or {}).get(name, {}), frame,
+            )
+            if scale is not None:
+                worlds[name] = worlds[name] @ Matrix.Diagonal(
+                    (*scale.to_3d(), 1.0))
+
         return worlds
-
-    @staticmethod
-    def _pose_basis_from_skinning_delta(
-        blender_rest: Matrix,
-        vision_rest: Matrix,
-        vision_pose: Matrix,
-        parent_blender_rest: Matrix | None,
-        parent_vision_rest: Matrix | None,
-        parent_vision_pose: Matrix | None,
-    ) -> Matrix:
-        """Map a Vision joint delta onto a Blender rest pose with a different tail."""
-
-        delta = vision_pose @ vision_rest.inverted()
-
-        if (
-            parent_blender_rest is None
-            or parent_vision_rest is None
-            or parent_vision_pose is None
-        ):
-            return blender_rest.inverted() @ delta @ blender_rest
-
-        parent_delta = parent_vision_pose @ parent_vision_rest.inverted()
-
-        return (
-            blender_rest.inverted()
-            @ parent_delta.inverted()
-            @ delta
-            @ blender_rest
-        )
 
     @staticmethod
     def _local_animation_matrix(

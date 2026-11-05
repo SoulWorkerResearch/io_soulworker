@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import bpy
 
+from json import dumps
 from logging import debug, error, warning
 from pathlib import Path
 from typing import final
@@ -19,6 +20,7 @@ from bpy.types import (
 )
 from mathutils import Matrix
 
+from io_soulworker.chunks.bbbx_chunk import BBBXChunk
 from io_soulworker.chunks.mtrs_chunk import MtrsChunk
 from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
@@ -31,10 +33,14 @@ from io_soulworker.file_import.armature_builder import (
 )
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.surface_nodes import apply_surface_params
-from io_soulworker.file_import.resource_path import load_blender_image
+from io_soulworker.file_import.resource_path import (
+    load_blender_image,
+    resolve_resource_path,
+)
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
     arrange_material_nodes,
+    library_stem_from_path,
 )
 from io_soulworker.unit_scale import vision_to_blender
 
@@ -130,6 +136,8 @@ class ModelFileReader(ModelChunkReader):
             self.mesh = bpy.data.meshes.new(self.path.stem)
             self.object = bpy.data.objects.new(name, self.mesh)
 
+        self.mesh["soulworker_source_path"] = self._cache_key
+
     def run(self):
         """Parse (unless mesh is cached), link, place; return the Blender object."""
 
@@ -164,14 +172,15 @@ class ModelFileReader(ModelChunkReader):
         if self.matrix_world is None:
             return
 
-        self.object.matrix_world = self.matrix_world
-
         for modifier in self.object.modifiers:
             if (
                 isinstance(modifier, ArmatureModifier)
                 and modifier.object is not None
             ):
                 modifier.object.matrix_world = self.matrix_world
+
+        # Set the child after its armature, so scene placement is applied once.
+        self.object.matrix_world = self.matrix_world
 
     # @override
     def on_surface(self, chunk: MtrsChunk):
@@ -184,16 +193,19 @@ class ModelFileReader(ModelChunkReader):
 
                 yield base / clear_path
 
+                yield base / 'Textures' / clear_path.name
+
                 yield base.parent / 'Textures' / clear_path.name
 
             def get_texture_path(base: Path, relative: str):
 
                 for path in get_texture_list(base, relative):
 
-                    if path.exists() and path.is_file():
+                    resolved = resolve_resource_path(base, str(path))
+                    if resolved is not None:
 
-                        debug("path: %s", path)
-                        return path
+                        debug("path: %s", resolved)
+                        return resolved
 
                     error("FILE NOT FOUND %s", path)
 
@@ -284,6 +296,36 @@ class ModelFileReader(ModelChunkReader):
 
         material = bpy.data.materials.new(chunk.name)
         material.use_nodes = True
+        material["soulworker_diffuse"] = chunk.diffuse_map
+        material["soulworker_material_name"] = chunk.name
+        material["soulworker_specular"] = chunk.specular_map
+        material["soulworker_normal"] = chunk.normal_map
+        material["soulworker_source_directory"] = str(
+            self.path.parent.resolve())
+
+        xml_material = self.xml_materials.get(chunk.name)
+        if xml_material is not None and xml_material.shader is not None:
+            shader = xml_material.shader
+            material["soulworker_shader_library"] = library_stem_from_path(
+                shader.library)
+            material["soulworker_shader_effect"] = shader.effect
+            material["soulworker_shader_paramstring"] = shader.paramstring.to_string()
+            library = resolve_resource_path(self.path.parent, shader.library)
+            if library is not None:
+                material["soulworker_shader_library_path"] = str(library)
+            root = getattr(self.context.scene,
+                           "soulworker_unpack_resources", "")
+            if root:
+                material["soulworker_resources_root"] = bpy.path.abspath(root)
+
+        # Surface fields the Blender node tree cannot express (transparency
+        # mode, alpha threshold, ambient, flags...). Export replays them so a
+        # round trip keeps the original look instead of guessing from nodes.
+        material["soulworker_mtrs"] = dumps(chunk.to_dict())
+
+        if xml_material is not None and xml_material.attributes:
+            material["soulworker_material_xml"] = dumps(
+                xml_material.attributes)
 
         create_blender_nodes(material)
 
@@ -340,6 +382,12 @@ class ModelFileReader(ModelChunkReader):
 
         modifier.object = result.object
 
+        # Object root-motion tracks must carry the mesh with the armature.
+        # Without parenting, Blender transforms the stationary mesh into the
+        # moving armature's space before skinning, distorting the character.
+        self.object.parent = result.object
+        self.object.matrix_parent_inverse = Matrix.Identity(4)
+
         self.bone_index_to_vertex_group = {}
 
         vertex_groups = self.object.vertex_groups
@@ -350,6 +398,36 @@ class ModelFileReader(ModelChunkReader):
 
             self.vertex_groups.append(vertex_group)
             self.bone_index_to_vertex_group[bone.id] = vertex_group
+
+    # @override
+    def on_bounding_boxes(self, chunk: BBBXChunk):
+        """Keep the per-bone boxes so an export can replay them verbatim.
+
+        Vision stores one box per bone in bone space. The 3ds Max exporter
+        derives them from Biped geometry, not from skinned vertices, so they
+        cannot be rebuilt from Blender data.
+        """
+
+        armature_object = self.object.parent
+
+        if armature_object is None or armature_object.type != "ARMATURE":
+            return
+
+        names = list(armature_object.get("soulworker_bone_names_by_index", []))
+
+        if len(names) != len(chunk.values):
+            return
+
+        armature_object["soulworker_bone_bounds"] = dumps([
+            {
+                "name": name,
+                "min": [entity.bounds.min.x, entity.bounds.min.y,
+                        entity.bounds.min.z],
+                "max": [entity.bounds.max.x, entity.bounds.max.y,
+                        entity.bounds.max.z],
+            }
+            for name, entity in zip(names, chunk.values)
+        ])
 
     # @override
     def on_sub_mesh(self, chunk: VisSubMeshChunk):

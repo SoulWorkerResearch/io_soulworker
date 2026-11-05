@@ -33,7 +33,8 @@ class AtdoChunk(DataExchange_cl):
     """
         Root-motion translation track (VisOffsetDeltaKeyFrameTrack_cl).
         Vision converts version 0 samples to consecutive deltas after load;
-        SoulWorker assets use version 1 (absolute offsets).
+        Version 0 stores absolute offsets; version 1 stores consecutive deltas.
+        In memory, both versions expose deltas (Vision.dll: 0x18007F770).
     """
 
     version = 1
@@ -55,13 +56,26 @@ class AtdoChunk(DataExchange_cl):
             AtdoChunk_KeyFrame.from_reader(reader) for _ in range(count)
         ]
 
+        if self.version == 0:
+            previous = Vector((0.0, 0.0, 0.0))
+            for frame in self.key_frame_list:
+                absolute = frame.offset
+                frame.offset = absolute - previous
+                previous = absolute
+
     def write(self, writer: BinaryWriter) -> None:
 
         writer.write_uint16(self.version)
         writer.write_uint32(len(self.key_frame_list))
 
+        cumulative = Vector((0.0, 0.0, 0.0))
         for frame in self.key_frame_list:
-            frame.write(writer)
+            if self.version == 0:
+                cumulative += frame.offset
+                writer.write_float(frame.time)
+                writer.write_vector3(cumulative)
+            else:
+                frame.write(writer)
 
     @staticmethod
     def from_reader(reader: BinaryReader) -> "AtdoChunk":

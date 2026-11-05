@@ -28,6 +28,29 @@ class NameHelper:
 
 CONNECT_EPSILON = 1e-5
 PRIMARY_CHILD_PENALTY = 0.5
+PRETTY_BONE_SHAPE_NAME = "SoulWorker_BoneDisplay"
+
+
+def _pretty_bone_shape() -> bpy.types.Object:
+    """One unlinked wire shape shared by all imported pose bones."""
+    existing = bpy.data.objects.get(PRETTY_BONE_SHAPE_NAME)
+    if existing is not None and existing.get("soulworker_bone_display"):
+        return existing
+
+    mesh = bpy.data.meshes.new(PRETTY_BONE_SHAPE_NAME)
+    mesh.from_pydata(
+        [(0, 0, 0), (0, 1, 0),
+         (0.04, 0.2, 0), (-0.04, 0.2, 0),
+         (0, 0.2, 0.04), (0, 0.2, -0.04)],
+        [(0, side) for side in range(2, 6)]
+        + [(side, 1) for side in range(2, 6)]
+        + [(2, 4), (4, 3), (3, 5), (5, 2)],
+        [],
+    )
+    mesh.update()
+    shape = bpy.data.objects.new(PRETTY_BONE_SHAPE_NAME, mesh)
+    shape["soulworker_bone_display"] = True
+    return shape
 
 
 def _is_deprioritized_child_name(name: str) -> bool:
@@ -72,7 +95,10 @@ def _primary_child(
     best_score = -float("inf")
 
     for child in children:
-        distance = (_world_translation(transforms_by_id, child.id) - head).length
+        distance = (_world_translation(
+            transforms_by_id, child.id) - head).length
+        if distance <= CONNECT_EPSILON:
+            continue
         score = distance
 
         if _is_deprioritized_child_name(child.name):
@@ -83,10 +109,6 @@ def _primary_child(
 
             best_score = score
             best = child
-
-    if best is None or best_score <= CONNECT_EPSILON:
-
-        return None
 
     return best
 
@@ -176,7 +198,7 @@ class BoneHelper:
             world_matrix: Matrix,
             children_by_parent_id: dict[int, list[VisSkeletalBone_cl]],
             transforms_by_id: dict[int, BoneTransform],
-            segment_lengths_by_parent: dict[int, list[float]]) -> None:
+            segment_lengths_by_parent: dict[int, list[float]]) -> Matrix:
 
         head = world_matrix.to_translation()
         edit_bone.head = head
@@ -208,6 +230,11 @@ class BoneHelper:
 
         roll_axis = world_matrix.to_3x3() @ Vector((0.0, 0.0, 1.0))
         edit_bone.align_roll(roll_axis)
+        display_matrix = edit_bone.matrix.copy()
+
+        # Keep native axes for skinning; rotate only the pose display shape.
+        edit_bone.matrix = world_matrix
+        return world_matrix.inverted() @ display_matrix
 
     @staticmethod
     def ensure_tail(edit_bone: bpy.types.EditBone) -> None:
@@ -219,28 +246,6 @@ class BoneHelper:
         edit_bone.tail = edit_bone.head + Vector(
             (0.0, BoneHelper.DEFAULT_LENGTH, 0.0),
         )
-
-    @staticmethod
-    def apply_connect_flags(
-            edit_bones_by_id: dict[int, bpy.types.EditBone],
-            children_by_parent_id: dict[int, list[VisSkeletalBone_cl]],
-            transforms_by_id: dict[int, BoneTransform]) -> None:
-
-        for parent_id, children in children_by_parent_id.items():
-
-            if len(children) != 1:
-
-                continue
-
-            child = children[0]
-            parent_head = _world_translation(transforms_by_id, parent_id)
-            child_head = _world_translation(transforms_by_id, child.id)
-
-            if (child_head - parent_head).length <= CONNECT_EPSILON:
-
-                continue
-
-            edit_bones_by_id[child.id].use_connect = True
 
 
 @dataclass(frozen=True)
@@ -301,18 +306,20 @@ def build_armature_from_skeleton(
         return matrix
 
     bone_transforms = build_bone_transforms(chunk.bones, bone_local_matrix)
-    transforms_by_id = {transform.id: transform for transform in bone_transforms}
+    transforms_by_id = {
+        transform.id: transform for transform in bone_transforms}
     children_by_parent_id = _children_by_parent_id(chunk.bones)
     segment_lengths_by_parent = _segment_lengths_by_parent(
         children_by_parent_id,
         transforms_by_id,
     )
     edit_bones_by_id: dict[int, bpy.types.EditBone] = {}
+    display_rotations_by_name = {}
 
     for bone, transform in zip(chunk.bones, bone_transforms):
         new = armature.edit_bones.new(bone.name)
 
-        BoneHelper.apply_rest_transform(
+        display_matrix = BoneHelper.apply_rest_transform(
             new,
             bone,
             transform.matrix,
@@ -320,6 +327,7 @@ def build_armature_from_skeleton(
             transforms_by_id,
             segment_lengths_by_parent,
         )
+        display_rotations_by_name[new.name] = display_matrix.to_euler()
         edit_bones_by_id[bone.id] = new
 
     for transform in bone_transforms:
@@ -331,13 +339,23 @@ def build_armature_from_skeleton(
             child_bone.parent = parent_bone
             child_bone.use_connect = False
 
-    BoneHelper.apply_connect_flags(
-        edit_bones_by_id,
-        children_by_parent_id,
-        transforms_by_id,
-    )
+    # Vision animates local translations even when a joint coincides with its
+    # parent's tail. Blender connected bones ignore those location channels and
+    # can also snap twist joints to a tail chosen only for display.
 
     bpy.ops.object.mode_set(mode="OBJECT")
+
+    # Vision composes object-space translation/rotation without parent scale;
+    # each bone's scale is applied only when building its skinning matrix.
+    for bone in armature.bones:
+        bone.inherit_scale = 'NONE'
+
+    shape = _pretty_bone_shape()
+    for pose_bone in armature_object.pose.bones:
+        pose_bone.custom_shape = shape
+        pose_bone.use_custom_shape_bone_size = True
+        pose_bone.custom_shape_rotation_euler = display_rotations_by_name[
+            pose_bone.name]
 
     context.view_layer.objects.active = armature_object
     context.view_layer.update()
@@ -352,6 +370,10 @@ def build_armature_from_skeleton(
                 vision_to_blender(bone.local_space_position)),
             "local_orientation": _quaternion_to_list(
                 bone.local_space_orientation),
+            "inverse_position": _vector_to_list(
+                bone.inverse_object_space_position),
+            "inverse_orientation": _quaternion_to_list(
+                bone.inverse_object_space_orientation),
         }
         for bone in chunk.bones
     ])

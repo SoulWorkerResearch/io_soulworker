@@ -19,6 +19,9 @@ from io_soulworker.core.xml_helper.exchange_transparency import (
 
 DEFAULT_DIFFUSE = r"\PlainWhite.DDS"
 
+_XML_PATH_ATTRIBUTES = {"name", "diffuse", "specularmap", "normalmap"}
+"""materials.xml attributes export derives itself instead of replaying."""
+
 
 def materials_xml_path(mesh_path: Path) -> Path:
     """``Foo.model`` → ``Foo.model_data/materials.xml``."""
@@ -57,11 +60,11 @@ def shader_library_xml_path(
 
         try:
 
-            return relpath(target, materials_xml.parent).replace("/", "\\")
+            return relpath(target, materials_xml.parent.parent).replace("/", "\\")
 
         except ValueError:
 
-            pass
+            return str(target.resolve()).replace("/", "\\")
 
     return f"Shaders\\{filename}"
 
@@ -87,10 +90,18 @@ class MaterialSidecar:
     lighting: str = VisMaterialLighting.NONE.value
     user_flags: int = 0
     shader_library_stem: str = ""
+    shader_library_path: str = ""
     shader_effect: str = ""
     paramstring: str = ""
+    mtrs_fields: dict | None = None
+    """``MtrsChunk.to_dict()`` captured at import; replayed verbatim."""
+    xml_attributes: dict | None = None
+    """``<Material>`` attributes captured at import; replayed verbatim."""
 
     def shader_library_binary(self) -> str:
+
+        if self.shader_library_path:
+            return self.shader_library_path
 
         if not self.shader_library_stem:
 
@@ -136,6 +147,9 @@ class MaterialSidecar:
         effect.param = self.paramstring
         material.config_effects = [effect]
 
+        if self.mtrs_fields:
+            material.apply_dict(self.mtrs_fields)
+
         return material
 
 
@@ -174,6 +188,27 @@ def write_materials_xml(
             "lightmapID": "-1",
         }
 
+        if material.xml_attributes:
+
+            for key, value in material.xml_attributes.items():
+
+                if key not in _XML_PATH_ATTRIBUTES:
+
+                    attrib[key] = str(value)
+
+        # Map attributes come from the (already rebased) sidecar paths, never
+        # verbatim from the import, so they stay valid at the new location.
+        stored_keys = set(material.xml_attributes or ())
+
+        for key, value in (
+            ("specularmap", material.specular),
+            ("normalmap", material.normal),
+        ):
+
+            if value or key in stored_keys:
+
+                attrib[key] = value or ""
+
         node = Element("Material", attrib)
 
         if material.shader_effect and material.shader_library_stem:
@@ -182,7 +217,7 @@ def write_materials_xml(
                 Element(
                     "Shader",
                     {
-                        "library": shader_library_xml_path(
+                        "library": material.shader_library_path or shader_library_xml_path(
                             material.shader_library_stem,
                             path,
                             resources_root,

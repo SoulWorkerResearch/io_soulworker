@@ -110,6 +110,14 @@ class ModelChunkReader(VisChunkFileReader):
             if override:
                 chunk.diffuse_map = override.diffuse
 
+                # Shipped XML mostly carries empty map attributes; only a
+                # real path replaces what the binary surface already has.
+                if override.specularmap:
+                    chunk.specular_map = override.specularmap
+
+                if override.normalmap:
+                    chunk.normal_map = override.normalmap
+
                 if override.specmul is not None:
                     chunk.spec_mul = override.specmul
 
@@ -157,6 +165,7 @@ class ModelChunkReader(VisChunkFileReader):
         def create(node: Element) -> tuple[str, VisMaterial]:
             material = VisMaterial()
             material.name = node.attrib["name"]
+            material.attributes = dict(node.attrib)
 
             shader_node = node.find('Shader')
 
@@ -178,6 +187,8 @@ class ModelChunkReader(VisChunkFileReader):
                 material.parallaxbias = float(node.attrib["parallaxbias"])
 
             material.diffuse = node.attrib.get("diffuse", "")
+            material.specularmap = node.attrib.get("specularmap", "")
+            material.normalmap = node.attrib.get("normalmap", "")
             material.transparency = VisTransparencyType(
                 exchange_transparency(
                     node.attrib.get("transparency", "opaque"))
