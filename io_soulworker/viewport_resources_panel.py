@@ -118,6 +118,7 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
             context,
             7.0,
             collection=collection,
+            resources_root=_resources_root(context),
         ).run()
 
         anim_path = path.with_suffix(".anim")

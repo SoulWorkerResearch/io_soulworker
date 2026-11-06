@@ -34,6 +34,7 @@ from io_soulworker.file_import.armature_builder import (
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.surface_nodes import apply_surface_params
 from io_soulworker.file_import.resource_path import (
+    is_builtin_texture,
     load_blender_image,
     resolve_resource_path,
 )
@@ -111,12 +112,14 @@ class ModelFileReader(ModelChunkReader):
         matrix_world: Matrix | None = None,
         object_name: str | None = None,
         reuse_mesh: bool = True,
+        resources_root: Path | str | None = None,
     ) -> None:
 
         super().__init__(path)
 
         self.emission_strength = emission_strength
         self.context = context
+        self.resources_root = Path(resources_root) if resources_root else None
         self.target_collection = collection
         self.matrix_world = matrix_world
         self.reuse_mesh = reuse_mesh
@@ -153,6 +156,24 @@ class ModelFileReader(ModelChunkReader):
 
         self._apply_transform()
         return self.object
+
+    def _resources_root(self) -> Path | None:
+        """Explicit resources root, else the N-panel setting, else ``None``."""
+
+        if self.resources_root is not None and self.resources_root.is_dir():
+
+            return self.resources_root
+
+        scene = getattr(self.context, "scene", None)
+        raw = (getattr(scene, "soulworker_unpack_resources", "") or "").strip()
+
+        if not raw:
+
+            return None
+
+        root = Path(bpy.path.abspath(raw))
+
+        return root if root.is_dir() else None
 
     def _link_object(self) -> None:
 
@@ -197,7 +218,20 @@ class ModelFileReader(ModelChunkReader):
 
                 yield base.parent / 'Textures' / clear_path.name
 
+                # Vision also resolves paths against the project root, which
+                # is where ``\\World\\Textures\\x.dds`` style references live.
+                root = self._resources_root()
+
+                if root is not None:
+
+                    yield root / clear_path.relative_to(clear_path.anchor)
+
             def get_texture_path(base: Path, relative: str):
+
+                if not relative or is_builtin_texture(relative):
+
+                    debug("built-in or empty texture: %r", relative)
+                    return None
 
                 for path in get_texture_list(base, relative):
 
@@ -207,7 +241,10 @@ class ModelFileReader(ModelChunkReader):
                         debug("path: %s", resolved)
                         return resolved
 
-                    error("FILE NOT FOUND %s", path)
+                    debug("texture candidate not found: %s", path)
+
+                error("FILE NOT FOUND %s (tried mesh dir, Textures/, root)",
+                      relative)
 
                 return None
 
@@ -268,7 +305,7 @@ class ModelFileReader(ModelChunkReader):
                         texture_node.outputs["Color"]
                     )
 
-            else:
+            elif chunk.diffuse_map and not is_builtin_texture(chunk.diffuse_map):
 
                 error("No textures found for material: %s", material.name)
 
@@ -290,7 +327,8 @@ class ModelFileReader(ModelChunkReader):
 
             if xml_material is not None and xml_material.shader is not None:
 
-                apply_shader_to_material(material, xml_material.shader)
+                apply_shader_to_material(
+                    material, xml_material.shader, self._resources_root())
 
             arrange_material_nodes(node_tree)
 
@@ -313,10 +351,9 @@ class ModelFileReader(ModelChunkReader):
             library = resolve_resource_path(self.path.parent, shader.library)
             if library is not None:
                 material["soulworker_shader_library_path"] = str(library)
-            root = getattr(self.context.scene,
-                           "soulworker_unpack_resources", "")
-            if root:
-                material["soulworker_resources_root"] = bpy.path.abspath(root)
+            root = self._resources_root()
+            if root is not None:
+                material["soulworker_resources_root"] = str(root)
 
         # Surface fields the Blender node tree cannot express (transparency
         # mode, alpha threshold, ambient, flags...). Export replays them so a

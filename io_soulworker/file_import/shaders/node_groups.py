@@ -21,11 +21,46 @@ from io_soulworker.core.shader_lib import (
 from io_soulworker.file_import.resource_path import (
     game_relative_texture_path,
     load_blender_image,
+    resolve_resource_path,
 )
 
 NODE_GROUP_PREFIX = "SW."
 _PARAMS_KEY = "soulworker_params"
 _TEXTURE_TYPES = frozenset({"texture", "cubemap"})
+
+
+VISION_BUILTIN_LIBRARIES = {
+    "vmaterial", "vmaterialglow", "vmaterialrim", "vmaterialfullbright",
+    "vdeferredmaterial", "vmaterialparallax", "vmaterialdecal",
+}
+"""ShaderLibs shipped inside the engine (Shared.zip as .Shaderbin only).
+
+Their sources are not part of the unpacked game tree, so no node group can be
+synced for them; the plain Principled BSDF already approximates them.
+"""
+
+_reported_missing_effects: set[tuple[str, str]] = set()
+
+
+def _report_missing_effect(library: str, effect: str) -> None:
+    """Log a missing EFFECT once per library/effect pair."""
+
+    key = (library_stem_from_path(library).lower(), effect)
+
+    if key in _reported_missing_effects:
+
+        return
+
+    _reported_missing_effects.add(key)
+
+    if key[0] in VISION_BUILTIN_LIBRARIES:
+
+        debug("Built-in Vision shader without node group: %s/%s",
+              library, effect)
+        return
+
+    warning("Missing shader node group for library=%s effect=%s",
+            library, effect)
 
 
 def library_stem_from_path(library: str) -> str:
@@ -41,7 +76,16 @@ def node_group_name(library_stem: str, effect_name: str) -> str:
     return f"{NODE_GROUP_PREFIX}{library_stem}.{effect_name}"
 
 
-def _resources_root() -> Path | None:
+def _resources_root(explicit: Path | str | None = None) -> Path | None:
+    """Unpacked resources root: the explicit one, else the N-panel setting."""
+
+    if explicit:
+
+        root = Path(explicit)
+
+        if root.is_dir():
+
+            return root.resolve()
 
     scene = bpy.context.scene if bpy.context else None
     root_raw = getattr(scene, "soulworker_unpack_resources",
@@ -61,26 +105,24 @@ def _resources_root() -> Path | None:
     return root
 
 
-def _resolve_resource_file(relative: str) -> Path | None:
+def _resolve_resource_file(
+        relative: str,
+        resources_root: Path | str | None = None) -> Path | None:
 
-    root = _resources_root()
+    root = _resources_root(resources_root)
 
     if root is None or not relative.strip():
 
         return None
 
-    candidate = root / relative.replace("\\", "/").lstrip("/")
-
-    if candidate.is_file():
-
-        return candidate
-
-    return None
+    return resolve_resource_path(root, relative)
 
 
-def _load_resource_image(relative: str) -> Image | None:
+def _load_resource_image(
+        relative: str,
+        resources_root: Path | str | None = None) -> Image | None:
 
-    path = _resolve_resource_file(relative)
+    path = _resolve_resource_file(relative, resources_root)
 
     if path is None:
 
@@ -359,6 +401,7 @@ def _set_texture_on_material(
     group_node: Node,
     param: ShaderParamComment,
     relative: str,
+    resources_root: Path | str | None = None,
 ) -> Node:
 
     tex_node = material_tree.nodes.get(param.name)
@@ -374,7 +417,7 @@ def _set_texture_on_material(
 
     tex_node.label = param.name
     tex_node.width = 240.0
-    tex_node.image = _load_resource_image(relative)
+    tex_node.image = _load_resource_image(relative, resources_root)
 
     color_out = tex_node.outputs.get("Color")
     color_in = group_node.inputs.get(param.name)
@@ -396,11 +439,13 @@ def _set_input_value(
     input_name: str,
     raw: str,
     param: ShaderParamComment | None,
+    resources_root: Path | str | None = None,
 ) -> None:
 
     if param is not None and param.value_type in _TEXTURE_TYPES:
 
-        _set_texture_on_material(material_tree, node, param, raw)
+        _set_texture_on_material(
+            material_tree, node, param, raw, resources_root)
         return
 
     socket = node.inputs.get(input_name)
@@ -487,8 +532,13 @@ def arrange_material_nodes(node_tree: NodeTree) -> None:
 
 def apply_shader_to_material(
         material: Material,
-        shader: ShaderTag) -> Node | None:
-    """Add the EFFECT node group to a material and fill PARAMCOMMENT values."""
+        shader: ShaderTag,
+        resources_root: Path | str | None = None) -> Node | None:
+    """Add the EFFECT node group to a material and fill PARAMCOMMENT values.
+
+    ``resources_root`` locates textures named in the paramstring; without it
+    the N-panel's ``Unpacked Resources`` setting is used.
+    """
 
     node_tree = material.node_tree
 
@@ -501,11 +551,7 @@ def apply_shader_to_material(
 
     if group_tree is None:
 
-        warning(
-            "Missing shader node group for library=%s effect=%s",
-            shader.library,
-            shader.effect,
-        )
+        _report_missing_effect(shader.library, shader.effect)
         return None
 
     group_node: ShaderNodeGroup = node_tree.nodes.new("ShaderNodeGroup")
@@ -541,7 +587,8 @@ def apply_shader_to_material(
 
             continue
 
-        _set_input_value(group_node, node_tree, name, raw, param)
+        _set_input_value(
+            group_node, node_tree, name, raw, param, resources_root)
 
     return group_node
 

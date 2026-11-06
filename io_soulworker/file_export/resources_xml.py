@@ -18,14 +18,32 @@ from io_soulworker.file_import.resource_path import resolve_resource_path
 _TEXTURE_SUFFIXES = {".dds", ".tga", ".png", ".jpg", ".jpeg", ".bmp"}
 
 
+def _resource_tree_of(path: Path, resources_root: Path | None) -> Path | None:
+    """The tree holding ``path``: ``resources_root``, else a parent that looks like one."""
+
+    if resources_root is not None:
+
+        root = resources_root.resolve()
+
+        if path.is_relative_to(root):
+
+            return root
+
+    return next((parent for parent in path.parents
+                 if (parent / "Shaders").is_dir()
+                 and (parent / "Character").is_dir()), None)
+
+
 def rebase_material_resources(
         mesh_path: Path,
         materials: list[MaterialSidecar],
         resources_root: Path | None = None) -> list[MaterialSidecar]:
-    """Keep asset references valid when exporting outside the resource tree.
+    """Keep asset references valid wherever the exported file ends up.
 
-    Vision material paths are relative to the mesh directory. Across drives,
-    use an absolute filename, since Windows cannot express a relative path.
+    A file inside the resource tree becomes root-relative (``\\World\\x.dds``),
+    so the mesh can be exported elsewhere and copied into the game. Anything
+    else is relative to the mesh directory. Across drives, use an absolute
+    filename, since Windows cannot express a relative path.
     """
     def reference(raw: str) -> str:
         if not raw:
@@ -38,6 +56,10 @@ def rebase_material_resources(
                     break
         if resolved is None:
             return raw
+        resolved = resolved.resolve()
+        tree = _resource_tree_of(resolved, resources_root)
+        if tree is not None:
+            return "\\" + _backslash(str(resolved.relative_to(tree)))
         try:
             return relpath(resolved, mesh_path.parent).replace("/", "\\")
         except ValueError:

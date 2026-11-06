@@ -241,6 +241,7 @@ class SceneImporter:
                 matrix_world=matrix,
                 object_name=object_name,
                 reuse_mesh=True,
+                resources_root=self.resources_root,
             ).run()
 
             obj["soulworker_class"] = instance.class_name
@@ -301,6 +302,7 @@ class SceneImporter:
                 matrix_world=entity_world_matrix(entity),
                 object_name=object_name,
                 reuse_mesh=False,
+                resources_root=self.resources_root,
             ).run()
 
             obj["soulworker_class"] = entity.class_name
@@ -410,12 +412,30 @@ class SceneImporter:
         action = bpy.data.actions.get(action_name)
 
         if action is None:
-            warning(
-                "Preferred animation action %s not found for %s",
-                action_name,
-                mesh_object.name,
-            )
-            return
+            # Scene entities sometimes name a sequence the clip does not have
+            # (Roccotown's cats ask for "idle" but cat01.anim only has "zzz").
+            # When the clip offers exactly one sequence, play that instead.
+            prefix = f"{anim_stem}:"
+            candidates = [
+                candidate for candidate in bpy.data.actions
+                if candidate.name.startswith(prefix)
+            ]
+
+            if len(candidates) == 1:
+                action = candidates[0]
+                info(
+                    "Preferred animation %s missing for %s; using %s",
+                    action_name,
+                    mesh_object.name,
+                    action.name,
+                )
+            else:
+                warning(
+                    "Preferred animation action %s not found for %s",
+                    action_name,
+                    mesh_object.name,
+                )
+                return
 
         animation_data = armature.animation_data_create()
         animation_data.action = action
