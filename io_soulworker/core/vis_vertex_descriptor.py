@@ -156,6 +156,57 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
 
         return result
 
+    def to_record(self) -> dict:
+        """The raw descriptor words, for keeping the layout on a Blender mesh."""
+
+        return {
+            "header_size": self.header_size,
+            "stride": self.stride,
+            "pos": self.pos_offset,
+            "color": self.color_offset,
+            "normal": self.normal_offset,
+            "tex": list(self.tex_offset),
+            "secondary_color": self.secondary_color_offset,
+            "first_text_coord": self.first_text_coord,
+            "last_text_coord": self.last_text_coord,
+            "hash": self.hash,
+        }
+
+    @classmethod
+    def from_record(cls, record: dict) -> 'VisMBVertexDescriptor_cl':
+        """Rebuild what ``to_record`` wrote; raises on anything malformed."""
+
+        value = cls()
+        value.header_size = int(record["header_size"])
+        value.stride = int(record["stride"])
+        value.pos_offset = int(record["pos"])
+        value.color_offset = int(record["color"])
+        value.normal_offset = int(record["normal"])
+        value.secondary_color_offset = int(record["secondary_color"])
+        value.first_text_coord = int(record["first_text_coord"])
+        value.last_text_coord = int(record["last_text_coord"])
+        value.hash = int(record["hash"])
+
+        tex = [int(word) for word in record["tex"]]
+
+        if len(tex) != cls.MAX_TEXTURES:
+
+            raise ValueError("A descriptor has %d texture offsets" %
+                             cls.MAX_TEXTURES)
+
+        value.tex_offset = tex
+
+        words = [
+            value.stride, value.pos_offset, value.color_offset,
+            value.normal_offset, value.secondary_color_offset, *tex,
+        ]
+
+        if any(not 0 <= word <= 0xFFFF for word in words):
+
+            raise ValueError("A descriptor word is out of range")
+
+        return value
+
     def read(self, reader: BinaryReader) -> None:
 
         self.magick = reader.read_uint32()

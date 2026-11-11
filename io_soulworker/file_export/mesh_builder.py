@@ -26,6 +26,11 @@ from io_soulworker.file_export.materials_xml import (
     DEFAULT_DIFFUSE,
     MaterialSidecar,
 )
+from io_soulworker.file_export.vertex_channels import (
+    default_components,
+    place_components,
+    plan_vertex_channels,
+)
 from io_soulworker.file_import.model.surface_nodes import spec_exp_from_roughness
 from io_soulworker.file_import.resource_path import (
     game_relative_texture_path,
@@ -41,10 +46,6 @@ from io_soulworker.file_import.shaders.node_groups import (
 )
 from io_soulworker.unit_scale import blender_to_vision
 
-
-_POS_OFFSET = 0x3000
-_NORMAL_OFFSET = 0x300C
-_TEX0_OFFSET = 0x2018
 
 EXPORT_VMSH_VERSION = 1
 """Every shipped SoulWorker mesh is VMSH version 1 with ``TRILIST`` plus an
@@ -92,19 +93,9 @@ def bounding_box_from_points(points: list[Vector]) -> HavokBoundingBox:
 
 
 def make_vertex_descriptor() -> VisMBVertexDescriptor_cl:
+    """The plain layout: position, normal and one UV set, 32 bytes."""
 
-    descriptor = VisMBVertexDescriptor_cl()
-    descriptor.header_size = 48
-    descriptor.stride = 32
-    descriptor.pos_offset = _POS_OFFSET
-    descriptor.normal_offset = _NORMAL_OFFSET
-    descriptor.tex_offset = [
-        VisMBVertexDescriptor_cl.UNSET_OFFSET
-    ] * VisMBVertexDescriptor_cl.MAX_TEXTURES
-    descriptor.tex_offset[0] = _TEX0_OFFSET
-    descriptor.first_text_coord = 255
-
-    return descriptor
+    return place_components(default_components())
 
 
 def _vertex_and_normal_transforms(obj, transform: Matrix | None = None):
@@ -690,7 +681,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
 
     mesh = mesh_obj.data
     mesh.calc_loop_triangles()
-    uv_layer = mesh.uv_layers.active.data if mesh.uv_layers.active else None
+    channels = plan_vertex_channels(mesh)
     vertex_transform, normal_transform = _vertex_and_normal_transforms(
         mesh_obj, transform)
     use_vertex_normals = (
@@ -712,7 +703,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
 
     vertices: list[Vector] = []
     normals: list[Vector] = []
-    uvs: list[Vector] = []
+    value_rows: list[tuple] = []
     ordered_indices: list[int] = []
     source_vertex_indices: list[int] = []
     sub_mesh_infos: list[dict] = []
@@ -748,17 +739,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
 
                     normal.normalize()
 
-                if uv_layer is not None:
-
-                    uv = Vector((
-                        uv_layer[loop_index].uv[0],
-                        uv_layer[loop_index].uv[1],
-                    ))
-
-                else:
-
-                    uv = Vector((0.0, 0.0))
-
+                values = channels.corner(loop_index, loop.vertex_index)
                 key = (
                     round(position.x, 4),
                     round(position.y, 4),
@@ -766,8 +747,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
                     round(normal.x, 4),
                     round(normal.y, 4),
                     round(normal.z, 4),
-                    round(uv.x, 6),
-                    round(uv.y, 6),
+                    channels.key(values),
                     vertex_weights(loop.vertex_index),
                 )
 
@@ -782,7 +762,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
                     tri_indices.append(idx)
                     vertices.append(position)
                     normals.append(normal)
-                    uvs.append(uv)
+                    value_rows.append(values)
                     source_vertex_indices.append(int(loop.vertex_index))
 
             surface_indices.extend(tri_indices)
@@ -821,7 +801,6 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
     vmsh.chunk_id = VisChunkId.VMSH
     vmsh.loader_version = VMshChunk.LOADER_VERSION
     vmsh.version = EXPORT_VMSH_VERSION
-    vmsh.descriptor = make_vertex_descriptor()
     vmsh.usage_flag_vertices = 0
     vmsh.bind_flag_vertices = 0
     vmsh.mesh_data_is_big_endian = False
@@ -846,7 +825,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
     vmsh.unused = 0
     vmsh.vertices = vertices
     vmsh.normals = normals
-    vmsh.uvs = uvs
+    channels.apply(vmsh, value_rows)
     vmsh.indices = ordered_indices
     vmsh.faces = [
         ordered_indices[i: i + 3]
