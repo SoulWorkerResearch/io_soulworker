@@ -11,6 +11,7 @@ from io_soulworker.core.materials_xml.shader_param_string import (
     ShaderParamString,
 )
 from io_soulworker.core.materials_xml.shader_tag import ShaderTag
+from io_soulworker.file_export.mesh_builder import material_sidecar_from_blender
 from io_soulworker.file_import.runner import in_blender
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
@@ -176,3 +177,19 @@ class TestShaderParamString(TestCase):
         material["soulworker_shader_effect"] = "Toon"
 
         self.assertEqual(self._collect(material), "Strength=2.5;")
+
+    def test_imported_material_without_a_node_group_exports_its_string_as_is(self):
+
+        source = "CullMode=back;Offset=3.0,4.250;Strength=1.50;PassType=pre_basepass;"
+        material = bpy.data.materials.new("Imported")
+        material.use_nodes = True
+        material["soulworker_shader_library"] = "Sample"
+        material["soulworker_shader_effect"] = "Toon"
+        material["soulworker_shader_paramstring"] = source
+        material["soulworker_shader_library_path"] = str(
+            self.root / "Shaders" / "Sample.ShaderLib")
+
+        sidecar = material_sidecar_from_blender(material, self.root)
+
+        self.assertEqual(sidecar.shader_effect, "Toon")
+        self.assertEqual(sidecar.paramstring, source)

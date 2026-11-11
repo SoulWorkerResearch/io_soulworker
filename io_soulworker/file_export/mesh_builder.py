@@ -31,10 +31,7 @@ from io_soulworker.file_import.resource_path import (
     game_relative_texture_path,
     resolve_resource_path,
 )
-from io_soulworker.core.materials_xml.shader_param_string import (
-    ShaderParamString, paramstring_from_params,
-)
-from io_soulworker.core.shader_lib import parse_shader_lib_file
+from io_soulworker.core.materials_xml.shader_param_string import ShaderParamString
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.shaders.node_groups import (
     collect_shader_from_material,
@@ -364,13 +361,9 @@ def material_sidecar_from_blender(
                 resolved = resolve_resource_path(source_root, value)
                 if resolved is not None:
                     params[name] = str(resolved)
-        paramstring = params.to_string()
-        if library_path and Path(library_path).is_file():
-            effect = parse_shader_lib_file(
-                Path(library_path)).effects.get(effect_name)
-            if effect is not None:
-                paramstring = paramstring_from_params(effect.params, params)
-        shader = (library_name, effect_name, paramstring)
+        # Without a node group nothing can have been edited: the entries the
+        # material came with go out as they are, in their order.
+        shader = (library_name, effect_name, params.to_string())
 
     stored_diffuse = material.get("soulworker_diffuse") or ""
     stored_specular = material.get("soulworker_specular") or ""
