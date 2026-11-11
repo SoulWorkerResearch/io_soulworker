@@ -137,3 +137,19 @@ class TestChunkState(TestCase):
                     offenders.extend(shared_attributes(value, name))
 
         self.assertEqual(offenders, [])
+
+    def test_end_of_file_scope_does_not_swallow_exceptions(self):
+        from io_soulworker.core.vis_chunk_reader_scope import (
+            VisChunkReaderScope,
+        )
+
+        end_of_file = pack("<i", -1)
+
+        with self._reader(end_of_file) as reader:
+            with VisChunkReaderScope(reader) as scope:
+                self.assertLess(scope.depth, 0)
+
+        with self._reader(end_of_file) as reader:
+            with self.assertRaises(ValueError):
+                with VisChunkReaderScope(reader):
+                    raise ValueError("raised inside the end-of-file scope")
