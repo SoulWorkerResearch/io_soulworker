@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from struct import pack
 from tempfile import TemporaryDirectory
@@ -48,3 +49,37 @@ class TestChunkState(TestCase):
             self.assertEqual(tuple(entity.bounds.max), box[3:])
 
         self.assertIsNot(chunk.values[0].bounds, chunk.values[1].bounds)
+
+    def test_effect_config_with_one_entry_round_trips(self):
+        from io_soulworker.core.binary_writer import BinaryWriter
+        from io_soulworker.core.vis_mesh_effect import (
+            VisEffectConfig_cl as EffectConfigItem,
+        )
+        from io_soulworker.core.vis_mesh_effect_config import (
+            VisEffectConfig_cl,
+        )
+
+        def string(value: bytes) -> bytes:
+            return pack("<I", len(value)) + value
+
+        data = pack("<H", 1) + string(b"Shaders.ShaderLib") + \
+            string(b"Diffuse") + string(b"Color=1;") + pack("<I", 5)
+
+        with self._reader(data) as reader:
+            config = VisEffectConfig_cl.from_reader(reader)
+
+        self.assertEqual(len(config.values), 1)
+
+        item = config.values[0]
+        self.assertIsInstance(item, EffectConfigItem)
+        self.assertEqual(item.shader_library_name, "Shaders.ShaderLib")
+        self.assertEqual(item.effect_name, "Diffuse")
+        self.assertEqual(item.effect_params, "Color=1;")
+        self.assertEqual(item.creation_flags, 5)
+
+        stream = BytesIO()
+        writer = BinaryWriter(stream)
+        config.write(writer)
+        writer.flush()
+
+        self.assertEqual(stream.getvalue(), data)
