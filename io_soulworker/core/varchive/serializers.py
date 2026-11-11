@@ -724,7 +724,12 @@ def _serialize_light_anim_color(ar: VArchiveReader) -> None:
 
 
 def serialize_light_source(ar: VArchiveReader, obj: ArchiveObject) -> None:
-    """``VisLightSource_cl::Serialize`` (loading, archive >= 12)."""
+    """``VisLightSource_cl::Serialize`` (loading, archive >= 12).
+
+    Fields are named after the vForge ``DynLightShape`` property they were
+    matched with; the ones left unnamed never differ between the 120,172
+    lights of the game scenes or have no vForge counterpart.
+    """
 
     assert isinstance(obj, LightSource)
 
@@ -745,7 +750,7 @@ def serialize_light_source(ar: VArchiveReader, obj: ArchiveObject) -> None:
         ar.read_mat3()  # legacy orientation
         ar.read_mat3()  # legacy scale / basis
 
-    obj.intensity = ar.read_float()
+    obj.radius = ar.read_float()
     ar.read_int32()  # oldI index (... shows ushort; SW fixtures need int32)
     ar.read_uint16()  # dummy density
 
@@ -762,34 +767,34 @@ def serialize_light_source(ar: VArchiveReader, obj: ArchiveObject) -> None:
     if ar.loading_version < 12:
         ar.read_string_binary()  # legacy projected texture
 
-    ar.read_bool()  # use specularity
+    ar.read_bool()  # false in every scene; does not follow vForge UseSpecular
     obj.light_type = ar.read_int32()
-    ar.read_color_ref()  # light color (unused DTO)
+    obj.color = ar.read_color_ref()
 
     if light_version >= 1:
-        ar.read_float()  # multiplier / radius
-        ar.read_float()  # falloff / angle
+        obj.spot_angle = ar.read_float()
+        ar.read_float()  # second cone angle; equal to the first in every scene
 
-    ar.read_string_binary()  # projected texture
+    obj.projected_texture = ar.read_string_binary()
 
     if light_version < 7:
         ar.read_string_binary()  # corona texture
 
     if light_version >= 2:
-        ar.read_uint32()  # visible mask
+        obj.visible_mask = ar.read_uint32()
 
-    flags = ar.read_int32()
+    obj.flags = ar.read_int32()
 
-    if flags & 1:
+    if obj.flags & 1:
         _serialize_light_anim_intensity(ar)
 
-    if flags & 2:
+    if obj.flags & 2:
         _serialize_light_anim_color(ar)
 
     if ar.loading_version < 12:
         ar.read_object()  # legacy parent / owner (map sync)
 
-    ar.read_color_ref()  # specular / ambient color (unused)
+    ar.read_color_ref()  # second colour; equal to the first in every scene
 
     if light_version < 7:
         ar.read_uint8()  # corona size / fade
@@ -806,15 +811,15 @@ def serialize_light_source(ar: VArchiveReader, obj: ArchiveObject) -> None:
         ar.read_uint16()  # light bitmask low (legacy)
         ar.read_uint16()  # light bitmask high (legacy)
     else:
-        ar.read_uint32()  # light bitmask
-        ar.read_uint32()  # shadow / exclude mask
+        obj.world_influence_mask = ar.read_uint32()
+        obj.object_influence_mask = ar.read_uint32()
 
     ar.read_uint8()  # invisible
 
     if ar.loading_version >= 20:
         ar.read_int32()  # custom attenuation mode
-        ar.read_float()  # custom attenuation param
-        ar.read_string_binary()  # custom attenuation texture
+        obj.multiplier = ar.read_float()
+        obj.attenuation_texture = ar.read_string_binary()
 
     if light_version >= 3:
         # Static-geometry instance count only (pointers not streamed).
@@ -824,11 +829,11 @@ def serialize_light_source(ar: VArchiveReader, obj: ArchiveObject) -> None:
         ar.read_uint32()  # influence / CullingFlags
 
     if light_version >= 5:
-        ar.read_float()  # near clip
-        ar.read_float()  # far clip / range
+        obj.fade_start = ar.read_float()
+        obj.fade_end = ar.read_float()
 
     if light_version >= 8:
-        ar.read_bool()  # cast dynamic shadows
+        obj.cast_shadows = ar.read_bool()
 
 
 def serialize_shadow_map_spot(ar: VArchiveReader, obj: ArchiveObject) -> None:

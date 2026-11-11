@@ -5,15 +5,23 @@ from logging import error, info, warning
 from math import radians
 from pathlib import Path
 
-import bpy
 from bpy.types import ArmatureModifier, Collection, Context, Object
 from mathutils import Matrix
 
-from io_soulworker.core.varchive.objects import Object3D, StaticMeshInstance
+from io_soulworker.core.varchive.objects import (
+    LightSource,
+    Object3D,
+    StaticMeshInstance,
+)
 from io_soulworker.core.varchive.shapes import read_zone_file
 from io_soulworker.file_import.animation.file_reader import (
     AnimationFileReader,
     AnimationImportSource,
+)
+from io_soulworker.file_import.animation.imported_actions import (
+    ACTION_SEQUENCE_PROPERTY,
+    assign_action,
+    imported_actions,
 )
 from io_soulworker.file_import.collections import (
     collection_segments_under_resources,
@@ -25,15 +33,12 @@ from io_soulworker.file_import.collections import (
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.resource_path import resolve_resource_path
 from io_soulworker.file_import.scene.file_reader import SceneFileReader
+from io_soulworker.file_import.scene.id_properties import blender_id_int32
+from io_soulworker.file_import.scene.lights import (
+    LIGHT_COLLECTION_NAME,
+    create_light_object,
+)
 from io_soulworker.unit_scale import vision_matrix_to_blender, vision_to_blender
-
-
-def _blender_id_int32(value: int) -> int:
-    """Pack a uint32 bit mask into a Blender ID property (signed int32)."""
-
-    value &= 0xFFFFFFFF
-
-    return value - 0x100000000 if value >= 0x80000000 else value
 
 
 def apply_collision_only_visibility(obj: Object) -> None:
@@ -108,6 +113,7 @@ class SceneImportResult:
     static_mesh_count: int = 0
     zone_mesh_count: int = 0
     entity_count: int = 0
+    light_count: int = 0
 
 
 class SceneImporter:
@@ -162,6 +168,10 @@ class SceneImporter:
                 root,
                 result,
             )
+            result.light_count += self._place_lights(
+                reader.shapes.lights,
+                root,
+            )
 
         for zone_path in zone_files_for_scene(self.path):
             zone_collection = find_or_create_child_collection(
@@ -191,6 +201,10 @@ class SceneImporter:
                 parsed.entities,
                 zone_collection,
                 result,
+            )
+            result.light_count += self._place_lights(
+                parsed.lights,
+                zone_collection,
             )
 
         if result.missing_paths:
@@ -248,7 +262,7 @@ class SceneImporter:
             obj["soulworker_path"] = instance.path
             obj["soulworker_collision_behavior"] = instance.collision_behavior
             obj["soulworker_physics_hint"] = instance.physics_hint
-            obj["soulworker_visible_mask"] = _blender_id_int32(
+            obj["soulworker_visible_mask"] = blender_id_int32(
                 instance.visible_mask
             )
             obj["soulworker_collision_only"] = instance.is_collision_only
@@ -323,6 +337,45 @@ class SceneImporter:
 
         return placed
 
+    def _place_lights(
+        self,
+        lights: list[LightSource],
+        parent: Collection,
+    ) -> int:
+        """Create a Blender light per ``VisLightSource_cl`` in ``Lights``."""
+
+        placed = 0
+        collection: Collection | None = None
+
+        for light in lights:
+            if collection is None:
+                collection = find_or_create_child_collection(
+                    parent, LIGHT_COLLECTION_NAME)
+                collection.color_tag = "COLOR_03"
+
+            try:
+                obj = create_light_object(
+                    light,
+                    collection,
+                    entity_world_matrix(light),
+                )
+            except Exception as exc:
+                error("Failed to create light %s: %s", light.object_key, exc)
+                continue
+
+            if obj is not None:
+                placed += 1
+
+        if placed:
+            info(
+                "Imported %d light(s) into %s/%s",
+                placed,
+                parent.name,
+                LIGHT_COLLECTION_NAME,
+            )
+
+        return placed
+
     def _bind_entity_animation(
         self,
         entity: Object3D,
@@ -361,6 +414,7 @@ class SceneImporter:
                     self.context,
                     import_source=AnimationImportSource.MESH,
                     target_object=mesh_object,
+                    reuse_imported_actions=True,
                 ).run()
             except Exception as exc:
                 error(
@@ -374,7 +428,7 @@ class SceneImporter:
             if entity.preferred_animation:
                 self._apply_preferred_action(
                     mesh_object,
-                    resolved_anim.stem,
+                    resolved_anim,
                     entity.preferred_animation,
                 )
 
@@ -389,11 +443,15 @@ class SceneImporter:
     def _apply_preferred_action(
         self,
         mesh_object: Object,
-        anim_stem: str,
+        anim_path: Path,
         preferred: str,
     ) -> None:
+        """Play the entity's preferred sequence of ``anim_path``.
 
-        action_name = f"{anim_stem}:{preferred}"
+        Only actions this entity's armature got from that file are considered,
+        so an action of the same name made by hand is never picked.
+        """
+
         armature = None
 
         for modifier in mesh_object.modifiers:
@@ -409,36 +467,35 @@ class SceneImporter:
             )
             return
 
-        action = bpy.data.actions.get(action_name)
+        candidates = imported_actions(armature, str(anim_path))
+        matching = [
+            candidate for candidate in candidates
+            if candidate.get(ACTION_SEQUENCE_PROPERTY) == preferred
+        ]
 
-        if action is None:
+        if matching:
+            action = matching[0]
+        elif len(candidates) == 1:
             # Scene entities sometimes name a sequence the clip does not have
             # (Roccotown's cats ask for "idle" but cat01.anim only has "zzz").
             # When the clip offers exactly one sequence, play that instead.
-            prefix = f"{anim_stem}:"
-            candidates = [
-                candidate for candidate in bpy.data.actions
-                if candidate.name.startswith(prefix)
-            ]
+            action = candidates[0]
+            info(
+                "Preferred animation %s missing for %s; using %s",
+                preferred,
+                mesh_object.name,
+                action.name,
+            )
+        else:
+            warning(
+                "Preferred animation %s not found in %s for %s",
+                preferred,
+                anim_path.name,
+                mesh_object.name,
+            )
+            return
 
-            if len(candidates) == 1:
-                action = candidates[0]
-                info(
-                    "Preferred animation %s missing for %s; using %s",
-                    action_name,
-                    mesh_object.name,
-                    action.name,
-                )
-            else:
-                warning(
-                    "Preferred animation action %s not found for %s",
-                    action_name,
-                    mesh_object.name,
-                )
-                return
-
-        animation_data = armature.animation_data_create()
-        animation_data.action = action
+        assign_action(armature, action)
 
     def _prepare_zones_collection(self) -> Collection:
 

@@ -24,11 +24,20 @@ from io_soulworker.file_import.animation.action_builder import (
     vision_time_to_frame,
 )
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
+from io_soulworker.file_import.animation.imported_actions import (
+    ACTION_SEQUENCE_INDEX_PROPERTY,
+    ACTION_SEQUENCE_PROPERTY,
+    ACTION_SKELETON_PROPERTY,
+    ACTION_SOURCE_PROPERTY,
+    assign_action,
+    forget_action,
+    imported_actions,
+    is_played_by_other_armature,
+    remember_actions,
+    reusable_actions,
+    skeleton_key,
+)
 from io_soulworker.unit_scale import vision_to_blender
-
-
-ACTION_SOURCE_PROPERTY = "soulworker_source_file"
-"""Custom property that marks an action as imported from this ``.anim`` path."""
 
 
 @dataclass(frozen=True)
@@ -105,10 +114,8 @@ class AnimationFileReader(AnimationFileChunkReader):
                 self.animation_name,
                 armature_object.name if len(armature_objects) > 1 else None,
             )
-            action = self._create_action(action_name)
-
-            animation_data = armature_object.animation_data_create()
-            animation_data.action = action
+            action = self._create_action(action_name, armature_object)
+            assign_action(armature_object, action)
 
             if has_bone_tracks:
                 self._add_transform_curves(
@@ -313,8 +320,51 @@ class AnimationFileReader(AnimationFileChunkReader):
 
     def run(self) -> None:
 
-        super().run()
+        if not self._reuse_imported_actions():
+            super().run()
+
         self._finish_import()
+
+    def _reuse_imported_actions(self) -> bool:
+        """Play the actions an armature with the same skeleton already has.
+
+        Reading and baking a file is the slow part of a scene import, and
+        entities that repeat a model all get the same result. Only a target
+        object with one armature qualifies: the clips of a file with several
+        skeletons would need the other armatures too.
+        """
+
+        if not self.reuse_imported_actions or self.target_object is None:
+            return False
+
+        armatures = [
+            modifier.object
+            for modifier in self.target_object.modifiers
+            if isinstance(modifier, ArmatureModifier)
+            and modifier.object is not None
+        ]
+
+        if len(armatures) != 1:
+            return False
+
+        armature_object = armatures[0]
+        source = str(self.path)
+        shared = reusable_actions(source, skeleton_key(armature_object))
+
+        if not shared:
+            return False
+
+        for previous in imported_actions(armature_object, source):
+            if previous not in shared:
+                self._discard_action(previous, armature_object, source)
+
+        remember_actions(armature_object, source, shared)
+        assign_action(armature_object, shared[-1])
+        self._apply_scene_frame_rate()
+        self._animation_clip_count = len(shared)
+        self._applied_animation_count = len(shared)
+
+        return True
 
     def _finish_import(self) -> None:
 
@@ -376,25 +426,81 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         return f"{base}@{armature_name}"
 
-    def _create_action(self, name: str) -> Action:
+    def _create_action(self, name: str, armature_object: Object) -> Action:
         source = str(self.path)
-        existing = bpy.data.actions.get(name)
+        sequence = self.animation_name
 
-        # A second import of the same file replaces its own actions. An
-        # action the user made or another file produced keeps its name, and
-        # Blender gives the new one a numbered name.
-        if existing is not None and existing.get(
-                ACTION_SOURCE_PROPERTY) == source:
-            bpy.data.actions.remove(existing)
+        # A second import of a clip replaces what this armature played from
+        # it. Actions that other armatures play stay where they are.
+        for previous in imported_actions(armature_object, source):
+            if previous.get(ACTION_SEQUENCE_PROPERTY) == sequence:
+                self._discard_action(previous, armature_object, source)
 
+        name = self._unclaimed_action_name(name, armature_object, source)
         action = bpy.data.actions.new(name)
         action[ACTION_SOURCE_PROPERTY] = source
+        action[ACTION_SEQUENCE_PROPERTY] = sequence
+        action[ACTION_SEQUENCE_INDEX_PROPERTY] = self._animation_clip_count - 1
+        action[ACTION_SKELETON_PROPERTY] = skeleton_key(armature_object)
 
         # Only the last clip of a file stays assigned to the armature. The
         # others have no user, and Blender drops those when the file is saved.
         action.use_fake_user = True
 
+        remember_actions(
+            armature_object,
+            source,
+            [*imported_actions(armature_object, source), action],
+        )
+
         return action
+
+    @staticmethod
+    def _discard_action(
+            action: Action,
+            armature_object: Object,
+            source: str) -> None:
+        """Stop ``armature_object`` playing ``action``; delete it when unused."""
+
+        forget_action(armature_object, source, action)
+
+        if not is_played_by_other_armature(action, armature_object):
+            bpy.data.actions.remove(action)
+
+    @staticmethod
+    def _unclaimed_action_name(
+            name: str,
+            armature_object: Object,
+            source: str) -> str:
+        """A name for a new action that keeps other armatures' actions intact.
+
+        An action of the same file under that name is either played by
+        another armature, which keeps it, or left over from an earlier import,
+        which the new action replaces. An action the user made or another file
+        produced keeps its name, and Blender numbers the new one.
+        """
+
+        existing = bpy.data.actions.get(name)
+
+        if existing is None or existing.get(ACTION_SOURCE_PROPERTY) != source:
+            return name
+
+        if not is_played_by_other_armature(existing, armature_object):
+            bpy.data.actions.remove(existing)
+
+            return name
+
+        qualified = f"{name}@{armature_object.name}"
+        leftover = bpy.data.actions.get(qualified)
+
+        if (
+            leftover is not None
+            and leftover.get(ACTION_SOURCE_PROPERTY) == source
+            and not is_played_by_other_armature(leftover, armature_object)
+        ):
+            bpy.data.actions.remove(leftover)
+
+        return qualified
 
     def _add_transform_curves(
         self,
@@ -1031,6 +1137,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         target_object: Object | None = None,
         report_error: Callable[[str], None] | None = None,
         report_warning: Callable[[str], None] | None = None,
+        reuse_imported_actions: bool = False,
     ) -> None:
 
         super().__init__(path)
@@ -1040,6 +1147,7 @@ class AnimationFileReader(AnimationFileChunkReader):
         self.target_object = target_object
         self.report_error = report_error
         self.report_warning = report_warning
+        self.reuse_imported_actions = reuse_imported_actions
         self._reported_warning_keys: set[str] = set()
         self._animation_clip_count = 0
         self._applied_animation_count = 0
