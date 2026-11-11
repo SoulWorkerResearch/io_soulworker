@@ -40,12 +40,16 @@ def _sync_shader_libs_on_load(_dummy) -> None:
 
     import bpy
 
+    synced: set[str] = set()
+
     for scene in bpy.data.scenes:
 
-        root = getattr(scene, "soulworker_unpack_resources", "") or ""
+        root = (getattr(scene, "soulworker_unpack_resources", "") or "").strip()
 
-        if root.strip():
+        # Scenes of one file usually share a root; read its ShaderLibs once.
+        if root and root not in synced:
 
+            synced.add(root)
             sync_shader_node_groups(root)
 
 
