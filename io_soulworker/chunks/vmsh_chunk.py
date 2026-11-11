@@ -1,4 +1,4 @@
-from struct import pack_into
+from struct import pack_into, unpack_from
 
 from mathutils import Vector
 
@@ -11,7 +11,10 @@ from io_soulworker.core.vis_chunk_id import VisChunkId
 from io_soulworker.core.vis_index_format import VisIndexFormat
 from io_soulworker.core.vis_mesh_effect_config import VisEffectConfig_cl
 from io_soulworker.core.vis_render_state import VisRenderState
-from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
+from io_soulworker.core.vis_vertex_descriptor import (
+    VertexComponent,
+    VisMBVertexDescriptor_cl,
+)
 
 
 class VMshChunk(DataExchange_cl):
@@ -54,6 +57,9 @@ class VMshChunk(DataExchange_cl):
     vertices: list[Vector]
     normals: list[Vector]
     uvs: list[Vector]
+    colors: list[tuple[int, int, int, int]]
+    tex_sets: dict[int, list[tuple[float, ...]]]
+    opaque: dict[str, list[bytes]]
     indices: list[int]
     faces: list[list[int]]
 
@@ -67,6 +73,9 @@ class VMshChunk(DataExchange_cl):
         self.vertices = []
         self.normals = []
         self.uvs = []
+        self.colors = []
+        self.tex_sets = {}
+        self.opaque = {}
         self.indices = []
         self.faces = []
 
@@ -128,40 +137,7 @@ class VMshChunk(DataExchange_cl):
 
         indices_offset = reader.tell() + self.descriptor.stride * self.vertex_count
 
-        self.vertices = []
-        self.normals = []
-        self.uvs = []
-
-        for _ in range(self.vertex_count):
-
-            t = reader.tell()
-
-            if self.descriptor.has_component(self.descriptor.pos_offset):
-
-                off = self.descriptor.offset_of(self.descriptor.pos_offset)
-                reader.seek(t + off)
-
-                pos = reader.read_vector3()
-                self.vertices.append(pos)
-
-            if self.descriptor.has_component(self.descriptor.normal_offset):
-
-                off = self.descriptor.offset_of(self.descriptor.normal_offset)
-                reader.seek(t + off)
-
-                self.normals.append(reader.read_vector3())
-
-            if self.descriptor.has_component(self.descriptor.tex_offset[0]):
-
-                off = self.descriptor.offset_of(self.descriptor.tex_offset[0])
-                reader.seek(t + off)
-
-                texture = reader.read_vector2()
-                texture.y *= -1
-
-                self.uvs.append(texture)
-
-            reader.seek(t + self.descriptor.stride)
+        self.__read_vertices(reader)
 
         reader.seek(indices_offset)
 
@@ -289,6 +265,70 @@ class VMshChunk(DataExchange_cl):
 
         return 0
 
+    def __read_vertices(self, reader: BinaryReader) -> None:
+        """Decode the vertex buffer field by field, as the descriptor places them.
+
+        Position, normal and the first texture set go to ``vertices``,
+        ``normals`` and ``uvs`` (with V negated, Blender's convention for
+        the first set). The other texture sets keep the values the file
+        stores in ``tex_sets``, the colour bytes go to ``colors``, and a
+        field with a format the add-on cannot decode keeps its bytes in
+        ``opaque``.
+        """
+
+        stride = self.descriptor.stride
+        count = self.vertex_count
+        block = reader.read(stride * count)
+
+        if len(block) != stride * count:
+
+            raise ValueError("The vertex buffer ends before its last vertex")
+
+        self.vertices = []
+        self.normals = []
+        self.uvs = []
+        self.colors = []
+        self.tex_sets = {}
+        self.opaque = {}
+
+        for field in self.descriptor.components():
+
+            offsets = range(field.offset, stride * count, stride) \
+                if stride else range(0)
+
+            if not field.known:
+
+                self.opaque[field.name] = [
+                    bytes(block[o: o + field.size]) for o in offsets]
+
+            elif field.kind == VisMBVertexDescriptor_cl.KIND_COLOR:
+
+                self.colors = [tuple(block[o: o + 4]) for o in offsets]
+
+            elif field.kind == VisMBVertexDescriptor_cl.KIND_POSITION:
+
+                self.vertices = [
+                    Vector(unpack_from("<3f", block, o)) for o in offsets]
+
+            elif field.kind == VisMBVertexDescriptor_cl.KIND_NORMAL:
+
+                self.normals = [
+                    Vector(unpack_from("<3f", block, o)) for o in offsets]
+
+            else:
+
+                width = field.size // 4
+                values = [unpack_from("<%df" % width, block, o)
+                          for o in offsets]
+
+                if field.slot == 0 and width == 2:
+
+                    self.uvs = [Vector((u, -v)) for u, v in values]
+
+                else:
+
+                    self.tex_sets[field.slot] = values
+
     def __write_vertices(
             self,
             writer: BinaryWriter,
@@ -300,29 +340,70 @@ class VMshChunk(DataExchange_cl):
 
             return
 
+        components = self.descriptor.components()
+
         for index in range(vertex_count):
 
             raw = bytearray(stride)
 
-            if self.descriptor.has_component(self.descriptor.pos_offset):
+            for field in components:
 
-                off = self.descriptor.offset_of(self.descriptor.pos_offset)
-                x, y, z = self.__vector3_at(self.vertices, index)
-                pack_into("<fff", raw, off, x, y, z)
-
-            if self.descriptor.has_component(self.descriptor.normal_offset):
-
-                off = self.descriptor.offset_of(self.descriptor.normal_offset)
-                x, y, z = self.__vector3_at(self.normals, index)
-                pack_into("<fff", raw, off, x, y, z)
-
-            if self.descriptor.has_component(self.descriptor.tex_offset[0]):
-
-                off = self.descriptor.offset_of(self.descriptor.tex_offset[0])
-                u, v = self.__vector2_at(self.uvs, index)
-                pack_into("<ff", raw, off, u, -v)
+                self.__pack_field(raw, field, index)
 
             writer.write(raw)
+
+    def __pack_field(
+            self,
+            raw: bytearray,
+            field: VertexComponent,
+            index: int) -> None:
+
+        kind = field.kind
+        offset = field.offset
+
+        if not field.known:
+
+            values = self.opaque.get(field.name)
+
+            if values is None or index >= len(values):
+
+                raise ValueError(
+                    "No bytes to write for vertex field %s" % field.name)
+
+            raw[offset: offset + field.size] = values[index]
+
+        elif kind == VisMBVertexDescriptor_cl.KIND_POSITION:
+
+            pack_into("<fff", raw, offset,
+                      *self.__vector3_at(self.vertices, index))
+
+        elif kind == VisMBVertexDescriptor_cl.KIND_NORMAL:
+
+            pack_into("<fff", raw, offset,
+                      *self.__vector3_at(self.normals, index))
+
+        elif kind == VisMBVertexDescriptor_cl.KIND_COLOR:
+
+            color = (self.colors[index] if index < len(self.colors)
+                     else (255, 255, 255, 255))
+            pack_into("<4B", raw, offset, *color)
+
+        elif field.slot == 0 and field.size == 8:
+
+            u, v = self.__vector2_at(self.uvs, index)
+            pack_into("<ff", raw, offset, u, -v)
+
+        else:
+
+            values = self.tex_sets.get(field.slot)
+            width = field.size // 4
+
+            if values is None or index >= len(values):
+
+                raise ValueError(
+                    "No values to write for texture set %d" % field.slot)
+
+            pack_into("<%df" % width, raw, offset, *values[index])
 
     def __write_indices(
             self,
