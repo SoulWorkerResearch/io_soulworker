@@ -22,6 +22,27 @@ def in_blender():
     return isinstance(bpy.app.version, tuple)
 
 
+def operator_type_name(bl_idname: str) -> str:
+    """Name under which a running operator reports its ``bl_idname``.
+
+    ``"io_soulworker.import"`` reads ``"IO_SOULWORKER_OT_import"`` on the
+    operator instance, such as the file browser's ``active_operator``.
+    """
+
+    module, _, name = bl_idname.partition(".")
+
+    return f"{module.upper()}_OT_{name}"
+
+
+def is_import_operator(operator) -> bool:
+    """Whether ``operator`` (possibly ``None``) is a running SoulWorker import."""
+
+    return (
+        operator is not None
+        and operator.bl_idname == operator_type_name(FileImportRunner.bl_idname)
+    )
+
+
 class FileImportRunner(Operator, ImportHelper):
 
     AVAILABLE_EXTENSIONS = [".model", ".vmesh", ".anim"]
@@ -54,9 +75,11 @@ class FileImportRunner(Operator, ImportHelper):
         emission_strength: float
         files: list[OperatorFileListElement]
 
-    def draw_menu(self, context):
+    def draw(self, context):
 
-        # disable draw standard controls
+        # Draws nothing: the file browser shows the options in the panels
+        # ``FileImportObjectPanelDefaultValues`` and ``...Features``. Without
+        # this method Blender would also list every property here.
         pass
 
     def create_collection(self, context: Context, name: str):
