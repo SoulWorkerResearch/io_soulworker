@@ -361,6 +361,7 @@ class SceneImporter:
                     self.context,
                     import_source=AnimationImportSource.MESH,
                     target_object=mesh_object,
+                    reuse_imported_actions=True,
                 ).run()
             except Exception as exc:
                 error(
