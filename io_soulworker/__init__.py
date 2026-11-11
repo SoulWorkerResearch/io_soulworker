@@ -43,17 +43,20 @@ bl_info = {
 }
 
 
-classes = {
-    FileImportObjectPanelDefaultValues,
-    FileImportObjectPanelFeatures,
+# Blender registers the classes in this order and lists panels of one region
+# in it: operators first, the sidebar panels in the order they are shown. The
+# file browser panels name Blender's own panel as their parent.
+classes = (
     FileImportRunner,
     IO_SOULWORKER_OT_open_resource,
     IO_SOULWORKER_OT_open_scene,
     IO_SOULWORKER_OT_export_vmesh,
     IO_SOULWORKER_OT_export_model,
+    FileImportObjectPanelDefaultValues,
+    FileImportObjectPanelFeatures,
     IO_SOULWORKER_PT_unpack_resources,
     IO_SOULWORKER_PT_export,
-}
+)
 
 
 def menu_func_import(self, context):
@@ -94,7 +97,7 @@ def unregister():
 
     unregister_unpack_resources_props()
 
-    for cls in classes:
+    for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
         except Exception:

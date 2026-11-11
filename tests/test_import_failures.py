@@ -619,3 +619,59 @@ class TestImportOperators(TestCase):
         finally:
 
             bpy.utils.unregister_class(FileImportRunner)
+
+
+class TestRegistration(TestCase):
+    """The add-on registers its classes in a fixed order, as often as asked."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+
+        if not in_blender():
+
+            raise SkipTest(_BLENDER_HINT)
+
+    def test_classes_register_in_order_and_unregister_in_reverse(self):
+
+        import io_soulworker
+
+        registered = []
+        unregistered = []
+        register_class = bpy.utils.register_class
+        unregister_class = bpy.utils.unregister_class
+
+        def record_register(cls):
+
+            registered.append(cls)
+            register_class(cls)
+
+        def record_unregister(cls):
+
+            unregistered.append(cls)
+            unregister_class(cls)
+
+        names = [cls.__name__ for cls in io_soulworker.classes]
+
+        # The sidebar lists its panels in registration order.
+        self.assertLess(names.index("IO_SOULWORKER_PT_unpack_resources"),
+                        names.index("IO_SOULWORKER_PT_export"))
+
+        with patch.object(bpy.utils, "register_class", record_register), \
+                patch.object(bpy.utils, "unregister_class", record_unregister):
+
+            for _ in range(2):
+
+                registered.clear()
+                unregistered.clear()
+
+                io_soulworker.register()
+
+                self.assertTrue(hasattr(bpy.types, "IO_SOULWORKER_PT_export"))
+
+                io_soulworker.unregister()
+
+                self.assertFalse(
+                    hasattr(bpy.types, "IO_SOULWORKER_PT_export"))
+                self.assertEqual(registered, list(io_soulworker.classes))
+                self.assertEqual(
+                    unregistered, list(reversed(io_soulworker.classes)))
