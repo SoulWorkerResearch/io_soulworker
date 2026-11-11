@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from logging import debug, error, info, warning
 from pathlib import Path
 
@@ -226,47 +227,229 @@ def _default_for_socket(param: ShaderParamComment, socket_type: str):
     return None
 
 
-def _clear_interface(node_tree: NodeTree) -> None:
+@dataclass(frozen=True)
+class _SocketSpec:
+    """One input socket a group needs, with the PARAMCOMMENT it comes from."""
 
-    for item in list(node_tree.interface.items_tree):
+    name: str
+    socket_type: str
+    description: str
+    default: object
+    param: ShaderParamComment
 
-        node_tree.interface.remove(item)
 
-
-def _add_param_sockets(node_tree: NodeTree, param: ShaderParamComment) -> None:
+def _socket_specs(param: ShaderParamComment) -> list[_SocketSpec]:
+    """Sockets for one parameter: none, one, or four rows for a matrix."""
 
     if param.value_type == "float4x4":
 
-        for row_index in range(4):
-
-            socket = node_tree.interface.new_socket(
+        return [
+            _SocketSpec(
                 name=f"{param.name}_r{row_index}",
-                in_out="INPUT",
                 socket_type="NodeSocketVector",
+                description=param.description,
+                default=[0.0, 0.0, 0.0],
+                param=param,
             )
-            socket.description = param.description
-            socket.default_value = [0.0, 0.0, 0.0]
-
-        return
+            for row_index in range(4)
+        ]
 
     socket_type = _socket_type_for_param(param)
 
     if socket_type is None:
 
-        return
+        return []
+
+    return [
+        _SocketSpec(
+            name=param.name,
+            socket_type=socket_type,
+            description=param.description,
+            default=_default_for_socket(param, socket_type),
+            param=param,
+        )
+    ]
+
+
+def _effect_socket_specs(effect: ShaderEffect) -> list[_SocketSpec]:
+
+    return [spec for param in effect.params for spec in _socket_specs(param)]
+
+
+def _input_sockets(node_tree: NodeTree) -> list:
+
+    return [
+        item for item in node_tree.interface.items_tree
+        if item.item_type == "SOCKET" and item.in_out == "INPUT"
+    ]
+
+
+def _create_socket(node_tree: NodeTree, spec: _SocketSpec):
 
     socket = node_tree.interface.new_socket(
-        name=param.name,
+        name=spec.name,
         in_out="INPUT",
-        socket_type=socket_type,
+        socket_type=spec.socket_type,
     )
-    socket.description = param.description
+    socket.description = spec.description
 
-    default = _default_for_socket(param, socket_type)
+    if spec.default is not None:
 
-    if default is not None:
+        socket.default_value = spec.default
 
-        socket.default_value = default
+    return socket
+
+
+def _group_nodes_using(node_tree: NodeTree) -> list[Node]:
+    """Every group node in the file that instances ``node_tree``."""
+
+    trees: list[NodeTree] = [
+        material.node_tree for material in bpy.data.materials
+        if material.node_tree is not None
+    ]
+    trees.extend(
+        world.node_tree for world in bpy.data.worlds
+        if world.node_tree is not None
+    )
+    trees.extend(
+        light.node_tree for light in bpy.data.lights
+        if light.node_tree is not None
+    )
+    trees.extend(bpy.data.node_groups)
+
+    return [
+        node
+        for tree in trees
+        for node in tree.nodes
+        if node.bl_idname == "ShaderNodeGroup" and node.node_tree == node_tree
+    ]
+
+
+def _apply_defaults_to_group_nodes(
+        node_tree: NodeTree,
+        added: list[tuple[str, _SocketSpec]]) -> None:
+    """Give the new sockets of existing group nodes the ShaderLib default.
+
+    A group node takes its new socket the moment the interface item exists,
+    which is before the item's default is set, so it starts at the plain
+    socket default (0).
+    """
+
+    if not added or not node_tree.users:
+
+        return
+
+    for node in _group_nodes_using(node_tree):
+
+        by_identifier = {socket.identifier: socket for socket in node.inputs}
+
+        for identifier, spec in added:
+
+            socket = by_identifier.get(identifier)
+
+            if socket is not None and spec.default is not None:
+
+                socket.default_value = spec.default
+
+
+def _sync_interface(
+        node_tree: NodeTree,
+        specs: list[_SocketSpec],
+        previous: list[ShaderParamComment]) -> None:
+    """Bring the group inputs to ``specs`` without touching the kept ones.
+
+    A socket that still exists with the same name and type keeps its
+    identifier, so every group node keeps its value and its links. Only
+    added sockets are created, and sockets that are gone are removed.
+    """
+
+    interface = node_tree.interface
+    previous_by_name = {param.name: param for param in previous}
+    unclaimed: dict[str, list] = {}
+    stale: list = []
+
+    for item in interface.items_tree:
+
+        if item.item_type == "SOCKET" and item.in_out == "INPUT":
+
+            unclaimed.setdefault(item.name, []).append(item)
+
+        else:
+
+            stale.append(item)
+
+    plan: list = []
+
+    for spec in specs:
+
+        old = previous_by_name.get(spec.param.name)
+        same_type = old is None or old.value_type == spec.param.value_type
+        match = None
+
+        if same_type:
+
+            for candidate in unclaimed.get(spec.name, []):
+
+                if candidate.socket_type == spec.socket_type:
+
+                    match = candidate
+                    break
+
+        if match is not None:
+
+            unclaimed[spec.name].remove(match)
+
+        plan.append(match)
+
+    removed = stale + [i for items in unclaimed.values() for i in items]
+
+    for item in removed:
+
+        interface.remove(item)
+
+    sockets: list = []
+    added: list[tuple[str, _SocketSpec]] = []
+
+    for spec, match in zip(specs, plan):
+
+        if match is None:
+
+            socket = _create_socket(node_tree, spec)
+            added.append((socket.identifier, spec))
+
+        else:
+
+            socket = match
+            old = previous_by_name.get(spec.param.name)
+
+            if socket.description != spec.description:
+
+                socket.description = spec.description
+
+            # Only the default of nodes made from now on changes; existing
+            # nodes keep their own values.
+            if old != spec.param and spec.default is not None:
+
+                socket.default_value = spec.default
+
+        sockets.append(socket)
+
+    # Each socket is moved up from further down, which keeps the position.
+    for position, socket in enumerate(sockets):
+
+        if interface.items_tree[position].identifier != socket.identifier:
+
+            interface.move(socket, position)
+
+    _apply_defaults_to_group_nodes(node_tree, added)
+
+    debug(
+        "node group %s: kept %d, added %d, removed %d sockets",
+        node_tree.name,
+        len(sockets) - len(added),
+        len(added),
+        len(removed),
+    )
 
 
 def _texture_node_type(value_type: str) -> str:
@@ -325,8 +508,9 @@ def _load_param_metadata(node_tree: NodeTree) -> list[ShaderParamComment]:
 def _is_up_to_date(
         node_tree: NodeTree,
         library: ShaderLibrary,
-        effect: ShaderEffect) -> bool:
-    """Whether the group already holds the parameters the ShaderLib describes."""
+        effect: ShaderEffect,
+        specs: list[_SocketSpec]) -> bool:
+    """Whether the group already is what the ShaderLib describes."""
 
     if node_tree.get(_PARAMS_KEY) is None:
 
@@ -337,39 +521,51 @@ def _is_up_to_date(
 
         return False
 
-    return _load_param_metadata(node_tree) == effect.params
+    if _load_param_metadata(node_tree) != effect.params:
+
+        return False
+
+    wanted = [(spec.name, spec.socket_type) for spec in specs]
+    present = [
+        (item.name, item.socket_type) for item in _input_sockets(node_tree)
+    ]
+
+    return wanted == present
 
 
 def ensure_effect_node_group(
         library: ShaderLibrary,
         effect: ShaderEffect) -> NodeTree:
-    """Create or refresh a parameter-only shader node group for an EFFECT.
+    """Create a parameter-only shader node group for an EFFECT, or update it.
 
-    A group that already matches the ShaderLib is left alone, so group nodes
-    in materials keep their values and links.
+    A group that already matches the ShaderLib is left alone. When the
+    parameters changed, the sockets that remain keep their identity, so group
+    nodes in materials keep their values and links.
     """
 
     name = node_group_name(library.stem, effect.name)
     node_tree = bpy.data.node_groups.get(name)
+    specs = _effect_socket_specs(effect)
 
     if node_tree is None:
 
         node_tree = bpy.data.node_groups.new(name, "ShaderNodeTree")
 
-    elif _is_up_to_date(node_tree, library, effect):
+    elif _is_up_to_date(node_tree, library, effect, specs):
 
         return node_tree
 
-    _clear_interface(node_tree)
-
-    for param in effect.params:
-
-        _add_param_sockets(node_tree, param)
+    _sync_interface(node_tree, specs, _load_param_metadata(node_tree))
 
     nodes = node_tree.nodes
-    nodes.clear()
-    nodes.new("NodeGroupInput")
-    nodes.new("NodeGroupOutput")
+
+    if not any(node.bl_idname == "NodeGroupInput" for node in nodes):
+
+        nodes.new("NodeGroupInput")
+
+    if not any(node.bl_idname == "NodeGroupOutput" for node in nodes):
+
+        nodes.new("NodeGroupOutput")
 
     node_tree["soulworker_library"] = library.stem
     node_tree["soulworker_effect"] = effect.name

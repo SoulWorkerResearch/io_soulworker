@@ -15,6 +15,7 @@ from io_soulworker.file_import.runner import in_blender
 from io_soulworker.file_import.shaders.node_groups import (
     apply_shader_to_material,
     collect_shader_from_material,
+    find_effect_node_group,
     sync_shader_node_groups,
 )
 
@@ -35,6 +36,18 @@ EFFECT Toon {
   PARAMCOMMENT={"MaskTexture","Mask","",texture,none,""};
 }
 """
+
+# Tint is gone, Extra is new and first, Offset changes its type.
+_LIB_V2 = """
+EFFECT Toon {
+  DESCRIPTION = {};
+  PARAMCOMMENT={"Extra","Extra","0.75",float,none,""};
+  PARAMCOMMENT={"MaskTexture","Mask","",texture,none,""};
+  PARAMCOMMENT={"Offset","Offset","0.1,0.2,0.3,0.4",float4,color,""};
+  PARAMCOMMENT={"Strength","Strength","0.5",float,none,""};
+}
+"""
+
 
 class TestShaderNodeGroups(TestCase):
 
@@ -115,3 +128,42 @@ class TestShaderNodeGroups(TestCase):
         self.assertEqual(
             [socket.identifier for socket in node.inputs], identifiers)
         self.assertTrue(node.inputs["MaskTexture"].is_linked)
+
+    def test_sync_after_library_change_keeps_remaining_parameters(self):
+
+        self._sync()
+        material, node = self._place(
+            r"Strength=2.5;Tint=0.9,0.8,0.7,1;Offset=3,4;"
+            r"MaskTexture=Textures\mask.png;")
+        before = self._collect(material)
+
+        self._write_library(_LIB_V2)
+        self._sync()
+
+        after = self._collect(material)
+
+        self.assertEqual(
+            list(after), ["Extra", "MaskTexture", "Offset", "Strength"])
+        self.assertEqual(after["Strength"], before["Strength"])
+        self.assertEqual(after["MaskTexture"], before["MaskTexture"])
+        self.assertTrue(node.inputs["MaskTexture"].is_linked)
+        # Added and retyped parameters take the ShaderLib default.
+        self.assertEqual(after["Extra"], "0.75")
+        self.assertEqual(after["Offset"], "0.1,0.2,0.3,0.4")
+        group = find_effect_node_group(_LIBRARY, "Toon")
+        self.assertEqual(
+            [item.name for item in group.interface.items_tree],
+            ["Extra", "MaskTexture", "Offset", "Strength"])
+        self.assertEqual(
+            [socket.name for socket in node.inputs],
+            ["Extra", "MaskTexture", "Offset", "Strength"])
+
+    def test_new_group_node_starts_with_shaderlib_defaults(self):
+
+        self._sync()
+        material, _node = self._place("")
+
+        self.assertEqual(
+            self._collect(material),
+            ShaderParamString("Strength=0.5;Tint=0.2,0.4,0.6;Offset=1,2;"
+                              "MaskTexture=;"))
