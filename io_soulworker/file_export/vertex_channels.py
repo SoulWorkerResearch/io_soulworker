@@ -201,11 +201,20 @@ class VertexChannels:
     ``corner`` reads them for one corner of a triangle, ``key`` makes the
     part of a vertex key that stands for them, and ``apply`` stores the
     values of the exported vertices on the chunk.
+
+    ``keeps_vertices`` is set for a mesh that carries the layout it was
+    imported with: its Blender vertices are the vertices of the file, so
+    none of them may be merged into another one, not even when two of them
+    agree on every field (shipped meshes hold such twins).
     """
 
-    def __init__(self, descriptor: VisMBVertexDescriptor_cl) -> None:
+    def __init__(
+            self,
+            descriptor: VisMBVertexDescriptor_cl,
+            keeps_vertices: bool = False) -> None:
 
         self.descriptor = descriptor
+        self.keeps_vertices = keeps_vertices
         self.fields: list[tuple[VertexComponent, object]] = []
 
     def corner(self, loop_index: int, vertex_index: int) -> tuple:
@@ -390,7 +399,7 @@ def _recorded_channels(
 
         descriptor = record.descriptor
 
-    channels = VertexChannels(descriptor)
+    channels = VertexChannels(descriptor, keeps_vertices=True)
     channels.fields = [
         (field, readers[field.name]) for field in kept
         if readers[field.name] is not None]

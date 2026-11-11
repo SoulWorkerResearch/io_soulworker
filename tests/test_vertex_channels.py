@@ -17,12 +17,22 @@ from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
 from io_soulworker.file_export import vmesh_exporter
 from io_soulworker.file_export.mesh_builder import build_geometry
 from io_soulworker.file_export.vertex_channels import VertexChannels
+from io_soulworker.file_export.vertex_table import (
+    IMPORTED_NORMAL_MERGE_DISTANCE,
+    NORMAL_MERGE_DISTANCE,
+    VertexTable,
+)
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.file_reader import (
     ModelFileReader,
     clear_mesh_cache,
 )
+from io_soulworker.file_import.model.vertex_channels import (
+    import_vertex_channels,
+)
 from io_soulworker.file_import.runner import in_blender
+
+from tests.defines import Defines
 
 
 _BLENDER_HINT = (
@@ -415,3 +425,117 @@ class TestVertexChannels(TestCase):
                          VertexChannels.key(((nan, 0.5),)))
         self.assertNotEqual(VertexChannels.key(((nan, 0.5),)),
                             VertexChannels.key(((0.0, 0.5),)))
+
+    def test_normals_within_the_tolerance_share_a_vertex(self):
+
+        straight = Vector((0.0, 0.0, 1.0))
+
+        made = VertexTable(NORMAL_MERGE_DISTANCE)
+        first = made.intern(("k",), Vector(), straight, (), 0)
+
+        self.assertEqual(made.intern(("k",), Vector(), Vector(
+            (0.0, NORMAL_MERGE_DISTANCE * 0.5, 1.0)), (), 0), first)
+        self.assertNotEqual(made.intern(("k",), Vector(), Vector(
+            (0.0, NORMAL_MERGE_DISTANCE * 2.0, 1.0)), (), 0), first)
+
+        imported = VertexTable(IMPORTED_NORMAL_MERGE_DISTANCE)
+        first = imported.intern(("k",), Vector(), straight, (), 0)
+
+        self.assertEqual(imported.intern(("k",), Vector(), Vector(
+            (0.0, 0.03, 1.0)), (), 0), first)
+        self.assertNotEqual(imported.intern(("k",), Vector(), Vector(
+            (0.0, 1.0, 0.0)), (), 0), first)
+
+    def test_imported_twin_vertices_are_kept_and_blender_made_twins_merge(self):
+
+        def twins():
+
+            mesh = bpy.data.meshes.new("Twins")
+            mesh.from_pydata(
+                [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 0), (1, 0, 0)],
+                [], [(0, 1, 2), (3, 4, 2)])
+            mesh.update()
+            mesh.materials.append(bpy.data.materials.new("Surface"))
+            obj = bpy.data.objects.new("Twins", mesh)
+            bpy.context.collection.objects.link(obj)
+
+            return obj
+
+        made = twins()
+        imported = twins()
+        chunk = vmesh_exporter.build_vmesh_from_blender_object(imported).mesh
+        chunk.vertex_count = 5
+        chunk.uvs = [Vector((0.0, 0.0))] * 5
+        import_vertex_channels(imported.data, chunk)
+
+        self.assertEqual(build_geometry(made).mesh.vertex_count, 3)
+        self.assertEqual(build_geometry(imported).mesh.vertex_count, 5)
+
+    def test_vertices_come_out_in_blender_order_and_shared_ones_once(self):
+
+        mesh = bpy.data.meshes.new("Scrambled")
+        mesh.from_pydata(
+            [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0), (5, 0, 0)],
+            [], [(5, 4, 3), (3, 2, 1), (1, 0, 2)])
+        mesh.update()
+
+        for name in ("First", "Second"):
+
+            mesh.materials.append(bpy.data.materials.new(name))
+
+        mesh.polygons.foreach_set("material_index", [1, 1, 0])
+        obj = bpy.data.objects.new("Scrambled", mesh)
+        bpy.context.collection.objects.link(obj)
+
+        geometry = build_geometry(obj)
+        ranges = {buffer.surface_index: (buffer.first_vertex,
+                                         buffer.num_vertices)
+                  for buffer in geometry.sub_meshes.meshes}
+
+        # Every Blender vertex once, although vertices 1, 2 and 3 are used
+        # by both surfaces.
+        self.assertEqual(geometry.source_vertex_indices, [0, 1, 2, 3, 4, 5])
+        self.assertEqual(ranges, {0: (0, 3), 1: (1, 5)})
+
+    def test_real_meshes_keep_their_layout_and_vertex_count(self):
+
+        root = Defines.UNPACKED_RESOURCES
+        models = [
+            root / "Character/NPC/NPC_0001_Mirium/NPC_0001_Mirium.model",
+            root / ("Character/Akashic/Cash/MOB_5006_CynthiaHugh_Akashic/"
+                    "MOB_5006_CynthiaHugh_Akashic_A_Lower.model"),
+        ]
+
+        if not all(model.is_file() for model in models):
+
+            self.skipTest("unpacked game data unavailable")
+
+        for model in models:
+
+            with self.subTest(model=model.name):
+
+                original = _parse(model)
+                obj = self._import(model)
+
+                with TemporaryDirectory() as folder:
+
+                    target = Path(folder) / model.name
+                    from io_soulworker.file_export.model_exporter import (
+                        write_model_file,
+                    )
+
+                    write_model_file(target, obj, obj.parent)
+                    exported = _parse(target)
+
+                self.assertEqual(exported.descriptor.to_record(),
+                                 original.descriptor.to_record())
+                self.assertEqual(exported.vertex_count, original.vertex_count)
+                self.assertEqual(exported.colors, original.colors)
+
+                for slot, values in original.tex_sets.items():
+
+                    for before, after in zip(values, exported.tex_sets[slot]):
+
+                        for a, b in zip(before, after):
+
+                            self.assertAlmostEqual(a, b, places=5)
