@@ -577,29 +577,14 @@ def _loop_export_normal(
     return Vector(mesh.loops[loop_index].normal)
 
 
-def _resolve_surface_for_triangle(
-        mesh_obj,
-        triangle,
-        material_slots: list,
-        material_vg_indices: dict[int, int]) -> int:
+def _resolve_surface_for_triangle(triangle, slot_count: int) -> int:
+    """The material slot of the polygon the triangle was cut from.
 
-    slot_count = len(material_slots)
-    polygon_index = getattr(triangle, "polygon_index", None)
-
-    if material_vg_indices and polygon_index is not None:
-
-        polygon = mesh_obj.data.polygons[polygon_index]
-
-        for vert_idx in polygon.vertices:
-
-            vertex = mesh_obj.data.vertices[vert_idx]
-
-            for group_element in vertex.groups:
-
-                if (group_element.group in material_vg_indices
-                        and group_element.weight > 0.0):
-
-                    return material_vg_indices[group_element.group]
+    The importer also leaves one vertex group per material on the mesh, but
+    those only record how the file was split. Moving a face to another
+    material in Edit mode changes its slot and not the groups, so the slot
+    alone decides the surface.
+    """
 
     material_index = int(triangle.material_index)
 
@@ -626,32 +611,12 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
         not getattr(mesh, "has_custom_normals", False)
         and _faces_are_all_sharp(mesh)
     )
-    material_slots = list(mesh.materials)
-    material_vg_indices: dict[int, int] = {}
-
-    for surface_index, slot in enumerate(material_slots):
-
-        if slot is None:
-
-            continue
-
-        for vg_idx, vg in enumerate(mesh_obj.vertex_groups):
-
-            if vg.name == slot.name:
-
-                material_vg_indices[vg_idx] = surface_index
-                break
-
+    slot_count = len(mesh.materials)
     surface_triangles: dict[int, list] = {}
 
     for triangle in mesh.loop_triangles:
 
-        surface = _resolve_surface_for_triangle(
-            mesh_obj,
-            triangle,
-            material_slots,
-            material_vg_indices,
-        )
+        surface = _resolve_surface_for_triangle(triangle, slot_count)
         surface_triangles.setdefault(surface, []).append(triangle)
 
     if not surface_triangles:
