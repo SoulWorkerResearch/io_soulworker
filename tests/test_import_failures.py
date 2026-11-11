@@ -602,3 +602,20 @@ class TestImportOperators(TestCase):
         self.assertEqual(bpy.context.scene.render.engine, "CYCLES")
         self.assertEqual(len(errors), 1)
         self.assertIn("Broken.model", errors[0])
+
+    def test_the_file_browser_lists_only_the_files_it_imports(self):
+
+        bpy.utils.register_class(FileImportRunner)
+
+        try:
+
+            properties = getattr(bpy.ops.io_soulworker, "import") \
+                .get_rna_type().properties
+
+            self.assertEqual(
+                properties["filter_glob"].default, "*.model;*.vmesh;*.anim")
+            self.assertTrue(properties["filter_glob"].is_hidden)
+
+        finally:
+
+            bpy.utils.unregister_class(FileImportRunner)

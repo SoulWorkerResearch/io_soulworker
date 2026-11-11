@@ -6,7 +6,12 @@ from bpy_extras.io_utils import ImportHelper
 from io_soulworker.file_import.animation.file_reader import AnimationFileReader
 from io_soulworker.file_import.import_failure import report_import_failure
 from io_soulworker.file_import.model.file_reader import ModelFileReader
-from bpy.props import BoolProperty, CollectionProperty, FloatProperty
+from bpy.props import (
+    BoolProperty,
+    CollectionProperty,
+    FloatProperty,
+    StringProperty,
+)
 
 from bpy.types import (
     Collection,
@@ -70,11 +75,18 @@ class FileImportRunner(Operator, ImportHelper):
         # selected files
         files: CollectionProperty(type=OperatorFileListElement)  # type: ignore
 
+        # the file browser lists only what this operator imports
+        filter_glob: StringProperty(
+            default="*.model;*.vmesh;*.anim",
+            options={"HIDDEN"},
+        )  # type: ignore
+
     else:
 
         is_create_collection: bool
         emission_strength: float
         files: list[OperatorFileListElement]
+        filter_glob: str
 
     def draw(self, context):
 
