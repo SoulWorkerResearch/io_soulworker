@@ -107,3 +107,24 @@ class TestAnimationImport(TestCase):
             bpy.data.objects["Test_Armature"].animation_data.action.name,
             "Test:Jump",
         )
+
+    def test_import_sets_the_scene_to_the_animation_frame_rate(self) -> None:
+        import bpy
+
+        render = bpy.context.scene.render
+        render.fps = 24
+        render.fps_base = 1.0
+        messages: list[str] = []
+
+        self._import_sequences(
+            Path("Test.anim"), ["Idle", "Run"], messages.append)
+
+        self.assertEqual((render.fps, render.fps_base), (33, 1.0))
+        self.assertEqual(len(messages), 1)
+        self.assertIn("24", messages[0])
+        self.assertIn("33", messages[0])
+
+        messages.clear()
+        self._import_sequences(Path("Test.anim"), ["Idle"], messages.append)
+
+        self.assertEqual(messages, [])
