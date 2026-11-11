@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from io_soulworker.core.shader_lib.types import ShaderParamComment
 
@@ -51,6 +51,46 @@ def paramstring_from_params(
         (param.name, lookup.get(param.name, param.default))
         for param in params
     )
+
+
+def paramstring_in_source_order(
+        source: dict[str, str],
+        params: Iterable[ShaderParamComment],
+        value_for: Callable[[ShaderParamComment, str | None], str | None]) -> str:
+    """Build a ``paramstring`` that keeps the entries and order of ``source``.
+
+    Entries that are not PARAMCOMMENT parameters of the effect stay as they
+    are. ``value_for(param, text)`` answers for a PARAMCOMMENT parameter, with
+    ``text`` the value in ``source`` or ``None`` when ``source`` has none: it
+    returns the text to write, or ``None`` to keep the source text (or, for a
+    parameter ``source`` lacks, to leave it out). Parameters that ``source``
+    lacks and ``value_for`` fills come last, in PARAMCOMMENT order.
+    """
+
+    params = list(params)
+    by_name = {param.name: param for param in params}
+    pairs: list[tuple[str, str]] = []
+
+    for name, text in source.items():
+
+        param = by_name.get(name)
+        value = value_for(param, text) if param is not None else None
+
+        pairs.append((name, text if value is None else value))
+
+    for param in params:
+
+        if param.name in source:
+
+            continue
+
+        value = value_for(param, None)
+
+        if value is not None:
+
+            pairs.append((param.name, value))
+
+    return format_paramstring(pairs)
 
 
 class ShaderParamString(dict):
