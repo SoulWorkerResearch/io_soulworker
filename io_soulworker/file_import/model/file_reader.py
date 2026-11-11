@@ -45,10 +45,11 @@ from io_soulworker.file_import.shaders.node_groups import (
 )
 from io_soulworker.unit_scale import vision_to_blender
 
-# Resolved path → shared Mesh datablock (materials live on the mesh). Only
-# meshes without a skeleton are shared: every skinned object needs its own
-# armature, modifier and parent, which come from parsing the file again.
-_MESH_CACHE: dict[str, Mesh] = {}
+# Resolved path → (file size and mtime, shared Mesh datablock); materials live
+# on the mesh. Only meshes without a skeleton are shared: every skinned object
+# needs its own armature, modifier and parent, which come from parsing the file
+# again. An entry is used only while the file on disk is unchanged.
+_MESH_CACHE: dict[str, tuple[tuple[int, int], Mesh]] = {}
 
 
 def clear_mesh_cache() -> None:
@@ -61,16 +62,36 @@ def mesh_cache_key(path: Path) -> str:
     return str(path.resolve())
 
 
-def _live_cached_mesh(key: str) -> Mesh | None:
-    """Return the cached mesh if it still exists in this ``.blend``.
+def file_signature(path: Path) -> tuple[int, int] | None:
+    """Size and modification time of ``path``; ``None`` if it cannot be read."""
+
+    try:
+        status = path.stat()
+    except OSError:
+        return None
+
+    return status.st_size, status.st_mtime_ns
+
+
+def _live_cached_mesh(
+        key: str,
+        signature: tuple[int, int] | None) -> Mesh | None:
+    """Return the cached mesh if it still exists in this ``.blend`` and the
+    file has not changed since it was read.
 
     ``orphans_purge`` and File → New leave Python references to removed IDs.
     Accessing those raises ``ReferenceError: StructRNA of type Mesh has been
     removed``.
     """
 
-    mesh = _MESH_CACHE.get(key)
-    if mesh is None:
+    entry = _MESH_CACHE.get(key)
+    if entry is None:
+        return None
+
+    cached_signature, mesh = entry
+
+    if signature is None or cached_signature != signature:
+        del _MESH_CACHE[key]
         return None
 
     try:
@@ -129,11 +150,15 @@ class ModelFileReader(ModelChunkReader):
         self.vertex_groups = []
         self.bone_index_to_vertex_group: dict[int, VertexGroup] = {}
         self._cache_key = mesh_cache_key(path)
+        self._signature = file_signature(path)
         self._from_cache = False
         self._has_skeleton = False
 
         name = object_name or self.path.stem
-        cached = _live_cached_mesh(self._cache_key) if reuse_mesh else None
+        cached = (
+            _live_cached_mesh(self._cache_key, self._signature)
+            if reuse_mesh else None
+        )
 
         if cached is not None:
             self.mesh = cached
@@ -155,8 +180,12 @@ class ModelFileReader(ModelChunkReader):
 
         super().run()
 
-        if self.reuse_mesh and not self._has_skeleton:
-            _MESH_CACHE[self._cache_key] = self.mesh
+        if (
+            self.reuse_mesh
+            and not self._has_skeleton
+            and self._signature is not None
+        ):
+            _MESH_CACHE[self._cache_key] = (self._signature, self.mesh)
 
         self._apply_transform()
         return self.object

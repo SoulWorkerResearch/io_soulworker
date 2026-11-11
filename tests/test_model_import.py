@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from os import getenv
+from os import getenv, stat, utime
 from pathlib import Path
+from shutil import copyfile
+from tempfile import TemporaryDirectory
 from unittest import SkipTest, TestCase
 
 import bpy
@@ -19,6 +21,7 @@ _BLENDER_HINT = (
 )
 
 _STATIC_MODEL = Path("tests/datas/Models/Primitive_Box.model")
+_OTHER_STATIC_MODEL = Path("tests/datas/Models/Primitive_Cylinder.model")
 
 
 class TestModelImport(TestCase):
@@ -72,3 +75,32 @@ class TestModelImport(TestCase):
 
         self.assertIsNot(first, second)
         self.assertIs(first.data, second.data)
+
+    def test_changed_file_is_read_again(self):
+
+        with TemporaryDirectory() as folder:
+
+            path = Path(folder) / "Cached.model"
+            copyfile(_STATIC_MODEL, path)
+
+            first = ModelFileReader(path, bpy.context, 7.0).run()
+            unchanged = ModelFileReader(path, bpy.context, 7.0).run()
+
+            self.assertIs(first.data, unchanged.data)
+
+            # Same bytes, newer modification time.
+            before = stat(path)
+            utime(path, ns=(before.st_atime_ns, before.st_mtime_ns + 10**9))
+            touched = ModelFileReader(path, bpy.context, 7.0).run()
+
+            self.assertIsNot(touched.data, first.data)
+
+            # Other bytes under the modification time the cache has seen.
+            before = stat(path)
+            copyfile(_OTHER_STATIC_MODEL, path)
+            utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+            replaced = ModelFileReader(path, bpy.context, 7.0).run()
+
+            self.assertIsNot(replaced.data, touched.data)
+            self.assertGreater(len(replaced.data.vertices),
+                               len(touched.data.vertices))
