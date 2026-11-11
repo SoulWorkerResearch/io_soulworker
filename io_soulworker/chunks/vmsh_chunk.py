@@ -45,17 +45,30 @@ class VMshChunk(DataExchange_cl):
     double_buffering_from_file = 0
     use_projection = 0
     texture_channels_count = 0
-    texture_channel_paths: list[str] = []
-    descriptor = VisMBVertexDescriptor_cl()
-    render_state = VisRenderState()
-    effect_config = VisEffectConfig_cl()
-    bounding_box = HavokBoundingBox()
+    texture_channel_paths: list[str]
+    descriptor: VisMBVertexDescriptor_cl
+    render_state: VisRenderState
+    effect_config: VisEffectConfig_cl
+    bounding_box: HavokBoundingBox
     unused = 0
-    vertices: list[Vector] = []
-    normals: list[Vector] = []
-    uvs: list[Vector] = []
-    indices: list[int] = []
-    faces: list[list[int]] = []
+    vertices: list[Vector]
+    normals: list[Vector]
+    uvs: list[Vector]
+    indices: list[int]
+    faces: list[list[int]]
+
+    def __init__(self) -> None:
+
+        self.texture_channel_paths = []
+        self.descriptor = VisMBVertexDescriptor_cl()
+        self.render_state = VisRenderState()
+        self.effect_config = VisEffectConfig_cl()
+        self.bounding_box = HavokBoundingBox()
+        self.vertices = []
+        self.normals = []
+        self.uvs = []
+        self.indices = []
+        self.faces = []
 
     def read(self, reader: BinaryReader) -> None:
 

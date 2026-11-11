@@ -3,27 +3,63 @@ name: Tests
 on:
   push:
     branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The add-on targets Blender 5.0, so the suite runs on the latest 5.0.x build.
+  # To bump it, take the new SHA-256 from
+  # https://download.blender.org/release/Blender5.0/blender-<version>.sha256
+  BLENDER_VERSION: "5.0.1"
+  BLENDER_SHA256: "8019580ee1b7262e505f4196a00237ccf743c88d205b38d34201510676e60b09"
 
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: "Checkout"
-        uses: "actions/checkout@main"
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           lfs: true
 
-      - name: "Install python"
-        uses: "actions/setup-python@main"
+      - name: Cache Blender archive
+        uses: actions/cache@v6
         with:
-          check-latest: true
-          python-version: "3"
+          path: ~/.cache/blender-archive
+          key: blender-${{ env.BLENDER_VERSION }}-linux-x64-${{ env.BLENDER_SHA256 }}
 
-      - name: "Install dependencies"
-        shell: "pwsh"
-        run: "pip install -r requirements.txt"
+      - name: Install Blender
+        run: |
+          archive="$HOME/.cache/blender-archive/blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          if ! echo "${BLENDER_SHA256}  ${archive}" | sha256sum --check --status; then
+            mkdir -p "$(dirname "${archive}")"
+            curl --fail --silent --show-error --location --retry 3 \
+              --output "${archive}" \
+              "https://download.blender.org/release/Blender5.0/blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+            echo "${BLENDER_SHA256}  ${archive}" | sha256sum --check
+          fi
+          mkdir -p "$HOME/blender"
+          tar --extract --xz --file "${archive}" --directory "$HOME/blender" --strip-components=1
+          echo "$HOME/blender" >> "$GITHUB_PATH"
 
-      # - name: "Run tests"
-      #   shell: "pwsh"
-      #   run: "python -m unittest"
+      - name: Install Blender runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libegl1 libgl1 libsm6 libx11-6 libxfixes3 libxi6 libxkbcommon0 libxrender1 libxxf86vm1
+
+      - name: Show Blender version
+        run: blender --background --factory-startup --version
+
+      # There is no game tree on the runner. Tests that need unpacked game
+      # files skip themselves when this directory does not exist.
+      - name: Run tests
+        env:
+          SOULWORKER_RESOURCES: ${{ runner.temp }}/no-unpacked-resources
+        run: blender --background --factory-startup --python tests/run_in_blender.py

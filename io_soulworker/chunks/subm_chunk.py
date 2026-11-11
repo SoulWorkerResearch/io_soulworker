@@ -20,7 +20,7 @@ class VisMeshBuffer_cl(DataExchange_cl):
     unused_1_3 = 0
     unused_1_4 = 0
 
-    local_bounds = HavokBoundingBox()
+    local_bounds: HavokBoundingBox
 
     surface_index = 0
 
@@ -33,6 +33,10 @@ class VisMeshBuffer_cl(DataExchange_cl):
     unused_2_5 = 0
     unused_2_6 = 0.0
     unused_2_7 = 0.0
+
+    def __init__(self) -> None:
+
+        self.local_bounds = HavokBoundingBox()
 
     def read(self, reader: BinaryReader) -> None:
 
@@ -129,9 +133,13 @@ class VisBaseGeometryInfo(DataExchange_cl):
     user_flags = 0
     near_clip_distance = 0.0
     far_clip_distance = 0.0
-    clip_reference = Vector()
+    clip_reference: Vector
     name = ""
     lod_index = 0
+
+    def __init__(self) -> None:
+
+        self.clip_reference = Vector()
 
     def read(self, reader: BinaryReader) -> None:
 
@@ -188,8 +196,13 @@ class VisSubMeshChunk(DataExchange_cl):
 
     unknown = 0
     version = 0
-    meshes: list[VisMeshBuffer_cl] = []
-    geometry_info: list[VisBaseGeometryInfo] = []
+    meshes: list[VisMeshBuffer_cl]
+    geometry_info: list[VisBaseGeometryInfo]
+
+    def __init__(self) -> None:
+
+        self.meshes = []
+        self.geometry_info = []
 
     def read(self, reader: BinaryReader) -> None:
 

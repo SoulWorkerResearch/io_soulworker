@@ -19,11 +19,16 @@ from io_soulworker.chunks.brot_chunk import BrotChunk
 from io_soulworker.chunks.bscl_chunk import BsclChunk
 from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
 from io_soulworker.file_import.animation.action_builder import (
+    VISION_FRAMES_PER_SECOND,
     group_keyframes_by_bone,
     vision_time_to_frame,
 )
 from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
 from io_soulworker.unit_scale import vision_to_blender
+
+
+ACTION_SOURCE_PROPERTY = "soulworker_source_file"
+"""Custom property that marks an action as imported from this ``.anim`` path."""
 
 
 @dataclass(frozen=True)
@@ -92,6 +97,8 @@ class AnimationFileReader(AnimationFileChunkReader):
             debug("Animation %s has no supported tracks", self.animation_name)
             return
 
+        self._apply_scene_frame_rate()
+
         for armature_object in armature_objects:
             bone_names = self._bone_names_for_animation(armature_object)
             action_name = self._import_action_name(
@@ -156,6 +163,30 @@ class AnimationFileReader(AnimationFileChunkReader):
 
         self._reported_warning_keys.add(key)
         self.report_warning(message)
+
+    def _apply_scene_frame_rate(self) -> None:
+        """Key times become frames at the Vision rate, so play at that rate."""
+
+        scene = self.context.scene
+
+        if scene is None:
+            return
+
+        render = scene.render
+
+        if render.fps == VISION_FRAMES_PER_SECOND and render.fps_base == 1.0:
+            return
+
+        previous_rate = render.fps / render.fps_base
+        render.fps = VISION_FRAMES_PER_SECOND
+        render.fps_base = 1.0
+
+        self._report_user_warning(
+            "frame_rate",
+            f"Scene frame rate changed from {previous_rate:g} to "
+            f"{VISION_FRAMES_PER_SECOND} fps to play "
+            f'"{self.path.name}" at its original speed.',
+        )
 
     def _has_selection(self) -> bool:
 
@@ -346,12 +377,24 @@ class AnimationFileReader(AnimationFileChunkReader):
         return f"{base}@{armature_name}"
 
     def _create_action(self, name: str) -> Action:
+        source = str(self.path)
         existing = bpy.data.actions.get(name)
 
-        if existing is not None:
+        # A second import of the same file replaces its own actions. An
+        # action the user made or another file produced keeps its name, and
+        # Blender gives the new one a numbered name.
+        if existing is not None and existing.get(
+                ACTION_SOURCE_PROPERTY) == source:
             bpy.data.actions.remove(existing)
 
-        return bpy.data.actions.new(name)
+        action = bpy.data.actions.new(name)
+        action[ACTION_SOURCE_PROPERTY] = source
+
+        # Only the last clip of a file stays assigned to the armature. The
+        # others have no user, and Blender drops those when the file is saved.
+        action.use_fake_user = True
+
+        return action
 
     def _add_transform_curves(
         self,
@@ -858,22 +901,6 @@ class AnimationFileReader(AnimationFileChunkReader):
         return worlds
 
     @staticmethod
-    def _local_animation_matrix(
-            rest_local: Matrix,
-            position: Vector | None,
-            rotation: Quaternion | None) -> Matrix:
-        desired = rest_local.copy()
-
-        if rotation is not None:
-            desired = rotation.to_matrix().to_4x4()
-            desired.translation = rest_local.to_translation()
-
-        if position is not None:
-            desired.translation = position.to_3d()
-
-        return desired
-
-    @staticmethod
     def _sample_vector_track(
             keys_by_frame: dict[int, Vector], frame: int) -> Vector | None:
         if not keys_by_frame:
@@ -951,8 +978,8 @@ class AnimationFileReader(AnimationFileChunkReader):
         if not keys:
             return
 
-        data_path = f'pose.bones["{
-            self._escape_bone_name(bone_name)}"].{property_name}'
+        escaped = self._escape_bone_name(bone_name)
+        data_path = f'pose.bones["{escaped}"].{property_name}'
 
         for component in range(component_count):
             fcurve = self._ensure_fcurve(

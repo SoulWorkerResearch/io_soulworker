@@ -96,9 +96,8 @@ class VArchiveReader:
 
         if size < 0 or self._pos + size > len(self._data):
             raise VArchiveError(
-                f"unexpected EOF at {
-                    self._pos}: need {size}, have {
-                    self.remaining}")
+                f"unexpected EOF at {self._pos}: "
+                f"need {size}, have {self.remaining}")
 
         start = self._pos
         self._pos += size
@@ -452,9 +451,8 @@ class VArchiveReader:
         if expected is not None and not self._is_compatible(
                 entry.class_name, expected):
             raise VArchiveError(
-                f"ref #{index} type mismatch: {
-                    entry.class_name!r} vs {
-                    expected!r}")
+                f"ref #{index} type mismatch: "
+                f"{entry.class_name!r} vs {expected!r}")
 
         return entry
 

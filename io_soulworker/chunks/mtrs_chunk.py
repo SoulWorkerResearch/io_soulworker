@@ -39,9 +39,9 @@ class MtrsChunk(DataExchange_cl):
     aux_texture_paths: list[str]
     user_data = ""
     user_flags = 0
-    ambient_color = VisColor()
+    ambient_color: VisColor
     brightness = 0
-    light_color = VisColor()
+    light_color: VisColor
     parallax_scale = 0.0
     parallax_bias = 0.0
     config_effects: list[VisMaterialEffect]
@@ -52,6 +52,8 @@ class MtrsChunk(DataExchange_cl):
     def __init__(self) -> None:
 
         self.aux_texture_paths = []
+        self.ambient_color = VisColor()
+        self.light_color = VisColor()
         self.config_effects = []
 
     def read(self, reader: BinaryReader) -> None:

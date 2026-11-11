@@ -44,7 +44,8 @@ class VisChunkReaderScope(object):
 
         if self.depth < 0:
 
-            return True
+            # end of file: nothing to skip, and an error must still propagate
+            return False
 
         if exc_type is not None:
 

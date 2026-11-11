@@ -235,3 +235,6 @@ $RECYCLE.BIN/
 
 # Custom rules (everything added below won't be overriden by 'Generate .gitignore File' if you use 'Update' option)
 
+# Output of the full-tree mesh read tests
+tests/unpacked_mesh_read_failures.log
+tests/unpacked_mesh_read_status.json

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from json import loads
+from os import walk
+from os.path import join, relpath
 from pathlib import Path
 
 from mathutils import Matrix, Vector
@@ -266,15 +268,65 @@ def _transparency_from_blender_material(
     return VisTransparencyType.NONE, -1.0
 
 
+class UniqueTextureNames:
+    """Finds a file in a resource tree by its name alone.
+
+    Original materials sometimes point into the author's own tree. A name
+    leads to a file only when exactly one file of the unpacked tree carries
+    it. Each tree is listed once, on the first lookup, and the listing is
+    kept for the rest of the export.
+    """
+
+    def __init__(self) -> None:
+
+        self._trees: dict[str, dict[str, str | None]] = {}
+
+    def find(self, root: Path | str, name: str) -> Path | None:
+
+        tree = self._trees.get(str(root))
+
+        if tree is None:
+
+            tree = self._trees[str(root)] = self._list_tree(str(root))
+
+        path = tree.get(name.lower())
+
+        if path is None:
+
+            return None
+
+        return resolve_resource_path(root, relpath(path, root))
+
+    @staticmethod
+    def _list_tree(root: str) -> dict[str, str | None]:
+        """Lower-cased file name to its path; ``None`` when two files share it."""
+
+        names: dict[str, str | None] = {}
+
+        for folder, _, files in walk(root):
+
+            for file in files:
+
+                key = file.lower()
+                names[key] = None if key in names else join(folder, file)
+
+        return names
+
+
 def material_sidecar_from_blender(
         material,
         resources_root: Path | None = None,
         *, source_material=None,
-        source_directory: Path | None = None) -> MaterialSidecar:
+        source_directory: Path | None = None,
+        texture_names: UniqueTextureNames | None = None) -> MaterialSidecar:
 
     if material is None:
 
         return MaterialSidecar(name="default")
+
+    if texture_names is None:
+
+        texture_names = UniqueTextureNames()
 
     spec_mul, spec_exp, specular_map = _specular_from_blender_material(
         material,
@@ -338,14 +390,9 @@ def material_sidecar_from_blender(
         # tree. Recover by basename only when the unpacked tree has one match.
         if source_root and raw:
             name = Path(raw.replace('\\', '/')).name
-            matches = (path for path in Path(
-                source_root).rglob(name) if path.is_file())
-            first = next(matches, None)
-            if first is not None and next(matches, None) is None:
-                resolved = resolve_resource_path(
-                    source_root, str(first.relative_to(source_root)))
-                if resolved is not None:
-                    return str(resolved)
+            resolved = texture_names.find(source_root, name)
+            if resolved is not None:
+                return str(resolved)
         return raw
 
     sidecar = MaterialSidecar(
@@ -522,6 +569,7 @@ def build_material_sidecars(
         source_directory = Path(source).parent
 
     result = []
+    texture_names = UniqueTextureNames()
     for slot in slots:
         source_material = None
         if slot is not None:
@@ -533,6 +581,7 @@ def build_material_sidecars(
         result.append(material_sidecar_from_blender(
             slot, resources_root, source_material=source_material,
             source_directory=source_directory,
+            texture_names=texture_names,
         ))
     return result
 
@@ -577,29 +626,14 @@ def _loop_export_normal(
     return Vector(mesh.loops[loop_index].normal)
 
 
-def _resolve_surface_for_triangle(
-        mesh_obj,
-        triangle,
-        material_slots: list,
-        material_vg_indices: dict[int, int]) -> int:
+def _resolve_surface_for_triangle(triangle, slot_count: int) -> int:
+    """The material slot of the polygon the triangle was cut from.
 
-    slot_count = len(material_slots)
-    polygon_index = getattr(triangle, "polygon_index", None)
-
-    if material_vg_indices and polygon_index is not None:
-
-        polygon = mesh_obj.data.polygons[polygon_index]
-
-        for vert_idx in polygon.vertices:
-
-            vertex = mesh_obj.data.vertices[vert_idx]
-
-            for group_element in vertex.groups:
-
-                if (group_element.group in material_vg_indices
-                        and group_element.weight > 0.0):
-
-                    return material_vg_indices[group_element.group]
+    The importer also leaves one vertex group per material on the mesh, but
+    those only record how the file was split. Moving a face to another
+    material in Edit mode changes its slot and not the groups, so the slot
+    alone decides the surface.
+    """
 
     material_index = int(triangle.material_index)
 
@@ -608,6 +642,43 @@ def _resolve_surface_for_triangle(
         return material_index
 
     return 0
+
+
+def _vertex_weights_reader(mesh_obj):
+    """Return ``vertex index -> skin weights`` for sharing vertices on export.
+
+    Groups named like a material slot only record how the import split the
+    mesh, so they are left out. Two vertices may share one exported vertex
+    only when they also carry the same weights.
+    """
+
+    mesh = mesh_obj.data
+    material_names = {slot.name for slot in mesh.materials if slot is not None}
+    weight_groups = {
+        group.index for group in mesh_obj.vertex_groups
+        if group.name not in material_names
+    }
+    cache: dict[int, tuple] = {}
+
+    def read(vertex_index: int) -> tuple:
+
+        if not weight_groups:
+
+            return ()
+
+        weights = cache.get(vertex_index)
+
+        if weights is None:
+
+            weights = cache[vertex_index] = tuple(sorted(
+                (element.group, round(element.weight, 4))
+                for element in mesh.vertices[vertex_index].groups
+                if element.group in weight_groups and element.weight > 0.0
+            ))
+
+        return weights
+
+    return read
 
 
 def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuild:
@@ -626,32 +697,13 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
         not getattr(mesh, "has_custom_normals", False)
         and _faces_are_all_sharp(mesh)
     )
-    material_slots = list(mesh.materials)
-    material_vg_indices: dict[int, int] = {}
-
-    for surface_index, slot in enumerate(material_slots):
-
-        if slot is None:
-
-            continue
-
-        for vg_idx, vg in enumerate(mesh_obj.vertex_groups):
-
-            if vg.name == slot.name:
-
-                material_vg_indices[vg_idx] = surface_index
-                break
-
+    slot_count = len(mesh.materials)
+    vertex_weights = _vertex_weights_reader(mesh_obj)
     surface_triangles: dict[int, list] = {}
 
     for triangle in mesh.loop_triangles:
 
-        surface = _resolve_surface_for_triangle(
-            mesh_obj,
-            triangle,
-            material_slots,
-            material_vg_indices,
-        )
+        surface = _resolve_surface_for_triangle(triangle, slot_count)
         surface_triangles.setdefault(surface, []).append(triangle)
 
     if not surface_triangles:
@@ -716,6 +768,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
                     round(normal.z, 4),
                     round(uv.x, 6),
                     round(uv.y, 6),
+                    vertex_weights(loop.vertex_index),
                 )
 
                 if key in vertex_cache:
