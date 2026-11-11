@@ -245,3 +245,98 @@ class TestSceneEntityAnimation(TestCase):
 
         self.assertEqual(second_rig.animation_data.action.name, "Test:Idle")
         self.assertEqual(first_rig.animation_data.action.name, "Test:Run")
+
+
+class TestLightSerialization(TestCase):
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        _require_blender()
+
+    @staticmethod
+    def _string(value: str) -> bytes:
+        import struct
+
+        raw = value.encode("cp949")
+
+        return struct.pack("<i", len(raw)) + raw
+
+    def _payload(self) -> bytes:
+        """A version 8 light in an archive of version 30, field by field."""
+        import struct
+
+        vis_vector = struct.Struct("<4f")
+        parts = [
+            # VisObject3D: typed-object version, local version, unique id,
+            # position, orientation, local orientation, scale, leftover,
+            # object key, flags (no rotation matrix), null parent, no vis data.
+            struct.pack("<BBq", 0, 5, 77),
+            vis_vector.pack(1000.0, 2000.0, 3000.0, 0.0),
+            vis_vector.pack(30.0, 40.0, 50.0, 0.0),
+            vis_vector.pack(0.0, 0.0, 0.0, 0.0),
+            vis_vector.pack(1.0, 1.0, 1.0, 0.0),
+            vis_vector.pack(0.0, 0.0, 0.0, 0.0),
+            self._string("CapsuleLight_08"),
+            struct.pack("<IIB", 0x20, 0, 0),
+            # VisLightSource_cl.
+            struct.pack("<B", 8),
+            struct.pack("<f", 400.0),
+            struct.pack("<iH", 0, 0),
+            struct.pack("<iBB", 0, 1, 0),
+            struct.pack("<i", 5),
+            struct.pack("<4B", 0x10, 0x80, 0xF0, 0xFF),
+            struct.pack("<2f", 60.0, 60.0),
+            self._string(r"World\Textures\Spot.dds"),
+            struct.pack("<I", 0xFFFFFFFF),
+            struct.pack("<i", 16),
+            struct.pack("<4B", 0x10, 0x80, 0xF0, 0xFF),
+            struct.pack("<H", 0),
+            struct.pack("<II", 0xFFFFFFFD, 0xFF),
+            struct.pack("<B", 0),
+            struct.pack("<i", 1),
+            struct.pack("<f", 0.75),
+            self._string(r"Atten\smooth.dds"),
+            struct.pack("<i", 0),
+            struct.pack("<I", 0xFFFFFFFF),
+            struct.pack("<2f", 50.0, 600.0),
+            struct.pack("<B", 1),
+        ]
+
+        return b"".join(parts)
+
+    def test_light_fields_are_read_from_the_archive_layout(self) -> None:
+        from io_soulworker.core.varchive.objects import LightSource
+        from io_soulworker.core.varchive.reader import VArchiveReader
+        from io_soulworker.core.varchive.registry import build_serializers
+        from io_soulworker.core.varchive.serializers import (
+            serialize_light_source,
+        )
+
+        data = self._payload()
+        ar = VArchiveReader(
+            data,
+            loading_version=30,
+            use_object_lengths=False,
+            has_per_object_range=False,
+            serializers=build_serializers(),
+        )
+        light = LightSource()
+        serialize_light_source(ar, light)
+
+        self.assertTrue(ar.eof())
+        self.assertEqual(tuple(light.position), (1000.0, 2000.0, 3000.0))
+        self.assertEqual(tuple(light.orientation), (30.0, 40.0, 50.0))
+        self.assertEqual(light.object_key, "CapsuleLight_08")
+        self.assertEqual(light.light_type, LightSource.TYPE_SPOTLIGHT)
+        self.assertEqual(light.radius, 400.0)
+        self.assertEqual(light.multiplier, 0.75)
+        self.assertEqual(light.rgb, (0x10, 0x80, 0xF0))
+        self.assertEqual(light.spot_angle, 60.0)
+        self.assertEqual(light.projected_texture, r"World\Textures\Spot.dds")
+        self.assertEqual(light.attenuation_texture, r"Atten\smooth.dds")
+        self.assertEqual(light.visible_mask, 0xFFFFFFFF)
+        self.assertEqual(light.world_influence_mask, 0xFFFFFFFD)
+        self.assertEqual(light.object_influence_mask, 0xFF)
+        self.assertEqual((light.fade_start, light.fade_end), (50.0, 600.0))
+        self.assertEqual(light.flags, 16)
+        self.assertTrue(light.cast_shadows)
