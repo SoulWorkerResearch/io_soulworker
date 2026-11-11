@@ -32,6 +32,7 @@ from io_soulworker.file_import.armature_builder import (
     NameHelper,
     build_armature_from_skeleton,
 )
+from io_soulworker.file_import.import_rollback import DataSnapshot
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.surface_nodes import apply_surface_params
 from io_soulworker.file_import.resource_path import (
@@ -57,6 +58,28 @@ def clear_mesh_cache() -> None:
     """Drop shared mesh references (datablocks themselves stay in ``bpy.data``)."""
 
     _MESH_CACHE.clear()
+
+
+def _forget_cached_meshes(removed: list) -> None:
+    """Drop cache entries whose mesh is about to be removed."""
+
+    meshes = {
+        item.as_pointer() for item in removed if item.id_type == "MESH"
+    }
+
+    for key, (_, mesh) in list(_MESH_CACHE.items()):
+
+        try:
+
+            gone = mesh.as_pointer() in meshes
+
+        except ReferenceError:
+
+            gone = True
+
+        if gone:
+
+            del _MESH_CACHE[key]
 
 
 def mesh_cache_key(path: Path) -> str:
@@ -173,7 +196,28 @@ class ModelFileReader(ModelChunkReader):
         self.mesh["soulworker_source_path"] = self._cache_key
 
     def run(self):
-        """Parse (unless mesh is cached), link, place; return the Blender object."""
+        """Parse (unless mesh is cached), link, place; return the Blender object.
+
+        When that fails, everything this import created is removed from the
+        file again before the error reaches the caller. A cached mesh that
+        earlier imports share is not part of that.
+        """
+
+        snapshot = DataSnapshot(
+            self.context,
+            () if self._from_cache else DataSnapshot.MODEL_DATA,
+        )
+
+        try:
+
+            return self._import()
+
+        except BaseException:
+
+            self._discard_import(snapshot)
+            raise
+
+    def _import(self):
 
         if self._from_cache:
             self._link_object()
@@ -194,6 +238,35 @@ class ModelFileReader(ModelChunkReader):
 
         self._apply_transform()
         return self.object
+
+    def _discard_import(self, snapshot: DataSnapshot) -> None:
+        """Remove what this reader created: its own object and mesh (the mesh
+        only when it was not taken from the cache) and everything the chunks
+        added since ``run`` began."""
+
+        doomed = [self.object] if self._from_cache else [
+            self.object, self.mesh]
+        doomed.extend(snapshot.created())
+
+        try:
+
+            _forget_cached_meshes(doomed)
+            removed = snapshot.discard(doomed)
+
+        except Exception:
+
+            error(
+                "Cannot remove the data of the failed import of %s",
+                self.path,
+                exc_info=True,
+            )
+            return
+
+        self.vertex_groups = []
+        self.bone_index_to_vertex_group = {}
+        self.mesh_chunk = None
+
+        debug("removed %d datablock(s) of the failed import", removed)
 
     def _finish_mesh(self) -> None:
         """Validate and shade the mesh once every chunk has been read.
