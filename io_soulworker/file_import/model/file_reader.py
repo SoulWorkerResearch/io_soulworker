@@ -35,6 +35,7 @@ from io_soulworker.file_import.armature_builder import (
 from io_soulworker.file_import.import_rollback import DataSnapshot
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.surface_nodes import apply_surface_params
+from io_soulworker.file_import.model.vertex_channels import import_vertex_channels
 from io_soulworker.file_import.resource_path import (
     is_builtin_texture,
     load_blender_image,
@@ -525,13 +526,7 @@ class ModelFileReader(ModelChunkReader):
         vertices = [vision_to_blender(vertex) for vertex in chunk.vertices]
         self.mesh.from_pydata(vertices, [], chunk.faces)
 
-        uv_layer = self.mesh.uv_layers.new()
-
-        for face in self.mesh.polygons:
-
-            for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
-
-                uv_layer.uv[loop_idx].vector = chunk.uvs[vert_idx]
+        import_vertex_channels(self.mesh, chunk)
 
         self.mesh.update()
 

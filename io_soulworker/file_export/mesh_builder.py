@@ -26,6 +26,16 @@ from io_soulworker.file_export.materials_xml import (
     DEFAULT_DIFFUSE,
     MaterialSidecar,
 )
+from io_soulworker.file_export.vertex_channels import (
+    default_components,
+    place_components,
+    plan_vertex_channels,
+)
+from io_soulworker.file_export.vertex_table import (
+    IMPORTED_NORMAL_MERGE_DISTANCE,
+    NORMAL_MERGE_DISTANCE,
+    VertexTable,
+)
 from io_soulworker.file_import.model.surface_nodes import spec_exp_from_roughness
 from io_soulworker.file_import.resource_path import (
     game_relative_texture_path,
@@ -38,10 +48,6 @@ from io_soulworker.file_import.shaders.node_groups import (
 )
 from io_soulworker.unit_scale import blender_to_vision
 
-
-_POS_OFFSET = 0x3000
-_NORMAL_OFFSET = 0x300C
-_TEX0_OFFSET = 0x2018
 
 EXPORT_VMSH_VERSION = 1
 """Every shipped SoulWorker mesh is VMSH version 1 with ``TRILIST`` plus an
@@ -89,19 +95,9 @@ def bounding_box_from_points(points: list[Vector]) -> HavokBoundingBox:
 
 
 def make_vertex_descriptor() -> VisMBVertexDescriptor_cl:
+    """The plain layout: position, normal and one UV set, 32 bytes."""
 
-    descriptor = VisMBVertexDescriptor_cl()
-    descriptor.header_size = 48
-    descriptor.stride = 32
-    descriptor.pos_offset = _POS_OFFSET
-    descriptor.normal_offset = _NORMAL_OFFSET
-    descriptor.tex_offset = [
-        VisMBVertexDescriptor_cl.UNSET_OFFSET
-    ] * VisMBVertexDescriptor_cl.MAX_TEXTURES
-    descriptor.tex_offset[0] = _TEX0_OFFSET
-    descriptor.first_text_coord = 255
-
-    return descriptor
+    return place_components(default_components())
 
 
 def _vertex_and_normal_transforms(obj, transform: Matrix | None = None):
@@ -675,7 +671,18 @@ def _vertex_weights_reader(mesh_obj):
 
 
 def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuild:
-    """Build VMSH + SUBM with per-surface vertex ranges and shared vertices."""
+    """Build VMSH + SUBM with shared vertices and per-surface vertex ranges.
+
+    The corners of one Blender vertex share an exported vertex while they
+    agree on the normal (within a small distance) and on every exported
+    vertex field. A mesh that carries the layout it was imported with goes
+    no further, so it keeps the vertex count of its file. A mesh made in
+    Blender also merges separate vertices that agree on position, normal,
+    those fields and skin weights. Vertices are shared across surfaces and
+    come out in the order of the Blender vertex they were made from, and a
+    surface covers the range from its lowest to its highest vertex, so an
+    imported mesh that was not edited also keeps the vertex order.
+    """
 
     if mesh_obj is None or mesh_obj.type != "MESH":
 
@@ -683,7 +690,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
 
     mesh = mesh_obj.data
     mesh.calc_loop_triangles()
-    uv_layer = mesh.uv_layers.active.data if mesh.uv_layers.active else None
+    channels = plan_vertex_channels(mesh)
     vertex_transform, normal_transform = _vertex_and_normal_transforms(
         mesh_obj, transform)
     use_vertex_normals = (
@@ -703,24 +710,16 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
 
         raise ValueError("Mesh has no triangles to export")
 
-    vertices: list[Vector] = []
-    normals: list[Vector] = []
-    uvs: list[Vector] = []
-    ordered_indices: list[int] = []
-    source_vertex_indices: list[int] = []
-    sub_mesh_infos: list[dict] = []
+    table = VertexTable(
+        IMPORTED_NORMAL_MERGE_DISTANCE if channels.keeps_vertices
+        else NORMAL_MERGE_DISTANCE)
+    surface_corners: dict[int, list[int]] = {}
 
     for surface_index in sorted(surface_triangles.keys()):
 
-        triangles = surface_triangles[surface_index]
-        first_vertex = len(vertices)
-        indices_start = len(ordered_indices)
-        surface_indices: list[int] = []
-        vertex_cache: dict[tuple, int] = {}
+        corners: list[int] = []
 
-        for triangle in triangles:
-
-            tri_indices: list[int] = []
+        for triangle in surface_triangles[surface_index]:
 
             for loop_index in triangle.loops:
 
@@ -741,53 +740,52 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
 
                     normal.normalize()
 
-                if uv_layer is not None:
+                values = channels.corner(loop_index, loop.vertex_index)
 
-                    uv = Vector((
-                        uv_layer[loop_index].uv[0],
-                        uv_layer[loop_index].uv[1],
-                    ))
+                if channels.keeps_vertices:
 
-                else:
-
-                    uv = Vector((0.0, 0.0))
-
-                key = (
-                    round(position.x, 4),
-                    round(position.y, 4),
-                    round(position.z, 4),
-                    round(normal.x, 4),
-                    round(normal.y, 4),
-                    round(normal.z, 4),
-                    round(uv.x, 6),
-                    round(uv.y, 6),
-                    vertex_weights(loop.vertex_index),
-                )
-
-                if key in vertex_cache:
-
-                    tri_indices.append(vertex_cache[key])
+                    key = (loop.vertex_index, channels.key(values))
 
                 else:
 
-                    idx = len(vertices)
-                    vertex_cache[key] = idx
-                    tri_indices.append(idx)
-                    vertices.append(position)
-                    normals.append(normal)
-                    uvs.append(uv)
-                    source_vertex_indices.append(int(loop.vertex_index))
+                    key = (
+                        round(position.x, 4),
+                        round(position.y, 4),
+                        round(position.z, 4),
+                        channels.key(values),
+                        vertex_weights(loop.vertex_index),
+                    )
 
-            surface_indices.extend(tri_indices)
+                corners.append(table.intern(
+                    key, position, normal, values, int(loop.vertex_index)))
 
-        ordered_indices.extend(surface_indices)
+        surface_corners[surface_index] = corners
+
+    order = table.order()
+    rank = [0] * len(order)
+
+    for new_index, vertex in enumerate(order):
+
+        rank[vertex] = new_index
+
+    vertices = [table.positions[vertex] for vertex in order]
+    normals = [table.normals[vertex] for vertex in order]
+    source_vertex_indices = [table.sources[vertex] for vertex in order]
+    ordered_indices: list[int] = []
+    sub_mesh_infos: list[dict] = []
+
+    for surface_index, corners in surface_corners.items():
+
+        surface_indices = [rank[vertex] for vertex in corners]
+        first_vertex = min(surface_indices)
         sub_mesh_infos.append({
             "surface_index": surface_index,
-            "indices_start": indices_start,
+            "indices_start": len(ordered_indices),
             "indices_count": len(surface_indices),
             "first_vertex": first_vertex,
-            "num_vertices": len(vertices) - first_vertex,
+            "num_vertices": max(surface_indices) - first_vertex + 1,
         })
+        ordered_indices.extend(surface_indices)
 
     mesh_bounds = bounding_box_from_points(vertices)
     sub_meshes = VisSubMeshChunk()
@@ -814,7 +812,6 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
     vmsh.chunk_id = VisChunkId.VMSH
     vmsh.loader_version = VMshChunk.LOADER_VERSION
     vmsh.version = EXPORT_VMSH_VERSION
-    vmsh.descriptor = make_vertex_descriptor()
     vmsh.usage_flag_vertices = 0
     vmsh.bind_flag_vertices = 0
     vmsh.mesh_data_is_big_endian = False
@@ -839,7 +836,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
     vmsh.unused = 0
     vmsh.vertices = vertices
     vmsh.normals = normals
-    vmsh.uvs = uvs
+    channels.apply(vmsh, [table.values[vertex] for vertex in order])
     vmsh.indices = ordered_indices
     vmsh.faces = [
         ordered_indices[i: i + 3]
