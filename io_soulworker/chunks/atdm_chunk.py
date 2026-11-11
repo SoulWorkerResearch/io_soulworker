@@ -11,8 +11,8 @@ class AtdmChunk(DataExchange_cl):
     """Combined root-motion track (offset + rotation) chunk."""
 
     keyframe_count = 0
-    offset = AtdoChunk()
-    rotation = AtdrChunk()
+    offset: AtdoChunk
+    rotation: AtdrChunk
 
     def __init__(self) -> None:
 

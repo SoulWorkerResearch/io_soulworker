@@ -10,8 +10,12 @@ class ExprChunk(DataExchange_cl):
 
     LOCAL_VERSION = 1
     version = 0
-    matrix = Matrix.Identity(4)
+    matrix: Matrix
     flag = 0
+
+    def __init__(self) -> None:
+
+        self.matrix = Matrix.Identity(4)
 
     def read(self, reader: BinaryReader) -> None:
 

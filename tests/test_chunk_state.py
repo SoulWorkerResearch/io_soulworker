@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from struct import pack
@@ -83,3 +84,56 @@ class TestChunkState(TestCase):
         writer.flush()
 
         self.assertEqual(stream.getvalue(), data)
+
+    def test_no_class_attribute_holds_mutable_state(self):
+        from importlib import import_module
+        from inspect import isclass
+        from pkgutil import iter_modules
+
+        from mathutils import Euler, Matrix, Quaternion, Vector
+
+        import io_soulworker.chunks
+        import io_soulworker.core
+        from io_soulworker.core.data_exchange import DataExchange_cl
+        from io_soulworker.core.vis_color import VisColor
+
+        mutable = (
+            list, dict, set, bytearray, DataExchange_cl, VisColor,
+            Vector, Matrix, Quaternion, Euler,
+        )
+
+        names = [
+            module.name for module in iter_modules(
+                list(io_soulworker.chunks.__path__), "io_soulworker.chunks.")
+        ] + [
+            module.name for module in iter_modules(
+                list(io_soulworker.core.__path__), "io_soulworker.core.")
+            if module.name.rpartition(".")[2].startswith("vis_")
+        ]
+
+        self.assertTrue(names)
+
+        def shared_attributes(cls, module_name: str):
+            if issubclass(cls, Enum):
+                return
+
+            for name, value in vars(cls).items():
+                if name.startswith("__"):
+                    continue
+
+                if isclass(value):
+                    if value.__module__ == module_name:
+                        yield from shared_attributes(value, module_name)
+                elif isinstance(value, mutable):
+                    yield f"{cls.__qualname__}.{name}"
+
+        offenders = []
+
+        for name in names:
+            module = import_module(name)
+
+            for value in vars(module).values():
+                if isclass(value) and value.__module__ == name:
+                    offenders.extend(shared_attributes(value, name))
+
+        self.assertEqual(offenders, [])
