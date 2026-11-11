@@ -8,9 +8,16 @@ from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 
 class BNDSChunk(DataExchange_cl):
 
-    bounding_box = HavokBoundingBox()
-    bounding_sphere_radius = Vector()
-    collision_bounding_box = HavokBoundingBox()
+    bounding_box: HavokBoundingBox
+    bounding_sphere_radius: Vector
+    """ sphere center (x, y, z) and radius (w) """
+    collision_bounding_box: HavokBoundingBox
+
+    def __init__(self) -> None:
+
+        self.bounding_box = HavokBoundingBox()
+        self.bounding_sphere_radius = Vector((0.0, 0.0, 0.0, 0.0))
+        self.collision_bounding_box = HavokBoundingBox()
 
     def read(self, reader: BinaryReader) -> None:
 
