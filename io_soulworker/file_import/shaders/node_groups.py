@@ -322,10 +322,32 @@ def _load_param_metadata(node_tree: NodeTree) -> list[ShaderParamComment]:
     ]
 
 
+def _is_up_to_date(
+        node_tree: NodeTree,
+        library: ShaderLibrary,
+        effect: ShaderEffect) -> bool:
+    """Whether the group already holds the parameters the ShaderLib describes."""
+
+    if node_tree.get(_PARAMS_KEY) is None:
+
+        return False
+
+    if (node_tree.get("soulworker_library") != library.stem
+            or node_tree.get("soulworker_effect") != effect.name):
+
+        return False
+
+    return _load_param_metadata(node_tree) == effect.params
+
+
 def ensure_effect_node_group(
         library: ShaderLibrary,
         effect: ShaderEffect) -> NodeTree:
-    """Create or refresh a parameter-only shader node group for an EFFECT."""
+    """Create or refresh a parameter-only shader node group for an EFFECT.
+
+    A group that already matches the ShaderLib is left alone, so group nodes
+    in materials keep their values and links.
+    """
 
     name = node_group_name(library.stem, effect.name)
     node_tree = bpy.data.node_groups.get(name)
@@ -333,6 +355,10 @@ def ensure_effect_node_group(
     if node_tree is None:
 
         node_tree = bpy.data.node_groups.new(name, "ShaderNodeTree")
+
+    elif _is_up_to_date(node_tree, library, effect):
+
+        return node_tree
 
     _clear_interface(node_tree)
 
