@@ -14,10 +14,17 @@ class VisSkeletalBone_cl(DataExchange_cl):
     id = 0
     name = ""
     parent_id = 0
-    inverse_object_space_position = Vector()
-    inverse_object_space_orientation = Quaternion()
-    local_space_position = Vector()
-    local_space_orientation = Quaternion()
+    inverse_object_space_position: Vector
+    inverse_object_space_orientation: Quaternion
+    local_space_position: Vector
+    local_space_orientation: Quaternion
+
+    def __init__(self) -> None:
+
+        self.inverse_object_space_position = Vector()
+        self.inverse_object_space_orientation = Quaternion()
+        self.local_space_position = Vector()
+        self.local_space_orientation = Quaternion()
 
     def read(self, reader: BinaryReader) -> None:
 

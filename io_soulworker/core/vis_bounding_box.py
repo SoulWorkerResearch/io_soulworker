@@ -7,8 +7,13 @@ from io_soulworker.core.data_exchange import DataExchange_cl
 
 class HavokBoundingBox(DataExchange_cl):
 
-    min = Vector()
-    max = Vector()
+    min: Vector
+    max: Vector
+
+    def __init__(self) -> None:
+
+        self.min = Vector()
+        self.max = Vector()
 
     def read(self, reader: BinaryReader) -> None:
 

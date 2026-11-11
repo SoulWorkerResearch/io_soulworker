@@ -1,19 +1,27 @@
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.binary_writer import BinaryWriter
 from io_soulworker.core.data_exchange import DataExchange_cl
-from io_soulworker.core.vis_mesh_effect import VisEffectConfig_cl
+from io_soulworker.core.vis_mesh_effect import (
+    VisEffectConfig_cl as VisEffectConfigItem_cl,
+)
 
 
 class VisEffectConfig_cl(DataExchange_cl):
+    """List of effect configurations of a mesh; every entry is a
+    ``VisEffectConfigItem_cl`` (``VisEffectConfig_cl`` in ``vis_mesh_effect``)."""
 
-    values: list[VisEffectConfig_cl] = []
+    values: list[VisEffectConfigItem_cl]
+
+    def __init__(self) -> None:
+
+        self.values = []
 
     def read(self, reader: BinaryReader) -> None:
 
         count = reader.read_uint16()
 
         self.values = [
-            VisEffectConfig_cl.from_reader(reader)
+            VisEffectConfigItem_cl.from_reader(reader)
             for _ in range(count)
         ]
 

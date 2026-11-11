@@ -9,7 +9,7 @@ class BposChunk_KeyFrame(DataExchange_cl):
 
     bone_count = 0
     time = 0.0
-    vector_list: list[Vector] = []
+    vector_list: list[Vector]
 
     def __init__(self) -> None:
 

@@ -18,11 +18,15 @@ class VisMBVertexDescriptor_cl(DataExchange_cl):
     pos_offset = UNSET_OFFSET
     color_offset = UNSET_OFFSET
     normal_offset = UNSET_OFFSET
-    tex_offset: list[int] = [UNSET_OFFSET] * MAX_TEXTURES
+    tex_offset: list[int]
     secondary_color_offset = UNSET_OFFSET
     first_text_coord = 0
     last_text_coord = 0
     hash = 0
+
+    def __init__(self) -> None:
+
+        self.tex_offset = [self.UNSET_OFFSET] * self.MAX_TEXTURES
 
     def has_component(self, value: int) -> bool:
 

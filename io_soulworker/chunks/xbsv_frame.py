@@ -7,7 +7,11 @@ from io_soulworker.core.vis_bounding_box import HavokBoundingBox
 class XbsvFrame(DataExchange_cl):
 
     duration = 0.0
-    box = HavokBoundingBox()
+    box: HavokBoundingBox
+
+    def __init__(self) -> None:
+
+        self.box = HavokBoundingBox()
 
     def read(self, reader: BinaryReader) -> None:
 

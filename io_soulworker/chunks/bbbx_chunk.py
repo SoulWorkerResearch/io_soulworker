@@ -8,7 +8,11 @@ class BBBXChunk(DataExchange_cl):
 
     class Entity(DataExchange_cl):
 
-        bounds = HavokBoundingBox()
+        bounds: HavokBoundingBox
+
+        def __init__(self) -> None:
+
+            self.bounds = HavokBoundingBox()
 
         def read(self, reader: BinaryReader) -> None:
 

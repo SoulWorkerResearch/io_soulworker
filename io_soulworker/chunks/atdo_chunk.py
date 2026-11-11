@@ -8,7 +8,11 @@ from io_soulworker.core.data_exchange import DataExchange_cl
 class AtdoChunk_KeyFrame(DataExchange_cl):
 
     time = 0.0
-    offset = Vector((0.0, 0.0, 0.0))
+    offset: Vector
+
+    def __init__(self) -> None:
+
+        self.offset = Vector((0.0, 0.0, 0.0))
 
     def read(self, reader: BinaryReader) -> None:
 
