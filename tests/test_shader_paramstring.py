@@ -37,6 +37,7 @@ EFFECT Toon {
   PARAMCOMMENT={"Glow","Glow","0.75",float,none,""};
   PARAMCOMMENT={"MaskTexture","Mask","",texture,none,""};
   PARAMCOMMENT={"Proj","Proj","",float4x4,none,""};
+  PARAMCOMMENT={"Detail","Detail","",texture,none,""};
 }
 EFFECT Other {
   DESCRIPTION = {};
@@ -145,15 +146,27 @@ class TestShaderParamString(TestCase):
 
         material, node = self._import()
 
-        self.assertNotIn("Glow", ShaderParamString(self._collect(material)))
+        self.assertEqual(self._collect(material), _SOURCE)
 
         node.inputs["Glow"].default_value = 2.0
 
         self.assertEqual(self._collect(material), _SOURCE + "Glow=2;")
 
+        tree = material.node_tree
+        image_node = tree.nodes.new("ShaderNodeTexImage")
+        image_node.image = bpy.data.images.load(
+            str(self.root / "Textures" / "other.png"))
+        tree.links.new(image_node.outputs["Color"], node.inputs["Detail"])
+
+        self.assertEqual(
+            self._collect(material),
+            _SOURCE + "Glow=2;Detail=Textures\\other.png;",
+        )
+
         node.inputs["Glow"].default_value = 0.75
 
-        self.assertNotIn("Glow", ShaderParamString(self._collect(material)))
+        self.assertEqual(
+            self._collect(material), _SOURCE + "Detail=Textures\\other.png;")
 
     def test_texture_that_was_not_replaced_keeps_the_path_of_its_source(self):
 
