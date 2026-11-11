@@ -96,6 +96,102 @@ class TestMaterialsXml(TestCase):
             self.assertEqual(material.attrib["name"], "Default")
             self.assertTrue(xml_path.read_bytes().endswith(b"\n"))
 
+    def test_stored_surface_fields_override_heuristics(self):
+        from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
+
+        sidecar = MaterialSidecar(
+            name="MT_BODY",
+            diffuse=r"Textures\body.dds",
+            transparency=VisTransparencyType.ALPHA,
+            doublesided=True,
+            alphathreshold=0.5,
+            mtrs_fields={
+                "transparency_type": int(VisTransparencyType.NONE),
+                "custom_alpha_threshold": 0.25,
+                "flags": 2,
+                "ambient_color": [150, 150, 150, 255],
+                "config_effects": [],
+            },
+            xml_attributes={
+                "name": "IGNORED",
+                "diffuse": "IGNORED.dds",
+                "transparency": "opaque",
+                "doublesided": "FALSE",
+                "ambient": "150,150,150,255",
+                "alphathreshold": "0.25",
+                "pass": "AUTO",
+                "mobileflags": "0",
+            },
+        )
+
+        chunk = sidecar.to_mtrs_chunk()
+
+        self.assertEqual(chunk.name, "MT_BODY")
+        self.assertEqual(chunk.transparency_type, VisTransparencyType.NONE)
+        self.assertEqual(chunk.custom_alpha_threshold, 0.25)
+        self.assertEqual(chunk.flags, VisSurfaceFlags(2))
+        self.assertEqual(
+            (chunk.ambient_color.r, chunk.ambient_color.g,
+             chunk.ambient_color.b, chunk.ambient_color.a),
+            (150, 150, 150, 255),
+        )
+        self.assertEqual(chunk.config_effects, [])
+
+        with TemporaryDirectory() as temp:
+
+            xml_path = Path(temp) / "Body.model_data" / "materials.xml"
+            write_materials_xml(xml_path, [sidecar])
+            row = parse(xml_path).getroot().find("Materials/Material")
+
+        self.assertEqual(row.attrib["name"], "MT_BODY")
+        self.assertEqual(row.attrib["diffuse"], r"Textures\body.dds")
+        self.assertEqual(row.attrib["transparency"], "opaque")
+        self.assertEqual(row.attrib["doublesided"], "FALSE")
+        self.assertEqual(row.attrib["ambient"], "150,150,150,255")
+        self.assertEqual(row.attrib["pass"], "AUTO")
+        self.assertEqual(row.attrib["mobileflags"], "0")
+
+    def test_map_attributes_follow_sidecar_paths(self):
+
+        with TemporaryDirectory() as temp:
+
+            xml_path = Path(temp) / "Maps.model_data" / "materials.xml"
+            write_materials_xml(xml_path, [
+                MaterialSidecar(name="Plain"),
+                MaterialSidecar(name="Spec", specular=r"Textures\spec.dds"),
+                MaterialSidecar(
+                    name="Stored",
+                    xml_attributes={"specularmap": "stale\\old.dds",
+                                    "normalmap": ""},
+                ),
+            ])
+            rows = parse(xml_path).getroot().findall("Materials/Material")
+
+        plain, spec, stored = rows
+        self.assertNotIn("specularmap", plain.attrib)
+        self.assertNotIn("normalmap", plain.attrib)
+        self.assertEqual(spec.attrib["specularmap"], r"Textures\spec.dds")
+        self.assertNotIn("normalmap", spec.attrib)
+        self.assertEqual(stored.attrib["specularmap"], "")
+        self.assertEqual(stored.attrib["normalmap"], "")
+
+    def test_mtrs_chunk_round_trips_through_dict(self):
+        from io_soulworker.chunks.mtrs_chunk import MtrsChunk
+        from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
+
+        chunk = MaterialSidecar(name="X").to_mtrs_chunk()
+        chunk.flags = VisSurfaceFlags(2)
+        chunk.transparency_type = VisTransparencyType.ADDITIVE
+        chunk.custom_alpha_threshold = 0.125
+        chunk.aux_texture_paths = ["a.dds"]
+
+        clone = MtrsChunk()
+        clone.apply_dict(chunk.to_dict())
+
+        self.assertEqual(clone.to_dict(), chunk.to_dict())
+        self.assertEqual(clone.flags, VisSurfaceFlags(2))
+        self.assertEqual(clone.transparency_type, VisTransparencyType.ADDITIVE)
+
     def test_mtrs_chunk_copies_shader_fields(self):
 
         sidecar = MaterialSidecar(

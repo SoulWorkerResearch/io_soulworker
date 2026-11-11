@@ -13,7 +13,7 @@ _BLENDER_HINT = (
 )
 
 _SCENE_RELATIVE = Path(
-    r"World\Scenes\Cloudream\S01_STEELGRAVE\S01_STEELGRAVE.vscene"
+    "World/Scenes/Cloudream/S01_STEELGRAVE/S01_STEELGRAVE.vscene"
 )
 
 
@@ -58,6 +58,77 @@ class TestSceneEntityModels(TestCase):
             any(path.endswith(".model") for path in model_paths),
             model_paths,
         )
+
+    def test_shader_textures_resolve_with_explicit_root(self) -> None:
+
+        try:
+            from io_soulworker.file_import.runner import in_blender
+            from io_soulworker.file_import.shaders.node_groups import (
+                _load_resource_image,
+            )
+            import bpy
+        except ImportError as exc:
+            raise SkipTest(_BLENDER_HINT) from exc
+
+        if not in_blender():
+            raise SkipTest(_BLENDER_HINT)
+
+        from tempfile import TemporaryDirectory
+
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+
+        with TemporaryDirectory() as folder:
+            root = Path(folder) / "unpacked"
+            texture = root / "Textures" / "ToonTexture.png"
+            texture.parent.mkdir(parents=True)
+            image = bpy.data.images.new("Toon", width=1, height=1)
+            image.filepath_raw = str(texture)
+            image.file_format = 'PNG'
+            image.save()
+
+            # No N-panel property in a factory session: only the explicit
+            # root can locate the texture, with case-insensitive matching.
+            self.assertFalse(hasattr(bpy.context.scene,
+                                     "soulworker_unpack_resources"))
+            self.assertIsNone(_load_resource_image(
+                r"textures\toontexture.png"))
+            loaded = _load_resource_image(r"textures\toontexture.png", root)
+            self.assertIsNotNone(loaded)
+            self.assertEqual(Path(bpy.path.abspath(loaded.filepath)).resolve(),
+                             texture.resolve())
+
+    def test_preferred_action_falls_back_to_single_clip_sequence(self) -> None:
+
+        try:
+            from io_soulworker.file_import.runner import in_blender
+            from io_soulworker.file_import.scene.importer import SceneImporter
+            import bpy
+        except ImportError as exc:
+            raise SkipTest(_BLENDER_HINT) from exc
+
+        if not in_blender():
+            raise SkipTest(_BLENDER_HINT)
+
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        mesh = bpy.data.meshes.new("Cat")
+        obj = bpy.data.objects.new("Cat", mesh)
+        rig = bpy.data.objects.new("CatRig", bpy.data.armatures.new("CatRig"))
+        bpy.context.collection.objects.link(obj)
+        bpy.context.collection.objects.link(rig)
+        obj.modifiers.new("Armature", "ARMATURE").object = rig
+        only = bpy.data.actions.new("cat01:zzz")
+        bpy.data.actions.new("other:idle")
+
+        importer = SceneImporter.__new__(SceneImporter)
+        importer._apply_preferred_action(obj, "cat01", "idle")
+
+        self.assertIsNotNone(rig.animation_data)
+        self.assertEqual(rig.animation_data.action, only)
+
+        bpy.data.actions.new("cat01:run")
+        rig.animation_data.action = None
+        importer._apply_preferred_action(obj, "cat01", "idle")
+        self.assertIsNone(rig.animation_data.action)
 
     def test_scene_import_places_model_entities(self) -> None:
 

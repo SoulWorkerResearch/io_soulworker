@@ -16,13 +16,13 @@ _BLENDER_HINT = (
 )
 
 _EDGE_CASE_MESHES = (
-    Path(r"Character\Monster\MOB_0421_Lawscar\MOB_0421_Lawscar_spear.model"),
-    Path(r"FXs\Mesh\FX_360D_Ray_Mesh_02_01.vmesh"),
-    Path(r"World\Meshes\Cloudream\C001\C006_HH_HERO\C06_H_Basin_A_A.vmesh"),
-    Path(r"World\Meshes\Cloudream\F031\RT_vehicle_ab.vmesh"),
-    Path(r"World\Meshes\Cloudream\F051\CB_a1.vmesh"),
-    Path(r"World\Meshes\Cloudream\F051\CB_a44.vmesh"),
-    Path(r"World\Meshes\Cloudream\F051\RF_Beam.vmesh"),
+    Path("Character/Monster/MOB_0421_Lawscar/MOB_0421_Lawscar_spear.model"),
+    Path("FXs/Mesh/FX_360D_Ray_Mesh_02_01.vmesh"),
+    Path("World/Meshes/Cloudream/C001/C006_HH_HERO/C06_H_Basin_A_A.vmesh"),
+    Path("World/Meshes/Cloudream/F031/RT_vehicle_ab.vmesh"),
+    Path("World/Meshes/Cloudream/F051/CB_a1.vmesh"),
+    Path("World/Meshes/Cloudream/F051/CB_a44.vmesh"),
+    Path("World/Meshes/Cloudream/F051/RF_Beam.vmesh"),
 )
 
 

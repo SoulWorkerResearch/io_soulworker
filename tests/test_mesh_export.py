@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from json import dumps
-from os import getenv
 from tempfile import TemporaryDirectory
 from unittest import SkipTest, TestCase
 from xml.etree.ElementTree import parse
@@ -21,6 +20,7 @@ from io_soulworker.file_export.vmesh_exporter import write_vmesh_file
 from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
+from tests.defines import Defines
 
 
 _BLENDER_HINT = (
@@ -128,6 +128,51 @@ class TestMeshExport(TestCase):
             self.assertIn(b"THGW", payload)
             self.assertIn(b"SDNB", payload)
 
+    def _rigged_cube(self, name: str, bone_names: list[str]):
+
+        obj = self._new_cube(name)
+        data = bpy.data.armatures.new(name + "Rig")
+        arm = bpy.data.objects.new(name + "Rig", data)
+        bpy.context.collection.objects.link(arm)
+        bpy.context.view_layer.objects.active = arm
+        bpy.ops.object.mode_set(mode='EDIT')
+        for index, bone_name in enumerate(bone_names):
+            bone = data.edit_bones.new(bone_name)
+            bone.head = (0.0, 0.0, 0.1 * index)
+            bone.tail = (0.0, 0.0, 0.1 * index + 0.05)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        arm["soulworker_bone_names_by_index"] = bone_names
+        return obj, arm
+
+    def test_export_writes_empty_bone_boxes_without_import_data(self):
+
+        obj, arm = self._rigged_cube("Fresh", ["Root", "Child"])
+        boxes = build_model_from_blender_object(obj, arm).bounding_boxes
+
+        self.assertEqual(len(boxes.values), 2)
+        for entity in boxes.values:
+            self.assertEqual(tuple(entity.bounds.min), (0.0, 0.0, 0.0))
+            self.assertEqual(tuple(entity.bounds.max), (0.0, 0.0, 0.0))
+
+    def test_export_replays_imported_bone_boxes_by_name(self):
+
+        obj, arm = self._rigged_cube("Replayed", ["Root", "Child", "Extra"])
+        arm["soulworker_bone_bounds"] = dumps([
+            {"name": "Child", "min": [-1.0, -2.0, -3.0],
+             "max": [4.0, 5.0, 6.0]},
+            {"name": "Root", "min": [0.5, 0.5, 0.5], "max": [1.5, 1.5, 1.5]},
+        ])
+        boxes = build_model_from_blender_object(obj, arm).bounding_boxes
+
+        self.assertEqual(
+            [tuple(e.bounds.min) + tuple(e.bounds.max) for e in boxes.values],
+            [
+                (0.5, 0.5, 0.5, 1.5, 1.5, 1.5),
+                (-1.0, -2.0, -3.0, 4.0, 5.0, 6.0),
+                (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            ],
+        )
+
     def test_export_legacy_skeleton_uses_stored_native_axes(self):
         from mathutils import Vector
 
@@ -201,12 +246,14 @@ class TestMeshExport(TestCase):
             write_model_file(path, obj, resources_root=root)
             xml = parse(path.parent / (path.name + '_data/materials.xml'))
             row = xml.getroot().find('Materials/Material')
+            self.assertEqual(
+                row.attrib['diffuse'], r"\Character\Hero\Textures\diffuse.png")
             self.assertEqual(resolve_resource_path(
-                path.parent, row.attrib['diffuse']), texture.resolve())
+                root, row.attrib['diffuse']), texture.resolve())
             shader = row.find('Shader')
             self.assertIsNotNone(shader)
             self.assertEqual(resolve_resource_path(
-                path.parent, shader.attrib['library']),
+                root, shader.attrib['library']),
                 (shaders / 'Hero.ShaderLib').resolve())
             self.assertIn('MaskTexture=', shader.attrib['paramstring'])
 
@@ -214,16 +261,27 @@ class TestMeshExport(TestCase):
         from io_soulworker.core.materials_xml.shader_param_string import ShaderParamString
         from io_soulworker.file_import.resource_path import resolve_resource_path
 
-        root = Path(getenv(
-            'SOULWORKER_RESOURCES',
-            'A:/SteamLibrary/steamapps/common/Soulworker_KR/_datas'))
+        root = Defines.UNPACKED_RESOURCES
         source = root / 'Character/NPC/NPC_0001_Mirium/NPC_0001_Mirium_Upper.model'
         if not source.is_file():
             self.skipTest('unpacked Mirium model unavailable')
 
         class SkeletonReader(ModelChunkReader):
+            def __init__(self, path):
+                super().__init__(path)
+                self.surfaces = []
+
             def on_skeleton(self, chunk):
                 self.skeleton = chunk
+
+            def on_bounding_boxes(self, chunk):
+                self.bone_boxes = chunk
+
+            def on_mesh(self, chunk):
+                self.mesh = chunk
+
+            def on_surface(self, chunk):
+                self.surfaces.append(chunk)
 
         original = SkeletonReader(source)
         original.run()
@@ -242,18 +300,125 @@ class TestMeshExport(TestCase):
                                  after.inverse_object_space_position)
                 self.assertEqual(before.inverse_object_space_orientation,
                                  after.inverse_object_space_orientation)
+            self.assertEqual(len(exported.bone_boxes.values),
+                             len(original.bone_boxes.values))
+            for before, after in zip(original.bone_boxes.values,
+                                     exported.bone_boxes.values):
+                self.assertEqual(before.bounds.min, after.bounds.min)
+                self.assertEqual(before.bounds.max, after.bounds.max)
+            self.assertEqual(exported.mesh.version, original.mesh.version)
+            self.assertEqual(exported.mesh.prim_type, original.mesh.prim_type)
+            self.assertEqual(len(exported.surfaces), len(original.surfaces))
+            for before, after in zip(original.surfaces, exported.surfaces):
+                self.assertEqual(after.name, before.name)
+                self.assertEqual(after.transparency_type,
+                                 before.transparency_type)
+                self.assertEqual(after.custom_alpha_threshold,
+                                 before.custom_alpha_threshold)
+                self.assertEqual(after.flags, before.flags)
+                self.assertEqual(after.ui_sorting_key, before.ui_sorting_key)
+                self.assertEqual(after.lighting_method, before.lighting_method)
+                self.assertEqual(
+                    (after.ambient_color.r, after.ambient_color.g,
+                     after.ambient_color.b, after.ambient_color.a),
+                    (before.ambient_color.r, before.ambient_color.g,
+                     before.ambient_color.b, before.ambient_color.a),
+                )
+                self.assertEqual(len(after.config_effects),
+                                 len(before.config_effects))
             xml = parse(target.parent / (target.name + '_data/materials.xml'))
             for material in xml.getroot().findall('Materials/Material'):
                 self.assertIsNotNone(resolve_resource_path(
-                    target.parent, material.attrib['diffuse']))
+                    root, material.attrib['diffuse']))
                 shader = material.find('Shader')
                 self.assertIsNotNone(shader)
                 self.assertIsNotNone(resolve_resource_path(
-                    target.parent, shader.attrib['library']))
+                    root, shader.attrib['library']))
                 for value in ShaderParamString(shader.attrib['paramstring']).values():
                     if Path(value.replace('\\', '/')).suffix.lower() == '.dds':
                         self.assertIsNotNone(
-                            resolve_resource_path(target.parent, value))
+                            resolve_resource_path(root, value))
+
+    def test_export_real_model_keeps_xml_specular_map(self):
+        from io_soulworker.file_import.resource_path import resolve_resource_path
+
+        source = (Defines.UNPACKED_RESOURCES
+                  / 'Character/Object/OBJ_0322_SG_TR_CubeDoor'
+                  / 'OBJ_0322_SG_TR_CubeDoor.model')
+        if not source.is_file():
+            self.skipTest('unpacked CubeDoor model unavailable')
+
+        class SurfaceReader(ModelChunkReader):
+            def __init__(self, path):
+                super().__init__(path)
+                self.surfaces = []
+
+            def on_surface(self, chunk):
+                self.surfaces.append(chunk)
+
+        original = SurfaceReader(source)
+        original.run()
+        self.assertTrue(any(s.specular_map for s in original.surfaces))
+
+        obj = ModelFileReader(source, bpy.context, 7.0, reuse_mesh=False).run()
+        with TemporaryDirectory() as folder:
+            target = Path(folder) / source.name
+            write_model_file(target, obj, obj.parent,
+                             Defines.UNPACKED_RESOURCES)
+            exported = SurfaceReader(target)
+            exported.run()
+            rows = parse(target.parent / (target.name + '_data/materials.xml')
+                         ).getroot().findall('Materials/Material')
+            for before, after, row in zip(
+                    original.surfaces, exported.surfaces, rows):
+                self.assertEqual(bool(after.specular_map),
+                                 bool(before.specular_map))
+                self.assertEqual(row.attrib['specularmap'], after.specular_map)
+                if before.specular_map:
+                    self.assertIsNotNone(resolve_resource_path(
+                        Defines.UNPACKED_RESOURCES, row.attrib['specularmap']))
+
+    def test_fixture_round_trip_keeps_surface_fields(self):
+
+        source = Path("tests/datas/Models/Sphere.model")
+
+        if not source.is_file():
+            self.skipTest(f"missing fixture: {source}")
+
+        class Reader(ModelChunkReader):
+            def __init__(self, path):
+                super().__init__(path)
+                self.surfaces = []
+                self.mesh = None
+
+            def on_surface(self, chunk):
+                self.surfaces.append(chunk)
+
+            def on_mesh(self, chunk):
+                self.mesh = chunk
+
+        original = Reader(source)
+        original.run()
+        obj = ModelFileReader(source, bpy.context, 7.0, reuse_mesh=False).run()
+
+        for material in obj.data.materials:
+            self.assertIn("soulworker_mtrs", material.keys())
+            self.assertIn("soulworker_material_name", material.keys())
+
+        with TemporaryDirectory() as folder:
+            target = Path(folder) / source.name
+            write_model_file(target, obj, obj.parent)
+            exported = Reader(target)
+            exported.run()
+
+        self.assertEqual(exported.mesh.version, 1)
+        self.assertEqual(exported.mesh.prim_type, original.mesh.prim_type)
+        self.assertEqual(
+            [(s.name, s.transparency_type, s.custom_alpha_threshold,
+              s.flags, s.ambient_color.r) for s in exported.surfaces],
+            [(s.name, s.transparency_type, s.custom_alpha_threshold,
+              s.flags, s.ambient_color.r) for s in original.surfaces],
+        )
 
     def test_export_uses_vertex_normals_on_sharp_mesh(self):
 

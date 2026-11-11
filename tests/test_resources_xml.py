@@ -7,10 +7,76 @@ from xml.etree.ElementTree import parse
 
 from io_soulworker.file_export.materials_xml import MaterialSidecar
 from io_soulworker.file_export.resources_xml import (
+    rebase_material_resources,
     resolve_export_path,
     resources_xml_path,
     write_export_sidecars,
 )
+
+
+class TestRebaseMaterialResources(TestCase):
+
+    def setUp(self):
+
+        self._temp = TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.folder = Path(self._temp.name)
+        self.root = self.folder / "_datas"
+        self.texture = self.root / "World/Textures/F031/a.dds"
+        self.texture.parent.mkdir(parents=True)
+        self.texture.write_bytes(b"DDS ")
+        (self.root / "Shaders").mkdir()
+        (self.root / "Character").mkdir()
+        self.mesh = self.folder / "Desktop/a.vmesh"
+
+    def _diffuse(self, raw, resources_root):
+
+        rebased = rebase_material_resources(
+            self.mesh, [MaterialSidecar(name="a", diffuse=raw)], resources_root)
+
+        return rebased[0].diffuse
+
+    def test_tree_file_is_root_relative_when_exported_outside_the_tree(self):
+
+        self.assertEqual(
+            self._diffuse(str(self.texture), self.root),
+            r"\World\Textures\F031\a.dds",
+        )
+
+    def test_tree_is_found_without_a_configured_root(self):
+
+        self.assertEqual(
+            self._diffuse(str(self.texture), None),
+            r"\World\Textures\F031\a.dds",
+        )
+
+    def test_root_reached_through_a_symlink(self):
+
+        link = self.folder / "Assets"
+        link.symlink_to(self.root, target_is_directory=True)
+
+        self.assertEqual(
+            self._diffuse(str(self.texture), link),
+            r"\World\Textures\F031\a.dds",
+        )
+
+    def test_file_outside_the_tree_stays_relative_to_the_mesh(self):
+
+        own = self.folder / "Desktop/Textures/own.dds"
+        own.parent.mkdir(parents=True)
+        own.write_bytes(b"DDS ")
+
+        self.assertEqual(
+            self._diffuse(str(own), self.root),
+            r"Textures\own.dds",
+        )
+
+    def test_builtin_texture_is_kept(self):
+
+        self.assertEqual(
+            self._diffuse(r"\PlainWhite.DDS", self.root),
+            r"\PlainWhite.DDS",
+        )
 
 
 class TestResourcesXml(TestCase):

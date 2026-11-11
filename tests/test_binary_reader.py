@@ -16,7 +16,7 @@ class TestBinaryReader(TestCase):
             info("(reader) Test file: %s", file)
 
             with BinaryReader(file) as reader:
-                header = VisBinHeader(reader)
+                header = VisBinHeader.from_reader(reader)
 
                 self.assertEqual(header.cid, VisChunkId.VBIN)
                 self.assertEqual(header.version, 65536)

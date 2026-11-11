@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from os import getenv
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import SkipTest, TestCase
+
+from tests.defines import Defines
 
 
 class TestSkeletalAnimation(TestCase):
@@ -235,10 +236,7 @@ class TestSkeletalAnimation(TestCase):
         )
         from io_soulworker.unit_scale import vision_to_blender
 
-        root = Path(getenv(
-            "SOULWORKER_RESOURCES",
-            "A:/SteamLibrary/steamapps/common/Soulworker_KR/_datas",
-        )) / "Character/Player/PC_B"
+        root = Defines.UNPACKED_RESOURCES / "Character/Player/PC_B"
         model_path = root / "PC_B.model"
         clips = [root / f"PC_B_B_N_Attack_{number}_P.anim"
                  for number in ("06", "04")]
