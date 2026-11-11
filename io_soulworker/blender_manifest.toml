@@ -1,0 +1,25 @@
+schema_version = "1.0.0"
+
+id = "io_soulworker"
+version = "1.0.0"
+name = "SoulWorker"
+tagline = "Import and export SoulWorker models, animations and scenes"
+maintainer = "sawich"
+type = "add-on"
+
+website = "https://github.com/SoulWorkerResearch/io_soulworker"
+
+tags = ["Import-Export"]
+
+blender_version_min = "5.0.0"
+
+license = ["SPDX:WTFPL"]
+
+[permissions]
+files = "Read game assets and write exported meshes"
+
+[build]
+paths_exclude_pattern = [
+    "__pycache__/",
+    "*.pyc",
+]

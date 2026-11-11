@@ -22,11 +22,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install Zip utility
-        run: sudo apt-get install --yes zip
+      - name: Set up Blender
+        uses: ./.github/actions/setup-blender
 
-      - name: Make archive
-        run: zip -r -q io_soulworker.zip io_soulworker -x "*/__pycache__/*"
+      # The zip is a Blender extension: blender_manifest.toml is at its root.
+      - name: Build the extension
+        run: |
+          blender --command extension validate io_soulworker
+          blender --command extension build --source-dir io_soulworker --output-filepath io_soulworker.zip
 
       # Replaces the previous snapshot: the release and its tag are recreated
       # on the commit that was just pushed.

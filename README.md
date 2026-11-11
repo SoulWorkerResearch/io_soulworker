@@ -33,7 +33,7 @@
 Requires Blender 5.0 or newer.
 
 - Download io_soulworker.zip from **releases** page;
-- ???;
+- Drag the zip into the Blender window, or Edit -> Preferences -> Get Extensions -> Install from Disk;
 - Profit!
 - <details>
     <summary>How do I install add-ons? <i>(click on me)</i></summary>
