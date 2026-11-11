@@ -978,8 +978,8 @@ class AnimationFileReader(AnimationFileChunkReader):
         if not keys:
             return
 
-        data_path = f'pose.bones["{
-            self._escape_bone_name(bone_name)}"].{property_name}'
+        escaped = self._escape_bone_name(bone_name)
+        data_path = f'pose.bones["{escaped}"].{property_name}'
 
         for component in range(component_count):
             fcurve = self._ensure_fcurve(
