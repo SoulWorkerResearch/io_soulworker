@@ -45,7 +45,9 @@ from io_soulworker.file_import.shaders.node_groups import (
 )
 from io_soulworker.unit_scale import vision_to_blender
 
-# Resolved path → shared Mesh datablock (materials live on the mesh).
+# Resolved path → shared Mesh datablock (materials live on the mesh). Only
+# meshes without a skeleton are shared: every skinned object needs its own
+# armature, modifier and parent, which come from parsing the file again.
 _MESH_CACHE: dict[str, Mesh] = {}
 
 
@@ -93,7 +95,8 @@ class ModelFileReader(ModelChunkReader):
     """Load a ``.model`` / ``.vmesh`` into Blender.
 
     Can reuse a previously loaded mesh datablock (scene static-mesh instances)
-    and place the resulting object with an optional world matrix.
+    and place the resulting object with an optional world matrix. A file with a
+    skeleton is always parsed again, so each object gets its own armature.
     """
 
     mesh: Mesh
@@ -127,6 +130,7 @@ class ModelFileReader(ModelChunkReader):
         self.bone_index_to_vertex_group: dict[int, VertexGroup] = {}
         self._cache_key = mesh_cache_key(path)
         self._from_cache = False
+        self._has_skeleton = False
 
         name = object_name or self.path.stem
         cached = _live_cached_mesh(self._cache_key) if reuse_mesh else None
@@ -151,7 +155,7 @@ class ModelFileReader(ModelChunkReader):
 
         super().run()
 
-        if self.reuse_mesh:
+        if self.reuse_mesh and not self._has_skeleton:
             _MESH_CACHE[self._cache_key] = self.mesh
 
         self._apply_transform()
@@ -404,6 +408,8 @@ class ModelFileReader(ModelChunkReader):
 
     # @override
     def on_skeleton(self, chunk: VisSkeletonChunk_cl):
+
+        self._has_skeleton = True
 
         result = build_armature_from_skeleton(
             self.context,
