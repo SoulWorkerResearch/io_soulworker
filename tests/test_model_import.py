@@ -4,6 +4,7 @@ from os import getenv, stat, utime
 from pathlib import Path
 from shutil import copyfile
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest import SkipTest, TestCase
 from unittest.mock import patch
 
@@ -15,7 +16,17 @@ from io_soulworker.file_import.model.file_reader import (
     ModelFileReader,
     clear_mesh_cache,
 )
-from io_soulworker.file_import.runner import in_blender
+from io_soulworker.file_import.object_panel_default_values import (
+    FileImportObjectPanelDefaultValues,
+)
+from io_soulworker.file_import.object_panel_features import (
+    FileImportObjectPanelFeatures,
+)
+from io_soulworker.file_import.runner import (
+    FileImportRunner,
+    in_blender,
+    is_import_operator,
+)
 
 
 _BLENDER_HINT = (
@@ -185,3 +196,43 @@ class TestModelImport(TestCase):
         self.assertEqual(
             [polygon.material_index for polygon in imported.data.polygons],
             [0, 0, 1, 1])
+
+    def test_option_panels_show_only_for_the_import_operator(self):
+
+        running = []
+
+        class Probe(FileImportRunner):
+
+            def execute(self, context):
+
+                running.append((self.bl_idname, is_import_operator(self)))
+
+                return {'FINISHED'}
+
+        bpy.utils.register_class(Probe)
+        try:
+            getattr(bpy.ops.io_soulworker, "import")()
+        finally:
+            bpy.utils.unregister_class(Probe)
+
+        # A running operator reports its id the way the file browser sees it.
+        self.assertEqual(running, [("IO_SOULWORKER_OT_import", True)])
+
+        def context_with(operator):
+
+            return SimpleNamespace(
+                space_data=SimpleNamespace(active_operator=operator))
+
+        other = SimpleNamespace(bl_idname="IMPORT_ANIM_OT_bvh")
+        ours = SimpleNamespace(bl_idname=running[0][0])
+
+        for panel in (FileImportObjectPanelDefaultValues,
+                      FileImportObjectPanelFeatures):
+
+            self.assertTrue(panel.poll(context_with(ours)))
+            self.assertFalse(panel.poll(context_with(other)))
+            self.assertFalse(panel.poll(context_with(None)))
+            self.assertFalse(panel.poll(SimpleNamespace(space_data=None)))
+
+        # The operator draws nothing itself; the panels draw its options.
+        self.assertIn("draw", vars(FileImportRunner))

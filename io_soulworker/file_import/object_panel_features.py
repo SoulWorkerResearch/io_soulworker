@@ -1,5 +1,7 @@
 from bpy.types import Panel
 
+from io_soulworker.file_import.runner import is_import_operator
+
 
 class FileImportObjectPanelFeatures(Panel):
     bl_idname = "IO_SOULWORKER_PT_import_features"
@@ -12,9 +14,8 @@ class FileImportObjectPanelFeatures(Panel):
     def poll(cls, context):
 
         space_data = context.space_data
-        active_operator = space_data.active_operator
 
-        return active_operator.bl_idname == FileImportObjectPanelFeatures.bl_idname
+        return is_import_operator(getattr(space_data, "active_operator", None))
 
     def draw(self, context):
 
