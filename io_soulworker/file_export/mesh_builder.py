@@ -595,6 +595,43 @@ def _resolve_surface_for_triangle(triangle, slot_count: int) -> int:
     return 0
 
 
+def _vertex_weights_reader(mesh_obj):
+    """Return ``vertex index -> skin weights`` for sharing vertices on export.
+
+    Groups named like a material slot only record how the import split the
+    mesh, so they are left out. Two vertices may share one exported vertex
+    only when they also carry the same weights.
+    """
+
+    mesh = mesh_obj.data
+    material_names = {slot.name for slot in mesh.materials if slot is not None}
+    weight_groups = {
+        group.index for group in mesh_obj.vertex_groups
+        if group.name not in material_names
+    }
+    cache: dict[int, tuple] = {}
+
+    def read(vertex_index: int) -> tuple:
+
+        if not weight_groups:
+
+            return ()
+
+        weights = cache.get(vertex_index)
+
+        if weights is None:
+
+            weights = cache[vertex_index] = tuple(sorted(
+                (element.group, round(element.weight, 4))
+                for element in mesh.vertices[vertex_index].groups
+                if element.group in weight_groups and element.weight > 0.0
+            ))
+
+        return weights
+
+    return read
+
+
 def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuild:
     """Build VMSH + SUBM with per-surface vertex ranges and shared vertices."""
 
@@ -612,6 +649,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
         and _faces_are_all_sharp(mesh)
     )
     slot_count = len(mesh.materials)
+    vertex_weights = _vertex_weights_reader(mesh_obj)
     surface_triangles: dict[int, list] = {}
 
     for triangle in mesh.loop_triangles:
@@ -681,6 +719,7 @@ def build_geometry(mesh_obj, *, transform: Matrix | None = None) -> GeometryBuil
                     round(normal.z, 4),
                     round(uv.x, 6),
                     round(uv.y, 6),
+                    vertex_weights(loop.vertex_index),
                 )
 
                 if key in vertex_cache:
