@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from json import loads
+from os import walk
+from os.path import join, relpath
 from pathlib import Path
 
 from mathutils import Matrix, Vector
@@ -266,15 +268,65 @@ def _transparency_from_blender_material(
     return VisTransparencyType.NONE, -1.0
 
 
+class UniqueTextureNames:
+    """Finds a file in a resource tree by its name alone.
+
+    Original materials sometimes point into the author's own tree. A name
+    leads to a file only when exactly one file of the unpacked tree carries
+    it. Each tree is listed once, on the first lookup, and the listing is
+    kept for the rest of the export.
+    """
+
+    def __init__(self) -> None:
+
+        self._trees: dict[str, dict[str, str | None]] = {}
+
+    def find(self, root: Path | str, name: str) -> Path | None:
+
+        tree = self._trees.get(str(root))
+
+        if tree is None:
+
+            tree = self._trees[str(root)] = self._list_tree(str(root))
+
+        path = tree.get(name.lower())
+
+        if path is None:
+
+            return None
+
+        return resolve_resource_path(root, relpath(path, root))
+
+    @staticmethod
+    def _list_tree(root: str) -> dict[str, str | None]:
+        """Lower-cased file name to its path; ``None`` when two files share it."""
+
+        names: dict[str, str | None] = {}
+
+        for folder, _, files in walk(root):
+
+            for file in files:
+
+                key = file.lower()
+                names[key] = None if key in names else join(folder, file)
+
+        return names
+
+
 def material_sidecar_from_blender(
         material,
         resources_root: Path | None = None,
         *, source_material=None,
-        source_directory: Path | None = None) -> MaterialSidecar:
+        source_directory: Path | None = None,
+        texture_names: UniqueTextureNames | None = None) -> MaterialSidecar:
 
     if material is None:
 
         return MaterialSidecar(name="default")
+
+    if texture_names is None:
+
+        texture_names = UniqueTextureNames()
 
     spec_mul, spec_exp, specular_map = _specular_from_blender_material(
         material,
@@ -338,14 +390,9 @@ def material_sidecar_from_blender(
         # tree. Recover by basename only when the unpacked tree has one match.
         if source_root and raw:
             name = Path(raw.replace('\\', '/')).name
-            matches = (path for path in Path(
-                source_root).rglob(name) if path.is_file())
-            first = next(matches, None)
-            if first is not None and next(matches, None) is None:
-                resolved = resolve_resource_path(
-                    source_root, str(first.relative_to(source_root)))
-                if resolved is not None:
-                    return str(resolved)
+            resolved = texture_names.find(source_root, name)
+            if resolved is not None:
+                return str(resolved)
         return raw
 
     sidecar = MaterialSidecar(
@@ -522,6 +569,7 @@ def build_material_sidecars(
         source_directory = Path(source).parent
 
     result = []
+    texture_names = UniqueTextureNames()
     for slot in slots:
         source_material = None
         if slot is not None:
@@ -533,6 +581,7 @@ def build_material_sidecars(
         result.append(material_sidecar_from_blender(
             slot, resources_root, source_material=source_material,
             source_directory=source_directory,
+            texture_names=texture_names,
         ))
     return result
 

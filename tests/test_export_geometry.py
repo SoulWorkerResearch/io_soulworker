@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import sys
+from os.path import normpath
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest import SkipTest, TestCase
 
 import bpy
 
-from io_soulworker.file_export.mesh_builder import build_geometry
+from io_soulworker.file_export.mesh_builder import (
+    build_geometry,
+    build_material_sidecars,
+)
 from io_soulworker.file_export.model_exporter import (
     build_model_from_blender_object,
 )
@@ -15,6 +22,23 @@ _BLENDER_HINT = (
     "run inside Blender: blender --background "
     "--factory-startup --python tests/run_in_blender.py"
 )
+
+
+_scanned_directories: list[str] = []
+_watched_directory: list[str] = []
+
+
+def _count_directory_scans(event, args):
+    """Audit hook: note every listing of the watched directory."""
+
+    if event in ("os.scandir", "os.listdir") and _watched_directory and args:
+
+        if normpath(str(args[0])) == _watched_directory[0]:
+
+            _scanned_directories.append(event)
+
+
+sys.addaudithook(_count_directory_scans)
 
 
 class TestExportGeometry(TestCase):
@@ -28,6 +52,7 @@ class TestExportGeometry(TestCase):
 
     def tearDown(self) -> None:
 
+        _watched_directory.clear()
         bpy.ops.wm.read_factory_settings(use_empty=True)
 
     def _link(self, name: str, vertices, faces):
@@ -113,3 +138,58 @@ class TestExportGeometry(TestCase):
         )
 
         self.assertEqual(bones_at_origin, [0, 1])
+
+    def test_missing_textures_scan_the_resource_tree_once(self):
+
+        obj = self._link(
+            "Textured",
+            [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+            [(0, 1, 2)],
+        )
+
+        for index in range(3):
+
+            material = bpy.data.materials.new(f"Skin{index}")
+            # The author's own tree, absent from the unpacked game data:
+            # the file can only be found by its name.
+            material["soulworker_diffuse"] = (
+                rf"\_Graphic\Hero\unique_{index}.dds")
+            material["soulworker_specular"] = r"\_Graphic\Hero\twice.dds"
+            material["soulworker_normal"] = r"\_Graphic\Hero\nowhere.dds"
+            obj.data.materials.append(material)
+
+        with TemporaryDirectory() as folder:
+
+            root = Path(folder) / "unpacked"
+
+            for relative in (
+                    "Deep/Down/unique_0.dds", "Deep/Down/unique_1.dds",
+                    "Elsewhere/unique_2.dds", "Left/twice.dds",
+                    "Right/twice.dds", "Unrelated/Marker/other.dds"):
+
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (root / relative).write_bytes(b"")
+
+            _scanned_directories.clear()
+            _watched_directory[:] = [normpath(str(root / "Unrelated/Marker"))]
+
+            sidecars = build_material_sidecars(obj, root)
+
+            _watched_directory.clear()
+
+            self.assertEqual(len(sidecars), 3)
+            # A name that exactly one file carries is recovered ...
+            self.assertEqual(
+                [Path(sidecar.diffuse).resolve() for sidecar in sidecars],
+                [(root / "Deep/Down/unique_0.dds").resolve(),
+                 (root / "Deep/Down/unique_1.dds").resolve(),
+                 (root / "Elsewhere/unique_2.dds").resolve()],
+            )
+
+            for sidecar in sidecars:
+
+                # ... a name carried by two files, or by none, is kept as is.
+                self.assertEqual(sidecar.specular, r"\_Graphic\Hero\twice.dds")
+                self.assertEqual(sidecar.normal, r"\_Graphic\Hero\nowhere.dds")
+
+            self.assertLessEqual(len(_scanned_directories), 1)
