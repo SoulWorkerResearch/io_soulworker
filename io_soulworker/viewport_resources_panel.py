@@ -8,26 +8,26 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
 from bpy.types import Context, Operator, Panel, Scene
 
-from io_soulworker.file_export.operators import (
+from .file_export.operators import (
     IO_SOULWORKER_OT_export_model,
     IO_SOULWORKER_OT_export_vmesh,
 )
-from io_soulworker.file_import.animation.file_reader import (
+from .file_import.animation.file_reader import (
     AnimationFileReader,
     AnimationImportSource,
 )
-from io_soulworker.file_import.collections import (
+from .file_import.collections import (
     collection_segments_under_resources,
     ensure_collection_hierarchy,
     leaf_collection_color_tag,
     set_active_collection,
 )
-from io_soulworker.file_import.import_failure import report_import_failure
-from io_soulworker.file_import.import_rollback import DataSnapshot
-from io_soulworker.file_import.model.file_reader import ModelFileReader
-from io_soulworker.file_import.runner import in_blender
-from io_soulworker.file_import.scene.importer import SceneImporter
-from io_soulworker.file_import.shaders.node_groups import sync_shader_node_groups
+from .file_import.import_failure import report_import_failure
+from .file_import.import_rollback import DataSnapshot
+from .file_import.model.file_reader import ModelFileReader
+from .file_import.runner import in_blender
+from .file_import.scene.importer import SceneImporter
+from .file_import.shaders.node_groups import sync_shader_node_groups
 
 
 def _on_unpack_resources_update(scene: Scene, _context: Context) -> None:

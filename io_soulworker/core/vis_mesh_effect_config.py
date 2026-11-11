@@ -1,7 +1,7 @@
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
-from io_soulworker.core.vis_mesh_effect import (
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
+from ..core.vis_mesh_effect import (
     VisEffectConfig_cl as VisEffectConfigItem_cl,
 )
 

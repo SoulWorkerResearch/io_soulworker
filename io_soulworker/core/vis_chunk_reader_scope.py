@@ -2,8 +2,8 @@ from io import SEEK_SET
 from logging import debug
 from types import TracebackType
 from typing import Optional, Type
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.vis_chunk_id import VisChunkId
+from ..core.binary_reader import BinaryReader
+from ..core.vis_chunk_id import VisChunkId
 
 
 CLOSING_MARKER_SIZE = 8

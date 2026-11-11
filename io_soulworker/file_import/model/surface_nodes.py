@@ -6,9 +6,9 @@ from pathlib import Path
 
 from bpy.types import Material, ShaderNodeBsdfPrincipled, ShaderNodeTexImage
 
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.file_import.resource_path import load_blender_image
+from ...chunks.mtrs_chunk import MtrsChunk
+from ...core.vis_transparency_type import VisTransparencyType
+from ...file_import.resource_path import load_blender_image
 
 
 def specular_ior_level(spec_mul: float) -> float:

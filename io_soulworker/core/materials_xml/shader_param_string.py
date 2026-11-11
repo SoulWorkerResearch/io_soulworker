@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
-from io_soulworker.core.shader_lib.types import ShaderParamComment
+from ...core.shader_lib.types import ShaderParamComment
 
 
 def format_param_float(value: float) -> str:

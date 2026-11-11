@@ -3,18 +3,18 @@ from os import getenv
 
 import bpy
 
-from io_soulworker.file_import.runner import FileImportRunner
-from io_soulworker.file_import.object_panel_default_values import (
+from .file_import.runner import FileImportRunner
+from .file_import.object_panel_default_values import (
     FileImportObjectPanelDefaultValues,
 )
-from io_soulworker.file_import.object_panel_features import (
+from .file_import.object_panel_features import (
     FileImportObjectPanelFeatures,
 )
-from io_soulworker.file_export.operators import (
+from .file_export.operators import (
     IO_SOULWORKER_OT_export_model,
     IO_SOULWORKER_OT_export_vmesh,
 )
-from io_soulworker.viewport_resources_panel import (
+from .viewport_resources_panel import (
     IO_SOULWORKER_OT_open_resource,
     IO_SOULWORKER_OT_open_scene,
     IO_SOULWORKER_PT_export,

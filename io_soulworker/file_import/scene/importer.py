@@ -8,37 +8,37 @@ from pathlib import Path
 from bpy.types import ArmatureModifier, Collection, Context, Object
 from mathutils import Matrix
 
-from io_soulworker.core.varchive.objects import (
+from ...core.varchive.objects import (
     LightSource,
     Object3D,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.shapes import read_zone_file
-from io_soulworker.file_import.animation.file_reader import (
+from ...core.varchive.shapes import read_zone_file
+from ...file_import.animation.file_reader import (
     AnimationFileReader,
     AnimationImportSource,
 )
-from io_soulworker.file_import.animation.imported_actions import (
+from ...file_import.animation.imported_actions import (
     ACTION_SEQUENCE_PROPERTY,
     assign_action,
     imported_actions,
 )
-from io_soulworker.file_import.collections import (
+from ...file_import.collections import (
     collection_segments_under_resources,
     ensure_collection_hierarchy,
     find_or_create_child_collection,
     leaf_collection_color_tag,
     set_active_collection,
 )
-from io_soulworker.file_import.model.file_reader import ModelFileReader
-from io_soulworker.file_import.resource_path import resolve_resource_path
-from io_soulworker.file_import.scene.file_reader import SceneFileReader
-from io_soulworker.file_import.scene.id_properties import blender_id_int32
-from io_soulworker.file_import.scene.lights import (
+from ...file_import.model.file_reader import ModelFileReader
+from ...file_import.resource_path import resolve_resource_path
+from ...file_import.scene.file_reader import SceneFileReader
+from ...file_import.scene.id_properties import blender_id_int32
+from ...file_import.scene.lights import (
     LIGHT_COLLECTION_NAME,
     create_light_object,
 )
-from io_soulworker.unit_scale import vision_matrix_to_blender, vision_to_blender
+from ...unit_scale import vision_matrix_to_blender, vision_to_blender
 
 
 def apply_collision_only_visibility(obj: Object) -> None:

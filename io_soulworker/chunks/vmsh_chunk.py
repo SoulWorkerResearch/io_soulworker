@@ -2,16 +2,16 @@ from struct import pack_into, unpack_from
 
 from mathutils import Vector
 
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
-from io_soulworker.core.utility import indices_to_face
-from io_soulworker.core.vis_bounding_box import HavokBoundingBox
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_index_format import VisIndexFormat
-from io_soulworker.core.vis_mesh_effect_config import VisEffectConfig_cl
-from io_soulworker.core.vis_render_state import VisRenderState
-from io_soulworker.core.vis_vertex_descriptor import (
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
+from ..core.utility import indices_to_face
+from ..core.vis_bounding_box import HavokBoundingBox
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_index_format import VisIndexFormat
+from ..core.vis_mesh_effect_config import VisEffectConfig_cl
+from ..core.vis_render_state import VisRenderState
+from ..core.vis_vertex_descriptor import (
     VertexComponent,
     VisMBVertexDescriptor_cl,
 )

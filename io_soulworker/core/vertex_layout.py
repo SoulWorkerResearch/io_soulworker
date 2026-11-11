@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from json import JSONDecodeError, dumps, loads
 from logging import warning
 
-from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
+from ..core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
 
 
 LAYOUT_PROPERTY = "soulworker_vertex_layout"

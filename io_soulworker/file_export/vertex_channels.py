@@ -21,14 +21,14 @@ from zlib import error as ZlibError
 
 from mathutils import Vector
 
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.vertex_layout import (
+from ..chunks.vmsh_chunk import VMshChunk
+from ..core.vertex_layout import (
     LAYOUT_PROPERTY,
     OPAQUE_PROPERTY,
     VertexLayoutRecord,
     flip_set_v,
 )
-from io_soulworker.core.vis_vertex_descriptor import (
+from ..core.vis_vertex_descriptor import (
     VertexComponent,
     VisMBVertexDescriptor_cl,
     known_size,

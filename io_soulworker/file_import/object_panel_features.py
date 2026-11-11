@@ -1,6 +1,6 @@
 from bpy.types import Panel
 
-from io_soulworker.file_import.runner import is_import_operator
+from ..file_import.runner import is_import_operator
 
 
 class FileImportObjectPanelFeatures(Panel):

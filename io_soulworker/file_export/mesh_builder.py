@@ -8,45 +8,45 @@ from pathlib import Path
 
 from mathutils import Matrix, Vector
 
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.subm_chunk import VisMeshBuffer_cl, VisSubMeshChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.vis_bounding_box import HavokBoundingBox
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_index_format import VisIndexFormat
-from io_soulworker.core.vis_lighting_method import VisLightingMethod
-from io_soulworker.core.vis_material_lighting import VisMaterialLighting
-from io_soulworker.core.vis_mesh_effect_config import VisEffectConfig_cl
-from io_soulworker.core.vis_prim_type import VisPrimitiveType
-from io_soulworker.core.vis_render_state import VisRenderState
-from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
-from io_soulworker.file_export.materials_xml import (
+from ..chunks.mtrs_chunk import MtrsChunk
+from ..chunks.subm_chunk import VisMeshBuffer_cl, VisSubMeshChunk
+from ..chunks.vmsh_chunk import VMshChunk
+from ..core.vis_bounding_box import HavokBoundingBox
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_index_format import VisIndexFormat
+from ..core.vis_lighting_method import VisLightingMethod
+from ..core.vis_material_lighting import VisMaterialLighting
+from ..core.vis_mesh_effect_config import VisEffectConfig_cl
+from ..core.vis_prim_type import VisPrimitiveType
+from ..core.vis_render_state import VisRenderState
+from ..core.vis_render_state_flags import VisRenderStateFlag
+from ..core.vis_transparency_type import VisTransparencyType
+from ..core.vis_vertex_descriptor import VisMBVertexDescriptor_cl
+from ..file_export.materials_xml import (
     DEFAULT_DIFFUSE,
     MaterialSidecar,
 )
-from io_soulworker.file_export.vertex_channels import (
+from ..file_export.vertex_channels import (
     default_components,
     place_components,
     plan_vertex_channels,
 )
-from io_soulworker.file_export.vertex_table import (
+from ..file_export.vertex_table import (
     IMPORTED_NORMAL_MERGE_DISTANCE,
     NORMAL_MERGE_DISTANCE,
     VertexTable,
 )
-from io_soulworker.file_import.model.surface_nodes import spec_exp_from_roughness
-from io_soulworker.file_import.resource_path import (
+from ..file_import.model.surface_nodes import spec_exp_from_roughness
+from ..file_import.resource_path import (
     game_relative_texture_path,
     resolve_resource_path,
 )
-from io_soulworker.core.materials_xml.shader_param_string import ShaderParamString
-from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
-from io_soulworker.file_import.shaders.node_groups import (
+from ..core.materials_xml.shader_param_string import ShaderParamString
+from ..file_import.model.chunk_reader import ModelChunkReader
+from ..file_import.shaders.node_groups import (
     collect_shader_from_material,
 )
-from io_soulworker.unit_scale import blender_to_vision
+from ..unit_scale import blender_to_vision
 
 
 EXPORT_VMSH_VERSION = 1

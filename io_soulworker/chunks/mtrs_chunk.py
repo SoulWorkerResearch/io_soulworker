@@ -1,16 +1,16 @@
 from io import BytesIO
 from logging import debug
 
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
-from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
-from io_soulworker.core.vis_color import VisColor
-from io_soulworker.core.vis_lighting_method import VisLightingMethod
-from io_soulworker.core.vis_material_effect import VisMaterialEffect
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
+from ..core.vis_surface_flags import VisSurfaceFlags
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_chunk_reader_scope import VisChunkReaderScope
+from ..core.vis_color import VisColor
+from ..core.vis_lighting_method import VisLightingMethod
+from ..core.vis_material_effect import VisMaterialEffect
+from ..core.vis_transparency_type import VisTransparencyType
 
 
 class MtrsChunk(DataExchange_cl):

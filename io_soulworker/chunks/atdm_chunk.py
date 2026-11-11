@@ -1,10 +1,10 @@
 from mathutils import Vector
 
-from io_soulworker.chunks.atdo_chunk import AtdoChunk, AtdoChunk_KeyFrame
-from io_soulworker.chunks.atdr_chunk import AtdrChunk, AtdrChunk_KeyFrame
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
+from ..chunks.atdo_chunk import AtdoChunk, AtdoChunk_KeyFrame
+from ..chunks.atdr_chunk import AtdrChunk, AtdrChunk_KeyFrame
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
 
 
 class AtdmChunk(DataExchange_cl):

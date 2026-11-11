@@ -15,8 +15,8 @@ from json import dumps
 from logging import warning
 from zlib import compress
 
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.vertex_layout import (
+from ...chunks.vmsh_chunk import VMshChunk
+from ...core.vertex_layout import (
     COLOR_ATTRIBUTE,
     LAYOUT_PROPERTY,
     MAX_UV_LAYERS,

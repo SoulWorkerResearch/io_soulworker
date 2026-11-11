@@ -1,4 +1,4 @@
-from io_soulworker.core.varchive.objects import (
+from ...core.varchive.objects import (
     ArchiveObject,
     LightSource,
     ModelSerializationProxy,
@@ -7,7 +7,7 @@ from io_soulworker.core.varchive.objects import (
     SimpleAnimationComponent,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.shapes import ShapesArchiveResult, read_shapes_payload, read_zone_file
+from ...core.varchive.shapes import ShapesArchiveResult, read_shapes_payload, read_zone_file
 
 __all__ = [
     "ArchiveObject",

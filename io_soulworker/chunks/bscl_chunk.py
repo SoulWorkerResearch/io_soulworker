@@ -1,7 +1,7 @@
-from io_soulworker.chunks.bpos_chunk_key_frame import BposChunk_KeyFrame
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
+from ..chunks.bpos_chunk_key_frame import BposChunk_KeyFrame
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
 
 
 class BsclChunk(DataExchange_cl):

@@ -4,13 +4,13 @@ from json import dumps
 import bpy
 from mathutils import Matrix, Vector
 
-from io_soulworker.chunks.skel_chunk import VisSkeletalBone_cl
-from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
-from io_soulworker.file_import.model.skeleton_builder import (
+from ..chunks.skel_chunk import VisSkeletalBone_cl
+from ..chunks.skel_chunk import VisSkeletonChunk_cl
+from ..file_import.model.skeleton_builder import (
     BoneTransform,
     build_bone_transforms,
 )
-from io_soulworker.unit_scale import vision_to_blender
+from ..unit_scale import vision_to_blender
 
 
 class NameHelper:

@@ -2,24 +2,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from io_soulworker.chunks.expr_chunk import ExprChunk
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.vis_bin_header import VisBinHeader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_writer_scope import (
+from ..chunks.expr_chunk import ExprChunk
+from ..chunks.mtrs_chunk import MtrsChunk
+from ..chunks.subm_chunk import VisSubMeshChunk
+from ..chunks.vmsh_chunk import VMshChunk
+from ..core.binary_writer import BinaryWriter
+from ..core.vis_bin_header import VisBinHeader
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_chunk_writer_scope import (
     VisChunkWriterScope,
     write_chunk_file_eof,
 )
-from io_soulworker.file_export.materials_xml import MaterialSidecar
-from io_soulworker.file_export.mesh_builder import (
+from ..file_export.materials_xml import MaterialSidecar
+from ..file_export.mesh_builder import (
     build_geometry,
     build_material_sidecars,
     mtrs_from_sidecars,
 )
-from io_soulworker.file_export.resources_xml import (
+from ..file_export.resources_xml import (
     rebase_material_resources,
     write_export_sidecars,
 )

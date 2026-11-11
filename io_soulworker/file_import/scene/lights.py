@@ -14,9 +14,9 @@ import bpy
 from bpy.types import Collection, Object
 from mathutils import Matrix
 
-from io_soulworker.core.varchive.objects import LightSource
-from io_soulworker.file_import.scene.id_properties import blender_id_int32
-from io_soulworker.unit_scale import vision_to_blender
+from ...core.varchive.objects import LightSource
+from ...file_import.scene.id_properties import blender_id_int32
+from ...unit_scale import vision_to_blender
 
 
 BLENDER_LIGHT_TYPES = {

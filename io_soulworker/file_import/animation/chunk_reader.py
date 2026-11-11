@@ -1,17 +1,17 @@
 from logging import debug
-from io_soulworker.chunks.atdm_chunk import AtdmChunk
-from io_soulworker.chunks.atdo_chunk import AtdoChunk
-from io_soulworker.chunks.atdr_chunk import AtdrChunk
-from io_soulworker.chunks.bpos_chunk import BposChunk
-from io_soulworker.chunks.brot_chunk import BrotChunk
-from io_soulworker.chunks.bscl_chunk import BsclChunk
-from io_soulworker.chunks.xbsv_chunk import XbsvChunk
-from io_soulworker.chunks.head_chunk import HeadChunk
-from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.vis_chunk_file import VisChunkFileReader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
+from ...chunks.atdm_chunk import AtdmChunk
+from ...chunks.atdo_chunk import AtdoChunk
+from ...chunks.atdr_chunk import AtdrChunk
+from ...chunks.bpos_chunk import BposChunk
+from ...chunks.brot_chunk import BrotChunk
+from ...chunks.bscl_chunk import BsclChunk
+from ...chunks.xbsv_chunk import XbsvChunk
+from ...chunks.head_chunk import HeadChunk
+from ...chunks.skel_chunk import VisSkeletonChunk_cl
+from ...core.binary_reader import BinaryReader
+from ...core.vis_chunk_file import VisChunkFileReader
+from ...core.vis_chunk_id import VisChunkId
+from ...core.vis_chunk_reader_scope import VisChunkReaderScope
 
 
 class AnimationFileChunkReader(VisChunkFileReader):

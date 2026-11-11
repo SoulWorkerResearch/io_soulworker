@@ -5,14 +5,14 @@ from os.path import relpath
 from pathlib import Path
 from xml.etree.ElementTree import Element, ElementTree, indent
 
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.core.vis_color import VisColor
-from io_soulworker.core.vis_lighting_method import VisLightingMethod
-from io_soulworker.core.vis_material_effect import VisMaterialEffect
-from io_soulworker.core.vis_material_lighting import VisMaterialLighting
-from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.xml_helper.exchange_transparency import (
+from ..chunks.mtrs_chunk import MtrsChunk
+from ..core.vis_color import VisColor
+from ..core.vis_lighting_method import VisLightingMethod
+from ..core.vis_material_effect import VisMaterialEffect
+from ..core.vis_material_lighting import VisMaterialLighting
+from ..core.vis_surface_flags import VisSurfaceFlags
+from ..core.vis_transparency_type import VisTransparencyType
+from ..core.xml_helper.exchange_transparency import (
     transparency_to_exchange,
 )
 

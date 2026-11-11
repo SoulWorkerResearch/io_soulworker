@@ -6,13 +6,13 @@ from bpy.props import StringProperty
 from bpy.types import Context, Operator
 from bpy_extras.io_utils import ExportHelper
 
-from io_soulworker.file_export.model_exporter import write_model_file
-from io_soulworker.file_export.resources_xml import (
+from ..file_export.model_exporter import write_model_file
+from ..file_export.resources_xml import (
     model_data_dir,
     resolve_export_path,
 )
-from io_soulworker.file_export.vmesh_exporter import write_vmesh_file
-from io_soulworker.file_import.runner import in_blender
+from ..file_export.vmesh_exporter import write_vmesh_file
+from ..file_import.runner import in_blender
 
 
 def _active_mesh_object(context: Context):

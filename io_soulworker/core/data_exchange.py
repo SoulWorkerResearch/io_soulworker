@@ -1,5 +1,5 @@
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
 
 
 class DataExchange_cl:

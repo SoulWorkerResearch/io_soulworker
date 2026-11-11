@@ -1,6 +1,6 @@
 from xml.etree.ElementTree import Element
 
-from io_soulworker.core.materials_xml.shader_param_string import ShaderParamString
+from ...core.materials_xml.shader_param_string import ShaderParamString
 
 
 class ShaderTag:

@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from io_soulworker.chunks.eplg_chunk import EplgChunk
-from io_soulworker.chunks.scne_chunk import ScneChunk
-from io_soulworker.chunks.shps_chunk import ShpsChunk
-from io_soulworker.chunks.st5g_chunk import St5gChunk
-from io_soulworker.chunks.v3d_chunk import V3dChunk
-from io_soulworker.chunks.view_chunk import ViewChunk
-from io_soulworker.chunks.zone_chunk import ZoneChunk
-from io_soulworker.file_import.scene.chunk_reader import SceneChunkReader
+from ...chunks.eplg_chunk import EplgChunk
+from ...chunks.scne_chunk import ScneChunk
+from ...chunks.shps_chunk import ShpsChunk
+from ...chunks.st5g_chunk import St5gChunk
+from ...chunks.v3d_chunk import V3dChunk
+from ...chunks.view_chunk import ViewChunk
+from ...chunks.zone_chunk import ZoneChunk
+from ...file_import.scene.chunk_reader import SceneChunkReader
 
 
 class SceneFileReader(SceneChunkReader):

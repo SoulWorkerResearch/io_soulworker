@@ -10,20 +10,20 @@ from struct import pack, unpack
 import bpy
 from bpy.types import Image, Material, Node, NodeTree, ShaderNodeGroup
 
-from io_soulworker.core.materials_xml.shader_param_string import (
+from ...core.materials_xml.shader_param_string import (
     ShaderParamString,
     format_param_float,
     paramstring_from_params,
     paramstring_in_source_order,
 )
-from io_soulworker.core.materials_xml.shader_tag import ShaderTag
-from io_soulworker.core.shader_lib import (
+from ...core.materials_xml.shader_tag import ShaderTag
+from ...core.shader_lib import (
     ShaderEffect,
     ShaderLibrary,
     ShaderParamComment,
     scan_shader_libs,
 )
-from io_soulworker.file_import.resource_path import (
+from ...file_import.resource_path import (
     game_relative_texture_path,
     load_blender_image,
     resolve_resource_path,

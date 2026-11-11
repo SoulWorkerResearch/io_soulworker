@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from io_soulworker.core.varchive.objects import (
+from ...core.varchive.objects import (
     ArchiveObject,
     LightSource,
     ModelSerializationProxy,
@@ -9,7 +9,7 @@ from io_soulworker.core.varchive.objects import (
     SimpleAnimationComponent,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.reader import VArchiveError, VArchiveReader
+from ...core.varchive.reader import VArchiveError, VArchiveReader
 
 
 def _apply_preferred_animation_from_components(obj: Object3D) -> None:

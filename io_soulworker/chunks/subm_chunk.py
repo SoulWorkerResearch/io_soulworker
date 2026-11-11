@@ -1,9 +1,9 @@
 from mathutils import Vector
 
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
-from io_soulworker.core.vis_bounding_box import HavokBoundingBox
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
+from ..core.vis_bounding_box import HavokBoundingBox
 
 
 class VisMeshBuffer_cl(DataExchange_cl):

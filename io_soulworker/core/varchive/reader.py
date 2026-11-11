@@ -6,7 +6,7 @@ from typing import Any
 
 from mathutils import Matrix, Vector
 
-from io_soulworker.core.varchive.objects import ArchiveObject
+from ...core.varchive.objects import ArchiveObject
 
 
 SerializeFn = Callable[["VArchiveReader", ArchiveObject], None]
@@ -483,7 +483,7 @@ class VArchiveReader:
 
     def _create_object(self, class_name: str) -> ArchiveObject:
 
-        from io_soulworker.core.varchive import registry as reg
+        from ...core.varchive import registry as reg
 
         return reg.create_object(class_name)
 

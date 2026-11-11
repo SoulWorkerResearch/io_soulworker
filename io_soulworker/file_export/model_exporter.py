@@ -22,39 +22,39 @@ from pathlib import Path
 
 from mathutils import Matrix, Quaternion, Vector
 
-from io_soulworker.chunks.bbbx_chunk import BBBXChunk
-from io_soulworker.chunks.bnds_chunk import BNDSChunk
-from io_soulworker.chunks.cbpr_chunk import CBPRChunk
-from io_soulworker.chunks.expr_chunk import ExprChunk
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.skel_chunk import (
+from ..chunks.bbbx_chunk import BBBXChunk
+from ..chunks.bnds_chunk import BNDSChunk
+from ..chunks.cbpr_chunk import CBPRChunk
+from ..chunks.expr_chunk import ExprChunk
+from ..chunks.mtrs_chunk import MtrsChunk
+from ..chunks.skel_chunk import (
     VisSkeletalBone_cl,
     VisSkeletonChunk_cl,
 )
-from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.chunks.wght_chunk import WGHTChunk
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.vis_bin_header import VisBinHeader
-from io_soulworker.core.vis_bounding_box import HavokBoundingBox
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_writer_scope import (
+from ..chunks.subm_chunk import VisSubMeshChunk
+from ..chunks.vmsh_chunk import VMshChunk
+from ..chunks.wght_chunk import WGHTChunk
+from ..core.binary_writer import BinaryWriter
+from ..core.vis_bin_header import VisBinHeader
+from ..core.vis_bounding_box import HavokBoundingBox
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_chunk_writer_scope import (
     VisChunkWriterScope,
     write_chunk_file_eof,
 )
-from io_soulworker.file_export.materials_xml import MaterialSidecar
-from io_soulworker.file_export.mesh_builder import (
+from ..file_export.materials_xml import MaterialSidecar
+from ..file_export.mesh_builder import (
     GeometryBuild,
     build_geometry,
     build_material_sidecars,
     mtrs_from_sidecars,
 )
-from io_soulworker.file_export.resources_xml import (
+from ..file_export.resources_xml import (
     rebase_material_resources,
     write_export_sidecars,
 )
-from io_soulworker.file_import.model.skeleton_builder import build_bone_transforms
-from io_soulworker.unit_scale import blender_matrix_to_vision, blender_to_vision
+from ..file_import.model.skeleton_builder import build_bone_transforms
+from ..unit_scale import blender_matrix_to_vision, blender_to_vision
 
 
 _MAX_WEIGHTS_PER_VERTEX = 4

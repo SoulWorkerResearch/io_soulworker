@@ -1,6 +1,6 @@
 from logging import warning
 
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from ...core.vis_transparency_type import VisTransparencyType
 
 
 _TRANSPARENCY_TO_NAME = {

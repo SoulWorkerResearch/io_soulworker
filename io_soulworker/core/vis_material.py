@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 from mathutils import Vector
 
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from ..core.vis_transparency_type import VisTransparencyType
 
 if TYPE_CHECKING:
-    from io_soulworker.core.materials_xml.shader_tag import ShaderTag
+    from ..core.materials_xml.shader_tag import ShaderTag
 
 
 class VisMaterial:

@@ -3,9 +3,9 @@ import bpy
 from logging import debug, error
 from pathlib import Path
 from bpy_extras.io_utils import ImportHelper
-from io_soulworker.file_import.animation.file_reader import AnimationFileReader
-from io_soulworker.file_import.import_failure import report_import_failure
-from io_soulworker.file_import.model.file_reader import ModelFileReader
+from ..file_import.animation.file_reader import AnimationFileReader
+from ..file_import.import_failure import report_import_failure
+from ..file_import.model.file_reader import ModelFileReader
 from bpy.props import (
     BoolProperty,
     CollectionProperty,

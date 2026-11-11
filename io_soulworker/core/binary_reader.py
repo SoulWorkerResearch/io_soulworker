@@ -5,14 +5,14 @@ from pathlib import Path
 from struct import Struct, error as StructError, pack, unpack
 from mathutils import Quaternion, Vector
 
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_color import VisColor
-from io_soulworker.core.vis_index_format import VisIndexFormat
-from io_soulworker.core.vis_lighting_method import VisLightingMethod
-from io_soulworker.core.vis_prim_type import VisPrimitiveType
-from io_soulworker.core.vis_render_state_flags import VisRenderStateFlag
-from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_color import VisColor
+from ..core.vis_index_format import VisIndexFormat
+from ..core.vis_lighting_method import VisLightingMethod
+from ..core.vis_prim_type import VisPrimitiveType
+from ..core.vis_render_state_flags import VisRenderStateFlag
+from ..core.vis_surface_flags import VisSurfaceFlags
+from ..core.vis_transparency_type import VisTransparencyType
 
 
 class TruncatedFileError(EOFError):

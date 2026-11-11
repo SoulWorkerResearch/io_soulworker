@@ -6,13 +6,13 @@ from os.path import relpath
 from pathlib import Path
 from xml.etree.ElementTree import Element, ElementTree, indent
 
-from io_soulworker.core.materials_xml.shader_param_string import ShaderParamString
-from io_soulworker.file_export.materials_xml import (
+from ..core.materials_xml.shader_param_string import ShaderParamString
+from ..file_export.materials_xml import (
     MaterialSidecar,
     materials_xml_path,
     write_materials_xml,
 )
-from io_soulworker.file_import.resource_path import resolve_resource_path
+from ..file_import.resource_path import resolve_resource_path
 
 
 _TEXTURE_SUFFIXES = {".dds", ".tga", ".png", ".jpg", ".jpeg", ".bmp"}

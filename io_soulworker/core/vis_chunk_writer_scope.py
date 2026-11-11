@@ -2,8 +2,8 @@ from io import BytesIO
 from types import TracebackType
 from typing import Optional, Type
 
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.vis_chunk_id import VisChunkId
+from ..core.binary_writer import BinaryWriter
+from ..core.vis_chunk_id import VisChunkId
 
 
 class VisChunkWriterScope:

@@ -11,20 +11,20 @@ from pathlib import Path
 from bpy.types import Action, ArmatureModifier, Bone, Object
 from mathutils import Matrix, Quaternion, Vector
 
-from io_soulworker.chunks.atdm_chunk import AtdmChunk
-from io_soulworker.chunks.atdo_chunk import AtdoChunk
-from io_soulworker.chunks.atdr_chunk import AtdrChunk
-from io_soulworker.chunks.bpos_chunk import BposChunk
-from io_soulworker.chunks.brot_chunk import BrotChunk
-from io_soulworker.chunks.bscl_chunk import BsclChunk
-from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
-from io_soulworker.file_import.animation.action_builder import (
+from ...chunks.atdm_chunk import AtdmChunk
+from ...chunks.atdo_chunk import AtdoChunk
+from ...chunks.atdr_chunk import AtdrChunk
+from ...chunks.bpos_chunk import BposChunk
+from ...chunks.brot_chunk import BrotChunk
+from ...chunks.bscl_chunk import BsclChunk
+from ...chunks.skel_chunk import VisSkeletonChunk_cl
+from ...file_import.animation.action_builder import (
     VISION_FRAMES_PER_SECOND,
     group_keyframes_by_bone,
     vision_time_to_frame,
 )
-from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkReader
-from io_soulworker.file_import.animation.imported_actions import (
+from ...file_import.animation.chunk_reader import AnimationFileChunkReader
+from ...file_import.animation.imported_actions import (
     ACTION_SEQUENCE_INDEX_PROPERTY,
     ACTION_SEQUENCE_PROPERTY,
     ACTION_SKELETON_PROPERTY,
@@ -37,7 +37,7 @@ from io_soulworker.file_import.animation.imported_actions import (
     reusable_actions,
     skeleton_key,
 )
-from io_soulworker.unit_scale import vision_to_blender
+from ...unit_scale import vision_to_blender
 
 
 @dataclass(frozen=True)

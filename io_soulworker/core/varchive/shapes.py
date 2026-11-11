@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from io_soulworker.core.varchive.objects import (
+from ...core.varchive.objects import (
     ArchiveObject,
     LightSource,
     Object3D,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.reader import VArchiveReader
-from io_soulworker.core.varchive.registry import (
+from ...core.varchive.reader import VArchiveReader
+from ...core.varchive.registry import (
     ALIASES,
     LEAF_SKIP_CLASSES,
     build_serializers,

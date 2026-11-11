@@ -1,16 +1,16 @@
 from logging import debug, info
 
-from io_soulworker.chunks.eplg_chunk import EplgChunk
-from io_soulworker.chunks.scne_chunk import ScneChunk
-from io_soulworker.chunks.shps_chunk import ShpsChunk
-from io_soulworker.chunks.st5g_chunk import St5gChunk
-from io_soulworker.chunks.v3d_chunk import V3dChunk
-from io_soulworker.chunks.view_chunk import ViewChunk
-from io_soulworker.chunks.zone_chunk import ZoneChunk
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.vis_chunk_file import VisChunkFileReader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
+from ...chunks.eplg_chunk import EplgChunk
+from ...chunks.scne_chunk import ScneChunk
+from ...chunks.shps_chunk import ShpsChunk
+from ...chunks.st5g_chunk import St5gChunk
+from ...chunks.v3d_chunk import V3dChunk
+from ...chunks.view_chunk import ViewChunk
+from ...chunks.zone_chunk import ZoneChunk
+from ...core.binary_reader import BinaryReader
+from ...core.vis_chunk_file import VisChunkFileReader
+from ...core.vis_chunk_id import VisChunkId
+from ...core.vis_chunk_reader_scope import VisChunkReaderScope
 
 
 class SceneChunkReader(VisChunkFileReader):

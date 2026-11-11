@@ -1,6 +1,6 @@
 
-from io_soulworker.chunks.wght_chunk import WGHTChunk
-from io_soulworker.core.binary_reader import BinaryReader
+from ...chunks.wght_chunk import WGHTChunk
+from ...core.binary_reader import BinaryReader
 
 
 class WGHTChunkReader:

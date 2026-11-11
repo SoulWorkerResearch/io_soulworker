@@ -1,10 +1,10 @@
 from logging import debug
 from pathlib import Path
 
-from io_soulworker.core.binary_reader import BinaryReader, TruncatedFileError
-from io_soulworker.core.vis_bin_header import VisBinHeader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
+from ..core.binary_reader import BinaryReader, TruncatedFileError
+from ..core.vis_bin_header import VisBinHeader
+from ..core.vis_chunk_id import VisChunkId
+from ..core.vis_chunk_reader_scope import VisChunkReaderScope
 
 
 class NotVisionFileError(ValueError):

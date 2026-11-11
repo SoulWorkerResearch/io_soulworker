@@ -21,32 +21,32 @@ from bpy.types import (
 )
 from mathutils import Matrix
 
-from io_soulworker.chunks.bbbx_chunk import BBBXChunk
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
-from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
-from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.file_import.armature_builder import (
+from ...chunks.bbbx_chunk import BBBXChunk
+from ...chunks.mtrs_chunk import MtrsChunk
+from ...chunks.readers.wght_reader import WGHTChunkReader
+from ...chunks.skel_chunk import VisSkeletonChunk_cl
+from ...chunks.subm_chunk import VisSubMeshChunk
+from ...chunks.vmsh_chunk import VMshChunk
+from ...core.vis_transparency_type import VisTransparencyType
+from ...file_import.armature_builder import (
     NameHelper,
     build_armature_from_skeleton,
 )
-from io_soulworker.file_import.import_rollback import DataSnapshot
-from io_soulworker.file_import.model.chunk_reader import ModelChunkReader
-from io_soulworker.file_import.model.surface_nodes import apply_surface_params
-from io_soulworker.file_import.model.vertex_channels import import_vertex_channels
-from io_soulworker.file_import.resource_path import (
+from ...file_import.import_rollback import DataSnapshot
+from ...file_import.model.chunk_reader import ModelChunkReader
+from ...file_import.model.surface_nodes import apply_surface_params
+from ...file_import.model.vertex_channels import import_vertex_channels
+from ...file_import.resource_path import (
     is_builtin_texture,
     load_blender_image,
     resolve_resource_path,
 )
-from io_soulworker.file_import.shaders.node_groups import (
+from ...file_import.shaders.node_groups import (
     apply_shader_to_material,
     arrange_material_nodes,
     library_stem_from_path,
 )
-from io_soulworker.unit_scale import vision_to_blender
+from ...unit_scale import vision_to_blender
 
 # Resolved path → (file size and mtime, shared Mesh datablock); materials live
 # on the mesh. Only meshes without a skeleton are shared: every skinned object

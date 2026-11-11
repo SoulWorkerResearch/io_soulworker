@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from io_soulworker.core.varchive.objects import (
+from ...core.varchive.objects import (
     ArchiveObject,
     LightSource,
     ModelSerializationProxy,
@@ -9,7 +9,7 @@ from io_soulworker.core.varchive.objects import (
     SimpleAnimationComponent,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.reader import SerializeFn, VArchiveReader
+from ...core.varchive.reader import SerializeFn, VArchiveReader
 
 # GamePlugin entities that serialize as ``VisBaseEntity_cl`` with no extra
 # archive fields (no ``Serialize`` override in the plugin).
@@ -113,7 +113,7 @@ def create_object(class_name: str) -> ArchiveObject:
 
 def build_serializers() -> dict[str, SerializeFn]:
 
-    from io_soulworker.core.varchive import serializers as ser
+    from ...core.varchive import serializers as ser
 
     serializers: dict[str, SerializeFn] = {
         "VisTypedEngineObject_cl": ser.serialize_typed_engine_object,

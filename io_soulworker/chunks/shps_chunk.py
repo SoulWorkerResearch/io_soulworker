@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.binary_writer import BinaryWriter
-from io_soulworker.core.data_exchange import DataExchange_cl
-from io_soulworker.core.varchive.objects import (
+from ..core.binary_reader import BinaryReader
+from ..core.binary_writer import BinaryWriter
+from ..core.data_exchange import DataExchange_cl
+from ..core.varchive.objects import (
     LightSource,
     Object3D,
     StaticMeshInstance,
 )
-from io_soulworker.core.varchive.shapes import read_shapes_payload
+from ..core.varchive.shapes import read_shapes_payload
 
 # FourCC keys used by VSceneLoader::ReadShapeChunk statistics
 # (stored on disk as LE bytes of the big-endian `_XXX` codes).

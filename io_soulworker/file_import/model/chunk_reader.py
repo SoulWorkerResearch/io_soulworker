@@ -3,23 +3,23 @@ from logging import debug, error, info
 from pathlib import Path
 from xml.etree.ElementTree import Element, ParseError, parse
 
-from io_soulworker.chunks.bbbx_chunk import BBBXChunk
-from io_soulworker.chunks.bnds_chunk import BNDSChunk
-from io_soulworker.chunks.cbpr_chunk import CBPRChunk
-from io_soulworker.chunks.expr_chunk import ExprChunk
-from io_soulworker.chunks.mtrs_chunk import MtrsChunk
-from io_soulworker.chunks.readers.wght_reader import WGHTChunkReader
-from io_soulworker.chunks.skel_chunk import VisSkeletonChunk_cl
-from io_soulworker.chunks.subm_chunk import VisSubMeshChunk
-from io_soulworker.chunks.vmsh_chunk import VMshChunk
-from io_soulworker.core.binary_reader import BinaryReader
-from io_soulworker.core.materials_xml.shader_tag import ShaderTag
-from io_soulworker.core.vis_chunk_file import VisChunkFileReader
-from io_soulworker.core.vis_chunk_id import VisChunkId
-from io_soulworker.core.vis_chunk_reader_scope import VisChunkReaderScope
-from io_soulworker.core.vis_material import VisMaterial
-from io_soulworker.core.vis_transparency_type import VisTransparencyType
-from io_soulworker.core.xml_helper.exchange_transparency import exchange_transparency
+from ...chunks.bbbx_chunk import BBBXChunk
+from ...chunks.bnds_chunk import BNDSChunk
+from ...chunks.cbpr_chunk import CBPRChunk
+from ...chunks.expr_chunk import ExprChunk
+from ...chunks.mtrs_chunk import MtrsChunk
+from ...chunks.readers.wght_reader import WGHTChunkReader
+from ...chunks.skel_chunk import VisSkeletonChunk_cl
+from ...chunks.subm_chunk import VisSubMeshChunk
+from ...chunks.vmsh_chunk import VMshChunk
+from ...core.binary_reader import BinaryReader
+from ...core.materials_xml.shader_tag import ShaderTag
+from ...core.vis_chunk_file import VisChunkFileReader
+from ...core.vis_chunk_id import VisChunkId
+from ...core.vis_chunk_reader_scope import VisChunkReaderScope
+from ...core.vis_material import VisMaterial
+from ...core.vis_transparency_type import VisTransparencyType
+from ...core.xml_helper.exchange_transparency import exchange_transparency
 
 
 class ModelChunkReader(VisChunkFileReader):

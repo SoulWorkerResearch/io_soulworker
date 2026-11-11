@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from io_soulworker.core.shader_lib.types import (
+from ...core.shader_lib.types import (
     ShaderEffect,
     ShaderLibrary,
     ShaderParamComment,

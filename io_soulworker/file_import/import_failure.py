@@ -5,8 +5,8 @@ from pathlib import Path
 
 from bpy.types import Operator
 
-from io_soulworker.core.binary_reader import TruncatedFileError
-from io_soulworker.core.vis_chunk_file import (
+from ..core.binary_reader import TruncatedFileError
+from ..core.vis_chunk_file import (
     ChunkReadError,
     NotVisionFileError,
 )
