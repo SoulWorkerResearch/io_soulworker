@@ -351,7 +351,13 @@ class AnimationFileReader(AnimationFileChunkReader):
         if existing is not None:
             bpy.data.actions.remove(existing)
 
-        return bpy.data.actions.new(name)
+        action = bpy.data.actions.new(name)
+
+        # Only the last clip of a file stays assigned to the armature. The
+        # others have no user, and Blender drops those when the file is saved.
+        action.use_fake_user = True
+
+        return action
 
     def _add_transform_curves(
         self,
