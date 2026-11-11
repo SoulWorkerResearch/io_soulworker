@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import bpy
 
+from array import array
 from json import dumps
 from logging import debug, error, warning
 from pathlib import Path
@@ -148,6 +149,7 @@ class ModelFileReader(ModelChunkReader):
         self.matrix_world = matrix_world
         self.reuse_mesh = reuse_mesh
         self.vertex_groups = []
+        self.mesh_chunk: VMshChunk | None = None
         self.bone_index_to_vertex_group: dict[int, VertexGroup] = {}
         self._cache_key = mesh_cache_key(path)
         self._signature = file_signature(path)
@@ -180,6 +182,9 @@ class ModelFileReader(ModelChunkReader):
 
         super().run()
 
+        self._finish_mesh()
+        self._activate_object()
+
         if (
             self.reuse_mesh
             and not self._has_skeleton
@@ -189,6 +194,44 @@ class ModelFileReader(ModelChunkReader):
 
         self._apply_transform()
         return self.object
+
+    def _finish_mesh(self) -> None:
+        """Validate and shade the mesh once every chunk has been read.
+
+        Validation can drop faces, and the sub-mesh ranges count faces of the
+        mesh as the file stores it. Running it after ``on_sub_mesh`` has set
+        ``material_index`` lets Blender carry each surviving face's material
+        along with it.
+        """
+
+        if self.mesh_chunk is None:
+
+            return
+
+        chunk = self.mesh_chunk
+
+        if self.mesh.validate(verbose=True):
+            warning("Mesh had issues and was corrected: %s", self.mesh.name)
+
+        if hasattr(self.mesh, "shade_smooth"):
+
+            self.mesh.shade_smooth()
+
+        if chunk.normals and len(chunk.normals) == len(self.mesh.vertices):
+
+            self.mesh.normals_split_custom_set_from_vertices(
+                [tuple(normal) for normal in chunk.normals]
+            )
+            self.mesh.update()
+
+    def _activate_object(self) -> None:
+        """Make the imported object active, so an export can follow at once."""
+
+        view_layer = self.context.view_layer
+
+        if self.object.name in view_layer.objects:
+
+            view_layer.objects.active = self.object
 
     def _resources_root(self) -> Path | None:
         """Explicit resources root, else the N-panel setting, else ``None``."""
@@ -419,20 +462,6 @@ class ModelFileReader(ModelChunkReader):
 
         self.mesh.update()
 
-        if self.mesh.validate(verbose=True):
-            warning("Mesh had issues and was corrected: %s", self.mesh.name)
-
-        if hasattr(self.mesh, "shade_smooth"):
-
-            self.mesh.shade_smooth()
-
-        if chunk.normals and len(chunk.normals) == len(self.mesh.vertices):
-
-            self.mesh.normals_split_custom_set_from_vertices(
-                [tuple(normal) for normal in chunk.normals]
-            )
-            self.mesh.update()
-
         self._link_object()
 
     # @override
@@ -503,42 +532,68 @@ class ModelFileReader(ModelChunkReader):
 
     # @override
     def on_sub_mesh(self, chunk: VisSubMeshChunk):
+        """Give every face the surface of the sub-mesh range that holds it.
 
-        def set_material(vertex_group_name: str, material_id: int):
+        A sub-mesh covers ``indices_count`` entries of the index buffer from
+        ``indices_start``, so its faces are the ones whose first index lies in
+        that range. Later sub-meshes win where ranges overlap. Each surface
+        also gets a vertex group named after its material, for the exporter and
+        for files saved by earlier versions.
+        """
 
-            bpy.ops.object.mode_set(mode="EDIT")
+        mesh_chunk = self.mesh_chunk
 
-            bpy.ops.object.vertex_group_set_active(group=vertex_group_name)
-            bpy.ops.object.vertex_group_select()
+        if mesh_chunk is None:
 
-            self.object.active_material_index = material_id
-
-            bpy.ops.object.material_slot_assign()
-            bpy.ops.mesh.select_all(action="DESELECT")
-
-            bpy.ops.object.mode_set(mode="OBJECT")
+            warning("Sub-meshes come before the mesh: %s", self.path)
+            return
 
         materials = self.mesh.materials
         vertex_groups = self.object.vertex_groups
+        polygons = self.mesh.polygons
 
-        bpy.context.view_layer.objects.active = self.object
+        face_count = len(polygons)
+        indices_per_face = (
+            len(mesh_chunk.indices) // len(mesh_chunk.faces)
+            if mesh_chunk.faces else 0
+        )
+
+        material_index = array("i", [0]) * face_count
+        polygons.foreach_get("material_index", material_index)
 
         for mesh in chunk.meshes:
+
+            if not 0 <= mesh.surface_index < len(materials):
+
+                warning(
+                    "Sub-mesh uses surface %d, the file has %d: %s",
+                    mesh.surface_index, len(materials), self.path)
+                continue
 
             name = materials[mesh.surface_index].name_full
             vertex_group = vertex_groups.new(name=name)
 
             start = mesh.indices_start
-            count = start + mesh.indices_count
+            end = start + mesh.indices_count
 
-            indices = self.mesh_chunk.indices[start: count]
+            indices = mesh_chunk.indices[start: end]
             vertex_group.add(indices, 1, "REPLACE")
 
-            set_material(vertex_group.name, mesh.surface_index)
+            if indices_per_face:
+
+                first = -(-start // indices_per_face)
+                last = min(-(-end // indices_per_face), face_count)
+
+                if first < last:
+
+                    material_index[first: last] = array(
+                        "i", [mesh.surface_index]) * (last - first)
 
             debug("material_id: %d", mesh.surface_index)
             debug("indices_start: %d", start)
-            debug("indices_count: %d", count)
+            debug("indices_count: %d", mesh.indices_count)
+
+        polygons.foreach_set("material_index", material_index)
 
     # @override
     def on_skeleton_weights(self, reader: WGHTChunkReader):
