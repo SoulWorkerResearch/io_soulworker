@@ -1,7 +1,8 @@
 from io import SEEK_CUR, BufferedReader
 from logging import debug
+from os import fstat
 from pathlib import Path
-from struct import pack, unpack
+from struct import Struct, error as StructError, pack, unpack
 from mathutils import Quaternion, Vector
 
 from io_soulworker.core.vis_chunk_id import VisChunkId
@@ -14,9 +15,65 @@ from io_soulworker.core.vis_surface_flags import VisSurfaceFlags
 from io_soulworker.core.vis_transparency_type import VisTransparencyType
 
 
+class TruncatedFileError(EOFError):
+    """A read needed more bytes than the file has left.
+
+    ``offset`` is where the read began, ``wanted`` the bytes it needed and
+    ``available`` the bytes the file still had there. ``what`` names the part
+    being read, when it is known.
+    """
+
+    def __init__(
+            self,
+            offset: int,
+            wanted: int,
+            available: int,
+            what: str = "") -> None:
+
+        self.offset = offset
+        self.wanted = wanted
+        self.available = available
+        self.what = what
+
+        detail = f" while reading {what}" if what else ""
+
+        super().__init__(
+            f"the file ends early: {wanted} byte(s) wanted at offset "
+            f"{offset}, only {available} left{detail}"
+        )
+
+
+_INT8 = Struct("<b")
+_UINT8 = Struct("<B")
+_INT16 = Struct("<h")
+_UINT16 = Struct("<H")
+_INT32 = Struct("<i")
+_UINT32 = Struct("<I")
+_FLOAT = Struct("<f")
+
+
 class BinaryReader(BufferedReader):
 
     FLOAT_MASK = 0x80000000
+
+    def remaining(self) -> int:
+        """Bytes between the read position and the end of the file."""
+
+        return max(self._size - self.tell(), 0)
+
+    def ensure_available(self, count: int, what: str = "") -> None:
+        """Raise ``TruncatedFileError`` unless ``count`` bytes are left."""
+
+        available = self.remaining()
+
+        if count > available:
+
+            raise TruncatedFileError(self.tell(), count, available, what)
+
+    def _cut_short(self, wanted: int, data: bytes) -> TruncatedFileError:
+        """The error for a read of ``wanted`` bytes that returned ``data``."""
+
+        return TruncatedFileError(self.tell() - len(data), wanted, len(data))
 
     def read_vector2(self) -> Vector:
         return Vector([self.read_float() for _ in range(2)])
@@ -53,6 +110,7 @@ class BinaryReader(BufferedReader):
 
     def skip_utf8_uint32_string(self) -> None:
         length = self.read_uint32()
+        self.ensure_available(length)
         self.seek(length, SEEK_CUR)
 
     @staticmethod
@@ -72,9 +130,11 @@ class BinaryReader(BufferedReader):
 
     def read_utf8_uint32_string(self) -> str:
         length = self.read_uint32()
-        value, = unpack("<%ds" % length, self.read(length))
 
-        return BinaryReader.decode_game_string(value)
+        # A damaged length must not ask for gigabytes.
+        self.ensure_available(length)
+
+        return BinaryReader.decode_game_string(self.read(length))
 
     def read_color(self) -> VisColor:
         return VisColor(*[self.read_uint8()
@@ -116,19 +176,44 @@ class BinaryReader(BufferedReader):
             return VisChunkId.NONE
 
     def read_float(self) -> float:
-        return float(unpack("<f", self.read(4))[0])
+        data = self.read(4)
+
+        try:
+            return _FLOAT.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(4, data) from None
 
     def read_int8(self) -> int:
-        return int(unpack("<b", self.read(1))[0])
+        data = self.read(1)
+
+        try:
+            return _INT8.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(1, data) from None
 
     def read_uint8(self) -> int:
-        return int(unpack("<B", self.read(1))[0])
+        data = self.read(1)
+
+        try:
+            return _UINT8.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(1, data) from None
 
     def read_int16(self) -> int:
-        return int(unpack("<h", self.read(2))[0])
+        data = self.read(2)
+
+        try:
+            return _INT16.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(2, data) from None
 
     def read_uint16(self) -> int:
-        return int(unpack("<H", self.read(2))[0])
+        data = self.read(2)
+
+        try:
+            return _UINT16.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(2, data) from None
 
     def read_uint16_array(self, count: int):
         for _ in range(count):
@@ -139,16 +224,28 @@ class BinaryReader(BufferedReader):
             yield self.read_uint32()
 
     def read_int32(self) -> int:
-        return int(unpack("<i", self.read(4))[0])
+        data = self.read(4)
+
+        try:
+            return _INT32.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(4, data) from None
 
     def read_uint32(self) -> int:
-        return int(unpack("<I", self.read(4))[0])
+        data = self.read(4)
+
+        try:
+            return _UINT32.unpack(data)[0]
+        except StructError:
+            raise self._cut_short(4, data) from None
 
     def read_bool(self) -> bool:
         return bool(self.read_int8())
 
     def __init__(self, path: Path | str) -> None:
         super().__init__(open(path, "rb"))
+
+        self._size = fstat(self.fileno()).st_size
 
 
 #   https://youtu.be/K741PecDK3c
