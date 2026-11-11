@@ -1,10 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+from shutil import copyfile
 from struct import pack, pack_into, unpack_from
 from tempfile import TemporaryDirectory
 from unittest import SkipTest, TestCase
+from unittest.mock import patch
 
+import bpy
+from mathutils import Matrix, Quaternion, Vector
+
+from io_soulworker.chunks.skel_chunk import (
+    VisSkeletalBone_cl,
+    VisSkeletonChunk_cl,
+)
+from io_soulworker.file_import import armature_builder
+from io_soulworker.file_import.model import file_reader
+from io_soulworker.file_import.model.file_reader import (
+    ModelFileReader,
+    clear_mesh_cache,
+    mesh_cache_key,
+)
+from io_soulworker.file_import.resource_path import load_blender_image
 from io_soulworker.file_import.runner import in_blender
 
 
@@ -13,7 +30,9 @@ _BLENDER_HINT = (
     "--factory-startup --python tests/run_in_blender.py"
 )
 
-_BOX = Path("tests/datas/Models/Primitive_Box.model")
+_BOX = Path("tests/datas/Models/Primitive_Box.model").resolve()
+_OTHER_BOX = Path("tests/datas/Models/Primitive_Cylinder.model").resolve()
+_BALL = Path("tests/datas/Models/MagicBall.model").resolve()
 
 
 def _chunk_ranges(data: bytes) -> dict[str, tuple[int, int]]:
@@ -178,3 +197,225 @@ class TestReadErrors(TestCase):
 
                 self.assertFalse(
                     scope.__exit__(ValueError, original, None))
+
+
+def _inventory() -> dict[str, list[str]]:
+    """Names of what an import can add, and of the objects in the scene."""
+
+    data = bpy.data
+
+    return {
+        "objects": sorted(item.name for item in data.objects),
+        "meshes": sorted(item.name for item in data.meshes),
+        "armatures": sorted(item.name for item in data.armatures),
+        "materials": sorted(item.name for item in data.materials),
+        "images": sorted(item.name for item in data.images),
+        "collections": sorted(item.name for item in data.collections),
+        "in scene": sorted(item.name for item in bpy.context.scene.objects),
+    }
+
+
+def _skeleton() -> VisSkeletonChunk_cl:
+
+    chunk = VisSkeletonChunk_cl()
+    world = Matrix.Identity(4)
+
+    for index, (name, position) in enumerate([
+        ("Root", (0.0, 0.0, 0.0)),
+        ("Arm", (20.0, 0.0, 0.0)),
+    ]):
+
+        bone = VisSkeletalBone_cl()
+        bone.id = index
+        bone.name = name
+        bone.parent_id = index - 1
+        bone.local_space_position = Vector(position)
+        bone.local_space_orientation = Quaternion()
+        world = world @ Matrix.Translation(position)
+        inverse = world.inverted()
+        bone.inverse_object_space_position = inverse.translation
+        bone.inverse_object_space_orientation = inverse.to_quaternion()
+        chunk.bones.append(bone)
+
+    return chunk
+
+
+class TestFailedModelImport(TestCase):
+    """A model that fails to import leaves nothing of itself in the file."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+
+        if not in_blender():
+
+            raise SkipTest(_BLENDER_HINT)
+
+    def setUp(self) -> None:
+
+        clear_mesh_cache()
+
+    def tearDown(self) -> None:
+
+        clear_mesh_cache()
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+
+    def _import(self, path: Path):
+
+        return ModelFileReader(path, bpy.context, 7.0).run()
+
+    def _cut_ball(self, folder: str, length: int) -> Path:
+        """The ball, cut to ``length`` bytes, with the texture it names."""
+
+        path = Path(folder) / "Ball.model"
+        path.write_bytes(_BALL.read_bytes()[:length])
+        copyfile(_BALL.parent / "blubber.dds", Path(folder) / "blubber.dds")
+
+        return path
+
+    def _import_cut_ball(self, path: Path):
+        """Import ``path``, which must fail. Return the surfaces and textures
+        the import had read by then."""
+
+        surfaces = []
+        textures = []
+        read_surface = ModelFileReader.on_surface
+
+        def on_surface(reader, chunk):
+
+            surfaces.append(chunk)
+            return read_surface(reader, chunk)
+
+        def load_texture(image_path):
+
+            textures.append(load_blender_image(image_path))
+            return textures[-1]
+
+        with patch.object(ModelFileReader, "on_surface", on_surface), \
+                patch.object(
+                    file_reader, "load_blender_image", load_texture), \
+                self.assertRaises(Exception):
+            self._import(path)
+
+        return surfaces, textures
+
+    def test_a_failed_import_removes_what_it_created(self):
+
+        data = _BALL.read_bytes()
+        start, length = _chunk_ranges(data)["SMSH"]
+
+        # Cut inside the chunk that follows the mesh and its surface, and
+        # inside the closing marker of the file.
+        for cut in (start + length // 2, len(data) - 1):
+
+            with self.subTest(cut=cut), TemporaryDirectory() as folder:
+
+                path = self._cut_ball(folder, cut)
+                before = _inventory()
+
+                surfaces, textures = self._import_cut_ball(path)
+
+                # The import got as far as a surface with its texture.
+                self.assertEqual(len(surfaces), 1)
+                self.assertEqual(len(textures), 1)
+                self.assertIsNotNone(textures[0])
+
+                self.assertEqual(_inventory(), before)
+
+    def test_a_failed_import_keeps_what_was_there_before(self):
+
+        with TemporaryDirectory() as folder:
+
+            path = self._cut_ball(folder, len(_BALL.read_bytes()) - 1)
+            survivor = self._import(_BOX)
+            bpy.data.materials.new("Unused")
+
+            # The cut file names an image that is already loaded.
+            loaded = bpy.data.images.load(str(Path(folder) / "blubber.dds"))
+            before = _inventory()
+
+            surfaces, textures = self._import_cut_ball(path)
+
+            self.assertEqual(textures, [loaded])
+            self.assertEqual(_inventory(), before)
+            self.assertIn(survivor.name, bpy.context.scene.objects)
+            self.assertEqual(
+                [item.name for item in survivor.data.materials], ["Default"])
+
+    def test_a_failed_import_keeps_a_mesh_shared_with_earlier_imports(self):
+
+        with TemporaryDirectory() as folder:
+
+            path = Path(folder) / "Box.model"
+            copyfile(_BOX, path)
+
+            first = self._import(path)
+            mesh = first.data
+            before = _inventory()
+
+            # The second import reuses the cached mesh and fails after it
+            # made its own object.
+            with patch.object(
+                    ModelFileReader, "_link_object",
+                    side_effect=RuntimeError("cannot link")), \
+                    self.assertRaises(RuntimeError):
+                self._import(path)
+
+            self.assertEqual(_inventory(), before)
+            self.assertIs(first.data, mesh)
+            self.assertEqual(mesh.users, 1)
+            self.assertIs(self._import(path).data, mesh)
+
+    def test_a_failed_import_does_not_leave_its_mesh_in_the_cache(self):
+
+        with TemporaryDirectory() as folder:
+
+            path = Path(folder) / "Box.model"
+            copyfile(_BOX, path)
+
+            # Every chunk is read and the mesh is cached; placing the object
+            # is what fails.
+            with patch.object(
+                    ModelFileReader, "_apply_transform",
+                    side_effect=RuntimeError("cannot place")), \
+                    self.assertRaises(RuntimeError):
+                self._import(path)
+
+            self.assertNotIn(mesh_cache_key(path), file_reader._MESH_CACHE)
+
+    def _import_with_armature_then_fail(self, path: Path):
+        """Read a static model, give it the skeleton, then fail."""
+
+        def finish(reader):
+
+            reader.on_skeleton(_skeleton())
+            raise RuntimeError("cannot finish the mesh")
+
+        with patch.object(ModelFileReader, "_finish_mesh", finish), \
+                self.assertRaises(RuntimeError):
+            self._import(path)
+
+    def test_a_failed_import_removes_the_armature_it_built(self):
+
+        survivor = self._import(_OTHER_BOX)
+        bpy.context.view_layer.objects.active = survivor
+        before = _inventory()
+
+        self._import_with_armature_then_fail(_BOX)
+
+        self.assertEqual(_inventory(), before)
+        self.assertIs(bpy.context.view_layer.objects.active, survivor)
+
+    def test_a_failure_in_edit_mode_returns_to_object_mode(self):
+
+        survivor = self._import(_OTHER_BOX)
+        before = _inventory()
+
+        # The first bone is placed while the new armature is in edit mode.
+        with patch.object(
+                armature_builder.BoneHelper, "apply_rest_transform",
+                side_effect=RuntimeError("cannot place the bone")):
+            self._import_with_armature_then_fail(_BOX)
+
+        self.assertEqual(_inventory(), before)
+        self.assertEqual(bpy.context.mode, "OBJECT")
+        self.assertIn(survivor.name, bpy.context.scene.objects)
