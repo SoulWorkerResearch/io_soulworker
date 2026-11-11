@@ -8,7 +8,11 @@ from pathlib import Path
 from bpy.types import ArmatureModifier, Collection, Context, Object
 from mathutils import Matrix
 
-from io_soulworker.core.varchive.objects import Object3D, StaticMeshInstance
+from io_soulworker.core.varchive.objects import (
+    LightSource,
+    Object3D,
+    StaticMeshInstance,
+)
 from io_soulworker.core.varchive.shapes import read_zone_file
 from io_soulworker.file_import.animation.file_reader import (
     AnimationFileReader,
@@ -29,15 +33,12 @@ from io_soulworker.file_import.collections import (
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.resource_path import resolve_resource_path
 from io_soulworker.file_import.scene.file_reader import SceneFileReader
+from io_soulworker.file_import.scene.id_properties import blender_id_int32
+from io_soulworker.file_import.scene.lights import (
+    LIGHT_COLLECTION_NAME,
+    create_light_object,
+)
 from io_soulworker.unit_scale import vision_matrix_to_blender, vision_to_blender
-
-
-def _blender_id_int32(value: int) -> int:
-    """Pack a uint32 bit mask into a Blender ID property (signed int32)."""
-
-    value &= 0xFFFFFFFF
-
-    return value - 0x100000000 if value >= 0x80000000 else value
 
 
 def apply_collision_only_visibility(obj: Object) -> None:
@@ -112,6 +113,7 @@ class SceneImportResult:
     static_mesh_count: int = 0
     zone_mesh_count: int = 0
     entity_count: int = 0
+    light_count: int = 0
 
 
 class SceneImporter:
@@ -166,6 +168,10 @@ class SceneImporter:
                 root,
                 result,
             )
+            result.light_count += self._place_lights(
+                reader.shapes.lights,
+                root,
+            )
 
         for zone_path in zone_files_for_scene(self.path):
             zone_collection = find_or_create_child_collection(
@@ -195,6 +201,10 @@ class SceneImporter:
                 parsed.entities,
                 zone_collection,
                 result,
+            )
+            result.light_count += self._place_lights(
+                parsed.lights,
+                zone_collection,
             )
 
         if result.missing_paths:
@@ -252,7 +262,7 @@ class SceneImporter:
             obj["soulworker_path"] = instance.path
             obj["soulworker_collision_behavior"] = instance.collision_behavior
             obj["soulworker_physics_hint"] = instance.physics_hint
-            obj["soulworker_visible_mask"] = _blender_id_int32(
+            obj["soulworker_visible_mask"] = blender_id_int32(
                 instance.visible_mask
             )
             obj["soulworker_collision_only"] = instance.is_collision_only
@@ -323,6 +333,45 @@ class SceneImporter:
                 "Imported %d entity mesh(es) into %s/Entities",
                 placed,
                 parent.name,
+            )
+
+        return placed
+
+    def _place_lights(
+        self,
+        lights: list[LightSource],
+        parent: Collection,
+    ) -> int:
+        """Create a Blender light per ``VisLightSource_cl`` in ``Lights``."""
+
+        placed = 0
+        collection: Collection | None = None
+
+        for light in lights:
+            if collection is None:
+                collection = find_or_create_child_collection(
+                    parent, LIGHT_COLLECTION_NAME)
+                collection.color_tag = "COLOR_03"
+
+            try:
+                obj = create_light_object(
+                    light,
+                    collection,
+                    entity_world_matrix(light),
+                )
+            except Exception as exc:
+                error("Failed to create light %s: %s", light.object_key, exc)
+                continue
+
+            if obj is not None:
+                placed += 1
+
+        if placed:
+            info(
+                "Imported %d light(s) into %s/%s",
+                placed,
+                parent.name,
+                LIGHT_COLLECTION_NAME,
             )
 
         return placed
