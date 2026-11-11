@@ -901,22 +901,6 @@ class AnimationFileReader(AnimationFileChunkReader):
         return worlds
 
     @staticmethod
-    def _local_animation_matrix(
-            rest_local: Matrix,
-            position: Vector | None,
-            rotation: Quaternion | None) -> Matrix:
-        desired = rest_local.copy()
-
-        if rotation is not None:
-            desired = rotation.to_matrix().to_4x4()
-            desired.translation = rest_local.to_translation()
-
-        if position is not None:
-            desired.translation = position.to_3d()
-
-        return desired
-
-    @staticmethod
     def _sample_vector_track(
             keys_by_frame: dict[int, Vector], frame: int) -> Vector | None:
         if not keys_by_frame:
