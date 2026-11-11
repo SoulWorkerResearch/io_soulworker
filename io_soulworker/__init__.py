@@ -1,4 +1,5 @@
 from logging import DEBUG, INFO, basicConfig, debug
+from os import getenv
 
 import bpy
 
@@ -23,8 +24,10 @@ from io_soulworker.viewport_resources_panel import (
 )
 
 
+# Logging goes through the root logger. DEBUG is chatty (one line per chunk),
+# so it is opt-in: start Blender with SOULWORKER_DEBUG=1.
 basicConfig(
-    level=DEBUG if __debug__ else INFO,
+    level=DEBUG if getenv("SOULWORKER_DEBUG") == "1" else INFO,
     format="[%(filename)40s():%(lineno)4s() - %(funcName)20s() ] %(message)s"
 )
 
