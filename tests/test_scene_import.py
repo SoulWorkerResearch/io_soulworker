@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from os import getenv
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import SkipTest, TestCase
@@ -211,11 +212,13 @@ class TestSceneEntityAnimation(TestCase):
         importer._apply_preferred_action(entity, self.ANIM, "Run")
 
         self.assertNotEqual(rig.animation_data.action, by_hand)
-        self.assertEqual(rig.animation_data.action["soulworker_sequence"], "Run")
+        self.assertEqual(
+            rig.animation_data.action["soulworker_sequence"], "Run")
 
         importer._apply_preferred_action(entity, self.ANIM, "Idle")
 
-        self.assertEqual(rig.animation_data.action["soulworker_sequence"], "Idle")
+        self.assertEqual(
+            rig.animation_data.action["soulworker_sequence"], "Idle")
 
     def test_preferred_action_falls_back_to_the_only_imported_sequence(
             self) -> None:
@@ -230,7 +233,8 @@ class TestSceneEntityAnimation(TestCase):
         importer._apply_preferred_action(entity, self.ANIM, "Walk")
 
         self.assertNotEqual(rig.animation_data.action, by_hand)
-        self.assertEqual(rig.animation_data.action["soulworker_sequence"], "Idle")
+        self.assertEqual(
+            rig.animation_data.action["soulworker_sequence"], "Idle")
 
     def test_preferred_action_of_an_entity_with_shared_actions(self) -> None:
         from io_soulworker.file_import.scene.importer import SceneImporter
@@ -365,7 +369,9 @@ class TestSceneLights(TestCase):
     def _make(self, **fields):
         """Create a light object for a synthetic ``LightSource``."""
         from io_soulworker.core.varchive.objects import LightSource
-        from io_soulworker.file_import.scene.importer import entity_world_matrix
+        from io_soulworker.file_import.scene.importer import (
+            entity_world_matrix,
+        )
         from io_soulworker.file_import.scene.lights import create_light_object
 
         light = LightSource()
@@ -414,7 +420,8 @@ class TestSceneLights(TestCase):
         from io_soulworker.core.varchive.objects import LightSource
 
         point = self._make(radius=400.0)
-        sun = self._make(light_type=LightSource.TYPE_DIRECTIONAL, radius=1000.0)
+        sun = self._make(
+            light_type=LightSource.TYPE_DIRECTIONAL, radius=1000.0)
         dark = self._make(radius=0.0)
 
         self.assertTrue(point.data.use_custom_distance)
@@ -536,7 +543,8 @@ class TestSceneLights(TestCase):
         unknown = LightSource()
         unknown.light_type = 2
 
-        placed = importer._place_lights([first, unknown, second], self.collection)
+        placed = importer._place_lights(
+            [first, unknown, second], self.collection)
         importer._place_lights([first], self.collection)
 
         lights = self.collection.children["Lights"]
@@ -578,3 +586,59 @@ class TestSceneLights(TestCase):
             and light.color >> 24 == 0xFF
             for light in lights
         ))
+
+
+class TestSceneImportEndToEnd(TestCase):
+    """A whole scene from the unpacked game tree (opt-in, like the others)."""
+
+    SCENE = "World/Scenes/Cloudream/E07_SOULJUMPER_H/E07_SOULJUMPER_H.vscene"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        _require_blender()
+
+    def test_every_entity_armature_is_animated_and_every_light_is_created(
+            self) -> None:
+        import bpy
+        from io_soulworker.core.varchive.shapes import read_zone_file
+        from io_soulworker.file_import.scene.file_reader import SceneFileReader
+        from io_soulworker.file_import.scene.importer import (
+            SceneImporter,
+            zone_files_for_scene,
+        )
+        from tests.defines import Defines
+
+        if getenv("SOULWORKER_BLENDER_IMPORT") != "1":
+            self.skipTest("set SOULWORKER_BLENDER_IMPORT=1 to run")
+
+        path = Defines.UNPACKED_RESOURCES / self.SCENE
+
+        if not path.is_file():
+            self.skipTest(f"scene not found: {path}")
+
+        reader = SceneFileReader(path)
+        reader.run()
+        expected_lights = len(reader.shapes.lights) + sum(
+            len(read_zone_file(zone.read_bytes()).lights)
+            for zone in zone_files_for_scene(path)
+        )
+
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        result = SceneImporter(
+            path, bpy.context, Defines.UNPACKED_RESOURCES).run()
+
+        armatures = [
+            obj for obj in bpy.data.objects
+            if obj.type == "ARMATURE" and obj.children
+        ]
+        lights = [obj for obj in bpy.data.objects if obj.type == "LIGHT"]
+
+        self.assertGreater(len(armatures), 1)
+        self.assertTrue(all(
+            armature.animation_data is not None
+            and armature.animation_data.action is not None
+            for armature in armatures
+        ))
+        self.assertGreater(result.light_count, 0)
+        self.assertEqual(result.light_count, expected_lights)
+        self.assertEqual(len(lights), expected_lights)
