@@ -1,10 +1,13 @@
 from io import SEEK_SET
 from logging import debug
-from traceback import print_exception
 from types import TracebackType
 from typing import Optional, Type
 from io_soulworker.core.binary_reader import BinaryReader
 from io_soulworker.core.vis_chunk_id import VisChunkId
+
+
+CLOSING_MARKER_SIZE = 8
+"""Bytes after the data of a chunk: the depth change and the chunk id."""
 
 
 class VisChunkReaderScope(object):
@@ -35,6 +38,16 @@ class VisChunkReaderScope(object):
         self.length = self.reader.read_uint32()
         self.offset = self.reader.tell()
 
+        # Refuse a chunk that runs past the end of the file before anything
+        # is built from it.
+        what = "a chunk with an unknown id"
+
+        if self.chunk != VisChunkId.NONE:
+
+            what = f"the {VisChunkId.get_name(self.chunk)} chunk"
+
+        self.reader.ensure_available(self.length + CLOSING_MARKER_SIZE, what)
+
         return self
 
     def __exit__(self,
@@ -47,9 +60,29 @@ class VisChunkReaderScope(object):
             # end of file: nothing to skip, and an error must still propagate
             return False
 
-        if exc_type is not None:
+        if exc_type is None:
 
-            print_exception(exc_type, exc_value, traceback)
+            self._leave()
+            return False
+
+        # The block failed. Still move to the end of the chunk, so a caller
+        # that catches the error can read on, but never let a failure here (a
+        # cut file has no end to find) replace the error on its way out.
+        try:
+
+            self._leave()
+
+        except Exception as exc:
+
+            debug(
+                "cannot find the end of chunk %s: %s",
+                VisChunkId.get_name(self.chunk),
+                exc
+            )
+
+        return False
+
+    def _leave(self) -> None:
 
         offset = self.offset + self.length
         self.reader.seek(offset, SEEK_SET)
@@ -63,5 +96,3 @@ class VisChunkReaderScope(object):
             "exit chunk id: %s",
             VisChunkId.get_name(self.exit_chunk_id)
         )
-
-        return False

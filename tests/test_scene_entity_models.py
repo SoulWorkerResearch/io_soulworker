@@ -100,6 +100,9 @@ class TestSceneEntityModels(TestCase):
     def test_preferred_action_falls_back_to_single_clip_sequence(self) -> None:
 
         try:
+            from io_soulworker.file_import.animation.imported_actions import (
+                remember_actions,
+            )
             from io_soulworker.file_import.runner import in_blender
             from io_soulworker.file_import.scene.importer import SceneImporter
             import bpy
@@ -116,18 +119,28 @@ class TestSceneEntityModels(TestCase):
         bpy.context.collection.objects.link(obj)
         bpy.context.collection.objects.link(rig)
         obj.modifiers.new("Armature", "ARMATURE").object = rig
-        only = bpy.data.actions.new("cat01:zzz")
+        anim = Path("cat01.anim")
+
+        def imported(name: str, sequence: str):
+            action = bpy.data.actions.new(name)
+            action["soulworker_source_file"] = str(anim)
+            action["soulworker_sequence"] = sequence
+
+            return action
+
+        only = imported("cat01:zzz", "zzz")
         bpy.data.actions.new("other:idle")
+        remember_actions(rig, str(anim), [only])
 
         importer = SceneImporter.__new__(SceneImporter)
-        importer._apply_preferred_action(obj, "cat01", "idle")
+        importer._apply_preferred_action(obj, anim, "idle")
 
         self.assertIsNotNone(rig.animation_data)
         self.assertEqual(rig.animation_data.action, only)
 
-        bpy.data.actions.new("cat01:run")
+        remember_actions(rig, str(anim), [only, imported("cat01:run", "run")])
         rig.animation_data.action = None
-        importer._apply_preferred_action(obj, "cat01", "idle")
+        importer._apply_preferred_action(obj, anim, "idle")
         self.assertIsNone(rig.animation_data.action)
 
     def test_scene_import_places_model_entities(self) -> None:

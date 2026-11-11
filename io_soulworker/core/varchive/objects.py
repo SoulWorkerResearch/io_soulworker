@@ -131,13 +131,78 @@ class SimpleAnimationComponent(ArchiveObject):
 
 
 class LightSource(Object3D):
-    """VisLightSource_cl placement + intensity."""
+    """``VisLightSource_cl`` placement and the light fields identified so far.
 
-    intensity = 0.0
+    Every field below was matched against the vForge ``DynLightShape``
+    properties of the scenes' static lighting files (same position, same
+    value) before it was named. Distances are Vision units (centimetres).
+    ``flags`` and ``cast_shadows`` are raw: no vForge property confirmed what
+    they mean.
+    """
+
+    TYPE_POINT = 1
+    TYPE_DIRECTIONAL = 3
+    TYPE_SPOTLIGHT = 5
+
     light_type = 0
+    """Point, directional or spotlight (``TYPE_*``)."""
+
+    radius = 0.0
+    """Reach of the light (vForge ``Radius``)."""
+
+    multiplier = 1.0
+    """Brightness factor with no unit (vForge ``Multiplier``)."""
+
+    color = 0xFFFFFFFF
+    """Bytes r, g, b, a read as one little-endian uint32 (vForge ``LightColor``)."""
+
+    spot_angle = 0.0
+    """Full cone angle in degrees (vForge ``SpotAngle``); only spotlights use it."""
+
+    fade_start = 0.0
+    """vForge ``DistanceFadeStart``."""
+
+    fade_end = 0.0
+    """vForge ``DistanceFadeEnd``."""
+
+    projected_texture = ""
+    attenuation_texture = ""
+    visible_mask = 0xFFFFFFFF
+    """vForge ``VisibleBitmask``; zero means no render context shows the light."""
+
+    world_influence_mask = 0
+    """vForge ``WorldInfluenceMask``."""
+
+    object_influence_mask = 0
+    """vForge ``ObjectInfluenceMask``."""
+
+    flags = 0
+    cast_shadows = False
 
     def __init__(self) -> None:
 
         super().__init__("VisLightSource_cl")
-        self.intensity = 0.0
         self.light_type = 0
+        self.radius = 0.0
+        self.multiplier = 1.0
+        self.color = 0xFFFFFFFF
+        self.spot_angle = 0.0
+        self.fade_start = 0.0
+        self.fade_end = 0.0
+        self.projected_texture = ""
+        self.attenuation_texture = ""
+        self.visible_mask = 0xFFFFFFFF
+        self.world_influence_mask = 0
+        self.object_influence_mask = 0
+        self.flags = 0
+        self.cast_shadows = False
+
+    @property
+    def rgb(self) -> tuple[int, int, int]:
+        """The colour as 0-255 red, green and blue bytes."""
+
+        return (
+            self.color & 0xFF,
+            (self.color >> 8) & 0xFF,
+            (self.color >> 16) & 0xFF,
+        )

@@ -4,8 +4,14 @@ from logging import debug, error
 from pathlib import Path
 from bpy_extras.io_utils import ImportHelper
 from io_soulworker.file_import.animation.file_reader import AnimationFileReader
+from io_soulworker.file_import.import_failure import report_import_failure
 from io_soulworker.file_import.model.file_reader import ModelFileReader
-from bpy.props import BoolProperty, CollectionProperty, FloatProperty
+from bpy.props import (
+    BoolProperty,
+    CollectionProperty,
+    FloatProperty,
+    StringProperty,
+)
 
 from bpy.types import (
     Collection,
@@ -69,11 +75,18 @@ class FileImportRunner(Operator, ImportHelper):
         # selected files
         files: CollectionProperty(type=OperatorFileListElement)  # type: ignore
 
+        # the file browser lists only what this operator imports
+        filter_glob: StringProperty(
+            default="*.model;*.vmesh;*.anim",
+            options={"HIDDEN"},
+        )  # type: ignore
+
     else:
 
         is_create_collection: bool
         emission_strength: float
         files: list[OperatorFileListElement]
+        filter_glob: str
 
     def draw(self, context):
 
@@ -82,7 +95,7 @@ class FileImportRunner(Operator, ImportHelper):
         # this method Blender would also list every property here.
         pass
 
-    def create_collection(self, context: Context, name: str):
+    def create_collection(self, context: Context, name: str) -> Collection:
 
         def get_layer_collection(
                 layer_collection: LayerCollection,
@@ -118,38 +131,89 @@ class FileImportRunner(Operator, ImportHelper):
             collection
         )
 
+        return collection
+
     def execute(self, context: Context):
 
-        context.scene.render.engine = "BLENDER_EEVEE"
+        scene = context.scene
+        view_layer = context.view_layer
+        previous_engine = scene.render.engine
+        previous_collection = view_layer.active_layer_collection
+
+        scene.render.engine = "BLENDER_EEVEE"
 
         root = Path(self.properties.filepath)
+        names = [file.name for file in self.files] or [root.name]
+        collection = None
 
         if self.is_create_collection:
 
-            self.create_collection(context, root.parent.name)
+            collection = self.create_collection(context, root.parent.name)
 
-        for file in self.files:
+        imported = 0
 
-            path: Path = root.parent / file.name
-            ext = path.suffix.lower()
+        for name in names:
 
-            if not path.is_file() or ext not in self.AVAILABLE_EXTENSIONS:
+            path: Path = root.parent / name
+
+            if (
+                not path.is_file()
+                or path.suffix.lower() not in self.AVAILABLE_EXTENSIONS
+            ):
 
                 error("bad path, skipped: %s", path)
+                self.report(
+                    {"WARNING"},
+                    f"Skipped {name}: not a .model, .vmesh or .anim file",
+                )
                 continue
 
-            if ext == ".anim":
+            # One file that fails must not stop the ones after it.
+            try:
 
-                debug("import animation: %s", path)
-                AnimationFileReader(
-                    path,
-                    context,
-                    report_warning=lambda msg: self.report({'WARNING'}, msg),
-                ).run()
+                self._import_file(context, path)
 
-            elif ext == ".model" or ext == ".vmesh":
+            except Exception as failure:
 
-                debug("import model: %s", path)
-                ModelFileReader(path, context, self.emission_strength).run()
+                report_import_failure(self, path, failure)
+                continue
+
+            imported += 1
+
+        if imported == 0:
+
+            # Nothing came of it: give back what was changed beforehand.
+            scene.render.engine = previous_engine
+
+            if collection is not None:
+
+                view_layer.active_layer_collection = previous_collection
+                bpy.data.collections.remove(collection)
+
+            return {"CANCELLED"}
+
+        if imported < len(names):
+
+            self.report(
+                {"WARNING"},
+                f"Imported {imported} of {len(names)} files; "
+                "the others are listed as errors",
+            )
 
         return {"FINISHED"}
+
+    def _import_file(self, context: Context, path: Path) -> None:
+
+        if path.suffix.lower() == ".anim":
+
+            debug("import animation: %s", path)
+            AnimationFileReader(
+                path,
+                context,
+                report_warning=lambda msg: self.report({'WARNING'}, msg),
+            ).run()
+
+        else:
+
+            debug("import model: %s", path)
+            ModelFileReader(path, context, self.emission_strength).run()

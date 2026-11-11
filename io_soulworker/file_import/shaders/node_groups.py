@@ -3,14 +3,18 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from logging import debug, error, info, warning
+from math import copysign, inf, isfinite
 from pathlib import Path
+from struct import pack, unpack
 
 import bpy
 from bpy.types import Image, Material, Node, NodeTree, ShaderNodeGroup
 
 from io_soulworker.core.materials_xml.shader_param_string import (
+    ShaderParamString,
     format_param_float,
     paramstring_from_params,
+    paramstring_in_source_order,
 )
 from io_soulworker.core.materials_xml.shader_tag import ShaderTag
 from io_soulworker.core.shader_lib import (
@@ -160,6 +164,55 @@ def _parse_floats(raw: str) -> list[float]:
             return []
 
     return values
+
+
+def _matrix_rows_from_text(raw: str) -> list[list[float]]:
+    """The three components of each row of a ``float4x4`` value.
+
+    The fourth column is not kept: a row socket is a plain vector.
+    """
+
+    values = _parse_floats(raw)
+
+    return [
+        (values[start: start + 4] + [0.0, 0.0, 0.0])[:3]
+        for start in range(0, 16, 4)
+    ]
+
+
+def _socket_value_for_text(socket_id: str, raw: str):
+    """What a socket of type ``socket_id`` is set to for a paramstring value.
+
+    ``None`` when the text leaves the socket as it is. A colour socket cannot
+    hold a negative component, so the value is the one it ends up with.
+    """
+
+    values = _parse_floats(raw)
+
+    if "Float" in socket_id:
+
+        return values[0] if values else None
+
+    if "Int" in socket_id:
+
+        return int(values[0]) if values and isfinite(values[0]) else None
+
+    if "Vector" in socket_id:
+
+        return (values + [0.0, 0.0, 0.0])[:3]
+
+    if "Color" in socket_id:
+
+        if len(values) >= 4:
+            return [max(value, 0.0) for value in values[:4]]
+
+        if len(values) == 3:
+            return [*(max(value, 0.0) for value in values), 1.0]
+
+        if len(values) == 1:
+            return [max(values[0], 0.0)] * 3 + [1.0]
+
+    return None
 
 
 def _socket_type_for_param(param: ShaderParamComment) -> str | None:
@@ -676,34 +729,11 @@ def _set_input_value(
 
         return
 
-    values = _parse_floats(raw)
-    socket_id = socket.bl_idname
+    value = _socket_value_for_text(socket.bl_idname, raw)
 
-    if "Float" in socket_id:
+    if value is not None:
 
-        if values:
-            socket.default_value = values[0]
-        return
-
-    if "Int" in socket_id:
-
-        if values:
-            socket.default_value = int(values[0])
-        return
-
-    if "Vector" in socket_id:
-
-        socket.default_value = (values + [0.0, 0.0, 0.0])[:3]
-        return
-
-    if "Color" in socket_id:
-
-        if len(values) >= 4:
-            socket.default_value = values[:4]
-        elif len(values) == 3:
-            socket.default_value = [*values, 1.0]
-        elif len(values) == 1:
-            socket.default_value = [values[0], values[0], values[0], 1.0]
+        socket.default_value = value
 
 
 def arrange_material_nodes(node_tree: NodeTree) -> None:
@@ -795,12 +825,8 @@ def apply_shader_to_material(
 
         if param.value_type == "float4x4":
 
-            values = _parse_floats(raw)
+            for row_index, row in enumerate(_matrix_rows_from_text(raw)):
 
-            for row_index in range(4):
-
-                start = row_index * 4
-                row = (values[start: start + 4] + [0.0, 0.0, 0.0])[:3]
                 socket = group_node.inputs.get(f"{name}_r{row_index}")
 
                 if socket is not None:
@@ -830,31 +856,49 @@ def _components_from_socket(socket, count: int) -> list[float]:
     return (values + [0.0] * count)[:count]
 
 
-def _texture_value_from_nodes(
+def _texture_image(
         material_tree: NodeTree,
         group_node: Node,
-        param: ShaderParamComment,
-        resources_root: Path | None) -> str:
+        param: ShaderParamComment) -> tuple[bool, Image | None]:
+    """Whether a texture node feeds the parameter, and the image it holds."""
 
+    found = False
     socket = group_node.inputs.get(param.name)
 
     if socket is not None:
 
         for link in socket.links:
 
+            found = True
             image = getattr(link.from_node, "image", None)
 
             if image is not None and image.filepath:
 
-                return game_relative_texture_path(
-                    image.filepath,
-                    resources_root,
-                )
+                return found, image
 
     tex_node = material_tree.nodes.get(param.name)
-    image = getattr(tex_node, "image", None) if tex_node is not None else None
 
-    if image is not None and image.filepath:
+    if tex_node is not None:
+
+        found = True
+        image = getattr(tex_node, "image", None)
+
+        if image is not None and image.filepath:
+
+            return found, image
+
+    return found, None
+
+
+def _texture_value_from_nodes(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        resources_root: Path | None) -> str:
+
+    _, image = _texture_image(material_tree, group_node, param)
+
+    if image is not None:
 
         return game_relative_texture_path(image.filepath, resources_root)
 
@@ -929,13 +973,224 @@ def _param_value_from_nodes(
     return param.default
 
 
+def _float32(value: float) -> float:
+
+    try:
+
+        return unpack("f", pack("f", value))[0]
+
+    except OverflowError:
+
+        return copysign(inf, value)
+
+
+def _socket_holds_value(socket, expected) -> bool:
+    """Whether a socket has the value, as far as a float32 socket can tell."""
+
+    if isinstance(expected, (list, tuple)):
+
+        wanted = [float(component) for component in expected]
+
+    else:
+
+        wanted = [float(expected)]
+
+    actual = _components_from_socket(socket, len(wanted))
+
+    return all(
+        _float32(have) == _float32(want) or (have != have and want != want)
+        for have, want in zip(actual, wanted)
+    )
+
+
+def _resource_key(path: str) -> str:
+
+    return path.replace("\\", "/").strip().lstrip("/").lower()
+
+
+def _image_is_resource(
+        image: Image,
+        text: str,
+        resources_root: Path | None) -> bool:
+    """Whether the image is the file a paramstring value names."""
+
+    if _resource_key(text) == _resource_key(
+            game_relative_texture_path(image.filepath, resources_root)):
+
+        return True
+
+    wanted = (
+        resolve_resource_path(resources_root, text)
+        if resources_root is not None and text.strip() else None
+    )
+
+    if wanted is None:
+
+        return False
+
+    try:
+
+        return wanted.samefile(bpy.path.abspath(image.filepath))
+
+    except OSError:
+
+        return False
+
+
+def _texture_holds_text(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        text: str,
+        resources_root: Path | None) -> bool:
+    """Whether the texture nodes of a parameter are what ``text`` names.
+
+    A texture node without an image counts as holding any text: the file
+    could not be loaded when the material was imported.
+    """
+
+    found, image = _texture_image(material_tree, group_node, param)
+
+    if image is not None:
+
+        return _image_is_resource(image, text, resources_root)
+
+    return found or _resource_key(text) == _resource_key(param.default)
+
+
+def _inputs_hold_text(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        text: str,
+        resources_root: Path | None) -> bool:
+    """Whether the sockets of a parameter still have what ``text`` gives them.
+
+    That is the value the importer sets from the same text, which can differ
+    from the text itself: a ``float3`` colour read from four numbers keeps
+    its alpha in the socket only.
+    """
+
+    if param.value_type in _TEXTURE_TYPES:
+
+        return _texture_holds_text(
+            material_tree, group_node, param, text, resources_root)
+
+    if param.value_type == "float4x4":
+
+        for row_index, row in enumerate(_matrix_rows_from_text(text)):
+
+            socket = group_node.inputs.get(f"{param.name}_r{row_index}")
+
+            if socket is not None and not _socket_holds_value(socket, row):
+
+                return False
+
+        return True
+
+    socket = group_node.inputs.get(param.name)
+
+    if socket is None:
+
+        return True
+
+    expected = _socket_value_for_text(socket.bl_idname, text)
+
+    if expected is None:
+
+        expected = _default_for_socket(param, socket.bl_idname)
+
+    return expected is None or _socket_holds_value(socket, expected)
+
+
+def _inputs_hold_default(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        resources_root: Path | None) -> bool:
+    """Whether the sockets of a parameter still have the ShaderLib default."""
+
+    if param.value_type in _TEXTURE_TYPES:
+
+        return _texture_holds_text(
+            material_tree, group_node, param, param.default, resources_root)
+
+    for spec in _socket_specs(param):
+
+        socket = group_node.inputs.get(spec.name)
+
+        if (socket is not None and spec.default is not None
+                and not _socket_holds_value(socket, spec.default)):
+
+            return False
+
+    return True
+
+
+def _entry_text_from_nodes(
+        material_tree: NodeTree,
+        group_node: Node,
+        param: ShaderParamComment,
+        source_text: str | None,
+        resources_root: Path | None) -> str | None:
+    """Text for a parameter of a material that came with a paramstring.
+
+    ``None`` when the sockets still hold what the import made of
+    ``source_text`` (or the ShaderLib default, for a parameter the source did
+    not have): the source then speaks for the parameter, with its own text.
+    """
+
+    if source_text is None:
+
+        unchanged = _inputs_hold_default(
+            material_tree, group_node, param, resources_root)
+
+    else:
+
+        unchanged = _inputs_hold_text(
+            material_tree, group_node, param, source_text, resources_root)
+
+    if unchanged:
+
+        return None
+
+    return _param_value_from_nodes(
+        material_tree, group_node, param, resources_root)
+
+
+def _imported_paramstring(
+        material: Material,
+        library: str,
+        effect: str) -> ShaderParamString | None:
+    """The paramstring the material was imported with, if it is for this effect."""
+
+    raw = material.get("soulworker_shader_paramstring")
+
+    if raw is None or material.get("soulworker_shader_effect") != effect:
+
+        return None
+
+    imported_library = str(material.get("soulworker_shader_library", ""))
+
+    if imported_library.lower() != library.lower():
+
+        return None
+
+    return ShaderParamString(str(raw))
+
+
 def collect_shader_from_material(
         material: Material,
         resources_root: Path | None = None) -> tuple[str, str, str] | None:
     """Return ``(library_stem, effect, paramstring)`` from an EFFECT node group.
 
-    ``paramstring`` follows PARAMCOMMENT order from the ShaderLib metadata
-    stored on the node group.
+    A material made in Blender gets every PARAMCOMMENT parameter of the
+    ShaderLib metadata stored on the node group, in that order. A material
+    that was imported keeps the paramstring it came with: the same entries,
+    in the same order and with the same text. Only a parameter whose socket
+    the user changed takes the socket's value, and a parameter the source
+    lacks is added, after the others, only when its socket is no longer the
+    ShaderLib default.
     """
 
     node_tree = material.node_tree
@@ -969,20 +1224,36 @@ def collect_shader_from_material(
 
             continue
 
-        values = {
-            param.name: _param_value_from_nodes(
-                node_tree,
-                node,
-                param,
-                resources_root,
-            )
-            for param in params
-        }
+        root = resources_root
 
-        return (
-            str(library),
-            str(effect),
-            paramstring_from_params(params, values),
-        )
+        if root is None and material.get("soulworker_resources_root"):
+
+            root = Path(str(material["soulworker_resources_root"]))
+
+        imported = _imported_paramstring(material, str(library), str(effect))
+
+        if imported is not None:
+
+            paramstring = paramstring_in_source_order(
+                imported,
+                params,
+                lambda param, text: _entry_text_from_nodes(
+                    node_tree, node, param, text, root),
+            )
+
+        else:
+
+            values = {
+                param.name: _param_value_from_nodes(
+                    node_tree,
+                    node,
+                    param,
+                    root,
+                )
+                for param in params
+            }
+            paramstring = paramstring_from_params(params, values)
+
+        return str(library), str(effect), paramstring
 
     return None
