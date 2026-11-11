@@ -27,6 +27,10 @@ from io_soulworker.file_import.animation.chunk_reader import AnimationFileChunkR
 from io_soulworker.unit_scale import vision_to_blender
 
 
+ACTION_SOURCE_PROPERTY = "soulworker_source_file"
+"""Custom property that marks an action as imported from this ``.anim`` path."""
+
+
 @dataclass(frozen=True)
 class SkeletonBoneRef:
     name: str
@@ -373,12 +377,18 @@ class AnimationFileReader(AnimationFileChunkReader):
         return f"{base}@{armature_name}"
 
     def _create_action(self, name: str) -> Action:
+        source = str(self.path)
         existing = bpy.data.actions.get(name)
 
-        if existing is not None:
+        # A second import of the same file replaces its own actions. An
+        # action the user made or another file produced keeps its name, and
+        # Blender gives the new one a numbered name.
+        if existing is not None and existing.get(
+                ACTION_SOURCE_PROPERTY) == source:
             bpy.data.actions.remove(existing)
 
         action = bpy.data.actions.new(name)
+        action[ACTION_SOURCE_PROPERTY] = source
 
         # Only the last clip of a file stays assigned to the armature. The
         # others have no user, and Blender drops those when the file is saved.

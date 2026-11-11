@@ -128,3 +128,36 @@ class TestAnimationImport(TestCase):
         self._import_sequences(Path("Test.anim"), ["Idle"], messages.append)
 
         self.assertEqual(messages, [])
+
+    def test_import_replaces_only_actions_it_created_from_the_same_file(
+            self) -> None:
+        import bpy
+
+        own = bpy.data.actions.new("Test:Idle")
+        own["note"] = "made by hand"
+
+        self._import_sequences(Path("Test.anim"), ["Idle", "Run"])
+
+        self.assertEqual(bpy.data.actions["Test:Idle"]["note"], "made by hand")
+        imported_idle = [
+            action for action in bpy.data.actions
+            if action.name.startswith("Test:Idle") and "note" not in action
+        ]
+        self.assertEqual(len(imported_idle), 1)
+        self.assertNotEqual(imported_idle[0].name, "Test:Idle")
+
+        bpy.data.actions["Test:Run"]["stale"] = True
+        names = sorted(action.name for action in bpy.data.actions)
+
+        self._import_sequences(Path("Test.anim"), ["Run"])
+
+        self.assertEqual(
+            sorted(action.name for action in bpy.data.actions), names)
+        self.assertNotIn("stale", bpy.data.actions["Test:Run"])
+
+        bpy.data.actions["Test:Run"]["stale"] = True
+
+        self._import_sequences(Path("elsewhere/Test.anim"), ["Run"])
+
+        self.assertIn("stale", bpy.data.actions["Test:Run"])
+        self.assertEqual(len(bpy.data.actions), len(names) + 1)
