@@ -4,25 +4,44 @@ on:
   push:
     branches: ["main"]
 
+permissions:
+  contents: write
+
+concurrency:
+  group: stable-deploy
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: stable
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v7
 
       - name: Install Zip utility
-        run: sudo apt install zip -y
+        run: sudo apt-get install --yes zip
 
       - name: Make archive
-        run: zip -r io_soulworker io_soulworker
+        run: zip -r -q io_soulworker.zip io_soulworker -x "*/__pycache__/*"
 
+      # Replaces the previous release: the release and its tag are recreated
+      # on the commit that was just pushed.
       - name: Deploy
-        uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          title: "Stable Relase"
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          files: io_soulworker.zip
-          automatic_release_tag: "stable"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${RELEASE_TAG}" > /dev/null 2>&1; then
+            gh release delete "${RELEASE_TAG}" --yes --cleanup-tag
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" > /dev/null 2>&1; then
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${RELEASE_TAG}"
+          fi
+          gh release create "${RELEASE_TAG}" io_soulworker.zip \
+            --target "${GITHUB_SHA}" \
+            --title "Stable Release" \
+            --notes "Automatic build of the main branch at ${GITHUB_SHA}." \
+            --latest

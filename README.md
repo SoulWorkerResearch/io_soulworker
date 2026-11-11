@@ -30,6 +30,8 @@
 
 ## ✨ Installing
 
+Requires Blender 5.0 or newer.
+
 - Download io_soulworker.zip from **releases** page;
 - ???;
 - Profit!
@@ -40,13 +42,29 @@
 
 ## 🚀 How to use
 
-File *(top menu)* -> Import *(menu item)* -> SoulWorker *(menu button)*.
+#### 🚚 Import
+
+File *(top menu)* -> Import *(menu item)* -> SoulWorker *(menu button)* - select `.model`, `.vmesh` and `.anim` files.
 
 **OR**
 
-Press N *(keyboard button)* -> SoulWorker *(tab)*:
-  - Unpacked Resources *(input box)* - select the root folder containing the extracted game resources.
-  - Open Resource *(button)* - select the resource you want to import.
+Press N *(keyboard button)* -> SoulWorker *(tab)* -> Import *(panel)*:
+  - Resources *(input box)* - select the root folder containing the extracted game resources.
+  - Open Model *(button)* - select the `.model` or `.vmesh` you want to import.
+  - Open Scene *(button)* - select the `.vscene` you want to import (scenes can only be opened from here).
+
+#### 🚛 Export
+
+Select the mesh object first. For a dynamic mesh the armature it is bound to is exported together with it.
+
+File *(top menu)* -> Export *(menu item)* -> SoulWorker Static Mesh (.vmesh) **or** SoulWorker Dynamic Mesh (.model) *(menu button)*.
+
+**OR**
+
+Press N *(keyboard button)* -> SoulWorker *(tab)* -> Export *(panel)* -> Static Mesh (.vmesh) **or** Dynamic Mesh (.model) *(button)*.
+
+Next to the exported file the add-on writes a `<file name>_data` folder (for example `Cube.model_data`) with `materials.xml` and `resources.xml`.
+If Resources is set, texture paths inside that folder are written relative to it in those files.
 
 ## 😏 Features
 
@@ -60,8 +78,25 @@ Press N *(keyboard button)* -> SoulWorker *(tab)*:
 
 #### 🚛 Export
 
-- [x] Static mesh (not tested)
-- [ ] Dynamic Mesh
+- [x] Static mesh (not tested in the game)
+- [x] Dynamic Mesh
+- [x] Materials (`materials.xml` and `resources.xml` next to the exported file)
 - [ ] Scene
-- [ ] Materials
 - [ ] Animation
+
+## 🛠️ Development
+
+The add-on needs the real `bpy`, so the tests run inside Blender. `uv sync` only installs `fake-bpy-module` for editor autocompletion, and `python -m unittest` cannot run the suite.
+
+```bash
+git lfs pull   # the test fixtures are stored in Git LFS
+blender --background --factory-startup --python tests/run_in_blender.py
+```
+
+Put `-- -v tests.test_mesh_export` after the command to run only the modules you name.
+The same command runs in GitHub Actions (Blender 5.0.1) on every push and pull request.
+
+- The code runs on the Python bundled with Blender (3.11 in Blender 5.0), so do not use syntax newer than that.
+- Tests that need the unpacked game resources skip themselves when the folder is missing. Set `SOULWORKER_RESOURCES` to the root of your unpacked game to run them.
+- `SOULWORKER_BLENDER_IMPORT=1` also imports every model inside Blender in the full-tree tests (slow).
+- `SOULWORKER_DEBUG=1` makes the add-on log at DEBUG level; by default it logs at INFO.
