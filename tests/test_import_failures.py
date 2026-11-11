@@ -10,6 +10,7 @@ from unittest.mock import patch
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
+from io_soulworker import viewport_resources_panel
 from io_soulworker.chunks.skel_chunk import (
     VisSkeletalBone_cl,
     VisSkeletonChunk_cl,
@@ -22,7 +23,12 @@ from io_soulworker.file_import.model.file_reader import (
     mesh_cache_key,
 )
 from io_soulworker.file_import.resource_path import load_blender_image
-from io_soulworker.file_import.runner import in_blender
+from io_soulworker.file_import.runner import FileImportRunner, in_blender
+from io_soulworker.viewport_resources_panel import (
+    IO_SOULWORKER_OT_open_resource,
+    register_unpack_resources_props,
+    unregister_unpack_resources_props,
+)
 
 
 _BLENDER_HINT = (
@@ -33,6 +39,8 @@ _BLENDER_HINT = (
 _BOX = Path("tests/datas/Models/Primitive_Box.model").resolve()
 _OTHER_BOX = Path("tests/datas/Models/Primitive_Cylinder.model").resolve()
 _BALL = Path("tests/datas/Models/MagicBall.model").resolve()
+_BROKEN_LENGTH = 12600 + 40
+"""The ball cut 40 bytes into its surface chunk, after the mesh was read."""
 
 
 def _chunk_ranges(data: bytes) -> dict[str, tuple[int, int]]:
@@ -419,3 +427,178 @@ class TestFailedModelImport(TestCase):
         self.assertEqual(_inventory(), before)
         self.assertEqual(bpy.context.mode, "OBJECT")
         self.assertIn(survivor.name, bpy.context.scene.objects)
+
+
+class TestImportOperators(TestCase):
+    """The operators report a file that fails and carry on with the rest."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+
+        if not in_blender():
+
+            raise SkipTest(_BLENDER_HINT)
+
+    def setUp(self) -> None:
+
+        clear_mesh_cache()
+
+        patcher = patch.object(
+            viewport_resources_panel, "sync_shader_node_groups",
+            return_value=0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        register_unpack_resources_props()
+
+    def tearDown(self) -> None:
+
+        unregister_unpack_resources_props()
+        clear_mesh_cache()
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+
+    def _run(self, operator, **arguments) -> tuple[set[str], list[str]]:
+        """Run ``operator``; return its result and the errors it reported.
+
+        Blender hands the errors an operator reported to the script that called
+        it, as one ``RuntimeError``.
+        """
+
+        returned = []
+
+        class Run(operator):
+
+            def execute(self, context):
+
+                returned.append(super().execute(context))
+
+                return returned[-1]
+
+        module, name = operator.bl_idname.split(".")
+        errors: list[str] = []
+
+        bpy.utils.register_class(Run)
+
+        try:
+
+            getattr(getattr(bpy.ops, module), name)(**arguments)
+
+        except RuntimeError as exc:
+
+            errors = [
+                line.removeprefix("Error: ")
+                for line in str(exc).splitlines()
+                if line.startswith("Error: ")
+            ]
+
+        finally:
+
+            bpy.utils.unregister_class(Run)
+
+        return returned[0], errors
+
+    def _import_files(self, folder: str, *names: str, **options):
+
+        return self._run(
+            FileImportRunner,
+            filepath=str(Path(folder) / names[0]),
+            files=[{"name": name} for name in names],
+            **options,
+        )
+
+    def _write_good_and_broken(self, folder: str) -> None:
+        """Two good models, and one with its end cut off, in ``folder``."""
+
+        copyfile(_BOX, Path(folder) / "First.model")
+        copyfile(_OTHER_BOX, Path(folder) / "Last.model")
+        (Path(folder) / "Broken.model").write_bytes(
+            _BALL.read_bytes()[:_BROKEN_LENGTH])
+
+    def test_one_bad_file_does_not_stop_a_multi_file_import(self):
+
+        with TemporaryDirectory() as folder:
+
+            self._write_good_and_broken(folder)
+
+            result, errors = self._import_files(
+                folder, "First.model", "Broken.model", "Last.model")
+
+        self.assertEqual(result, {"FINISHED"})
+        self.assertEqual(
+            sorted(item.name for item in bpy.context.scene.objects),
+            ["First", "Last"])
+        self.assertEqual(len(bpy.data.objects), 2)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Broken.model", errors[0])
+
+    def test_nothing_imported_cancels_and_changes_nothing(self):
+
+        bpy.context.scene.render.engine = "CYCLES"
+
+        with TemporaryDirectory() as folder:
+
+            self._write_good_and_broken(folder)
+            before = _inventory()
+
+            result, errors = self._import_files(
+                folder, "Broken.model", is_create_collection=True)
+
+        self.assertEqual(result, {"CANCELLED"})
+        self.assertEqual(_inventory(), before)
+        self.assertEqual(bpy.context.scene.render.engine, "CYCLES")
+        self.assertEqual(len(errors), 1)
+
+    def test_the_message_names_the_file_and_what_is_wrong(self):
+
+        data = _BOX.read_bytes()
+        start, _ = _chunk_ranges(data)["MTRS"]
+        corrupt = bytearray(data)
+        pack_into("<i", corrupt, start + 4 + 4, 0x12345678)
+
+        variants = {
+            "Cut.model": (data[:start + 20], "ends early"),
+            "Foreign.model": (b"RIFF" + bytes(64), "VBIN"),
+            "Foreign.anim": (b"RIFF" + bytes(64), "VBIN"),
+            "Corrupt.model": (
+                bytes(corrupt), "unsupported or corrupt MTRS chunk"),
+        }
+
+        with TemporaryDirectory() as folder:
+
+            for name, (content, wording) in variants.items():
+
+                (Path(folder) / name).write_bytes(content)
+
+                with self.subTest(name):
+
+                    _, errors = self._import_files(folder, name)
+
+                    self.assertEqual(len(errors), 1)
+                    self.assertIn(name, errors[0])
+                    self.assertIn(wording, errors[0])
+                    self.assertNotIn("Traceback", errors[0])
+
+    def test_open_resource_leaves_no_collections_after_a_failure(self):
+
+        bpy.context.scene.render.engine = "CYCLES"
+        root = Path("tests/datas").resolve()
+        bpy.context.scene.soulworker_unpack_resources = str(root)
+        previous = bpy.context.view_layer.active_layer_collection
+
+        with TemporaryDirectory(dir=root) as folder:
+
+            # Below the resources root, so the collections are made first.
+            path = Path(folder) / "Broken.model"
+            path.write_bytes(_BALL.read_bytes()[:_BROKEN_LENGTH])
+            before = _inventory()
+
+            result, errors = self._run(
+                IO_SOULWORKER_OT_open_resource, filepath=str(path))
+
+        self.assertEqual(result, {"CANCELLED"})
+        self.assertEqual(_inventory(), before)
+        self.assertEqual(bpy.context.view_layer.active_layer_collection,
+                         previous)
+        self.assertEqual(bpy.context.scene.render.engine, "CYCLES")
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Broken.model", errors[0])

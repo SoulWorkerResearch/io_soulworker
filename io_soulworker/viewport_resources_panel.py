@@ -22,6 +22,8 @@ from io_soulworker.file_import.collections import (
     leaf_collection_color_tag,
     set_active_collection,
 )
+from io_soulworker.file_import.import_failure import report_import_failure
+from io_soulworker.file_import.import_rollback import DataSnapshot
 from io_soulworker.file_import.model.file_reader import ModelFileReader
 from io_soulworker.file_import.runner import in_blender
 from io_soulworker.file_import.scene.importer import SceneImporter
@@ -85,16 +87,22 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
 
     def execute(self, context: Context):
 
-        context.scene.render.engine = "BLENDER_EEVEE"
+        scene = context.scene
+        previous_engine = scene.render.engine
+
+        scene.render.engine = "BLENDER_EEVEE"
 
         path = Path(self.filepath)
 
         ext = path.suffix.lower()
         if not path.is_file() or ext not in {".model", ".vmesh"}:
 
+            scene.render.engine = previous_engine
             error("not a .model/.vmesh file: %s", path)
             self.report({"ERROR"}, "A .model or .vmesh file is required")
             return {"CANCELLED"}
+
+        collections = DataSnapshot(context, ("collections",))
 
         segments = collection_segments_under_resources(
             context.scene.soulworker_unpack_resources,
@@ -117,13 +125,24 @@ class IO_SOULWORKER_OT_open_resource(Operator, ImportHelper):
                 "The file is not inside the specified resources folder; no collection hierarchy was created",
             )
 
-        ModelFileReader(
-            path,
-            context,
-            7.0,
-            collection=collection,
-            resources_root=_resources_root(context),
-        ).run()
+        try:
+
+            ModelFileReader(
+                path,
+                context,
+                7.0,
+                collection=collection,
+                resources_root=_resources_root(context),
+            ).run()
+
+        except Exception as failure:
+
+            # Leave the file as it was: no collections of this import, and
+            # the render engine and the active collection as they were.
+            collections.discard(collections.created())
+            scene.render.engine = previous_engine
+            report_import_failure(self, path, failure)
+            return {"CANCELLED"}
 
         anim_path = path.with_suffix(".anim")
         if anim_path.is_file():
