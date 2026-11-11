@@ -5,7 +5,6 @@ from logging import error, info, warning
 from math import radians
 from pathlib import Path
 
-import bpy
 from bpy.types import ArmatureModifier, Collection, Context, Object
 from mathutils import Matrix
 
@@ -14,6 +13,11 @@ from io_soulworker.core.varchive.shapes import read_zone_file
 from io_soulworker.file_import.animation.file_reader import (
     AnimationFileReader,
     AnimationImportSource,
+)
+from io_soulworker.file_import.animation.imported_actions import (
+    ACTION_SEQUENCE_PROPERTY,
+    assign_action,
+    imported_actions,
 )
 from io_soulworker.file_import.collections import (
     collection_segments_under_resources,
@@ -375,7 +379,7 @@ class SceneImporter:
             if entity.preferred_animation:
                 self._apply_preferred_action(
                     mesh_object,
-                    resolved_anim.stem,
+                    resolved_anim,
                     entity.preferred_animation,
                 )
 
@@ -390,11 +394,15 @@ class SceneImporter:
     def _apply_preferred_action(
         self,
         mesh_object: Object,
-        anim_stem: str,
+        anim_path: Path,
         preferred: str,
     ) -> None:
+        """Play the entity's preferred sequence of ``anim_path``.
 
-        action_name = f"{anim_stem}:{preferred}"
+        Only actions this entity's armature got from that file are considered,
+        so an action of the same name made by hand is never picked.
+        """
+
         armature = None
 
         for modifier in mesh_object.modifiers:
@@ -410,36 +418,35 @@ class SceneImporter:
             )
             return
 
-        action = bpy.data.actions.get(action_name)
+        candidates = imported_actions(armature, str(anim_path))
+        matching = [
+            candidate for candidate in candidates
+            if candidate.get(ACTION_SEQUENCE_PROPERTY) == preferred
+        ]
 
-        if action is None:
+        if matching:
+            action = matching[0]
+        elif len(candidates) == 1:
             # Scene entities sometimes name a sequence the clip does not have
             # (Roccotown's cats ask for "idle" but cat01.anim only has "zzz").
             # When the clip offers exactly one sequence, play that instead.
-            prefix = f"{anim_stem}:"
-            candidates = [
-                candidate for candidate in bpy.data.actions
-                if candidate.name.startswith(prefix)
-            ]
+            action = candidates[0]
+            info(
+                "Preferred animation %s missing for %s; using %s",
+                preferred,
+                mesh_object.name,
+                action.name,
+            )
+        else:
+            warning(
+                "Preferred animation %s not found in %s for %s",
+                preferred,
+                anim_path.name,
+                mesh_object.name,
+            )
+            return
 
-            if len(candidates) == 1:
-                action = candidates[0]
-                info(
-                    "Preferred animation %s missing for %s; using %s",
-                    action_name,
-                    mesh_object.name,
-                    action.name,
-                )
-            else:
-                warning(
-                    "Preferred animation action %s not found for %s",
-                    action_name,
-                    mesh_object.name,
-                )
-                return
-
-        animation_data = armature.animation_data_create()
-        animation_data.action = action
+        assign_action(armature, action)
 
     def _prepare_zones_collection(self) -> Collection:
 

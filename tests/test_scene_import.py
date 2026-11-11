@@ -197,3 +197,51 @@ class TestSceneEntityAnimation(TestCase):
         self.assertFalse(any("." in name.rsplit(":", 1)[-1] for name in names))
         self.assertGreater(self._arm_travel(second_rig), 1e-4)
         self.assertGreater(self._arm_travel(first_rig), 1e-4)
+
+    def test_preferred_action_is_picked_among_the_imported_ones_only(
+            self) -> None:
+        import bpy
+        from io_soulworker.file_import.scene.importer import SceneImporter
+
+        by_hand = bpy.data.actions.new("Test:Run")
+        entity, rig = self._entity("First")
+        self._import(entity, ["Idle", "Run"])
+        importer = SceneImporter.__new__(SceneImporter)
+
+        importer._apply_preferred_action(entity, self.ANIM, "Run")
+
+        self.assertNotEqual(rig.animation_data.action, by_hand)
+        self.assertEqual(rig.animation_data.action["soulworker_sequence"], "Run")
+
+        importer._apply_preferred_action(entity, self.ANIM, "Idle")
+
+        self.assertEqual(rig.animation_data.action["soulworker_sequence"], "Idle")
+
+    def test_preferred_action_falls_back_to_the_only_imported_sequence(
+            self) -> None:
+        import bpy
+        from io_soulworker.file_import.scene.importer import SceneImporter
+
+        by_hand = bpy.data.actions.new("Test:Walk")
+        entity, rig = self._entity("First")
+        self._import(entity, ["Idle"])
+        importer = SceneImporter.__new__(SceneImporter)
+
+        importer._apply_preferred_action(entity, self.ANIM, "Walk")
+
+        self.assertNotEqual(rig.animation_data.action, by_hand)
+        self.assertEqual(rig.animation_data.action["soulworker_sequence"], "Idle")
+
+    def test_preferred_action_of_an_entity_with_shared_actions(self) -> None:
+        from io_soulworker.file_import.scene.importer import SceneImporter
+
+        first, first_rig = self._entity("First")
+        second, second_rig = self._entity("Second")
+        self._import(first, ["Idle", "Run"])
+        self._reader(second, reuse=True)._reuse_imported_actions()
+        importer = SceneImporter.__new__(SceneImporter)
+
+        importer._apply_preferred_action(second, self.ANIM, "Idle")
+
+        self.assertEqual(second_rig.animation_data.action.name, "Test:Idle")
+        self.assertEqual(first_rig.animation_data.action.name, "Test:Run")
